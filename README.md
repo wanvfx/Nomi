@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="apps/web/public/nomi-logo.svg" alt="Nomi" width="80" />
+  <img src="public/nomi-logo.svg" alt="Nomi" width="80" />
 </p>
 
 <h1 align="center">Nomi</h1>
@@ -128,22 +128,20 @@ Model        : deepseek-chat
 <details>
 <summary>展开查看完整开发者指南</summary>
 
-需要 **Node.js 20+**。桌面版内置 SQLite，无需 Docker。
+需要 **Node.js 20+**，无需 Docker，无需数据库。
 
 ```bash
 git clone https://github.com/aqm857886159/Nomi.git
 cd Nomi
-corepack enable && pnpm install && pnpm dev:desktop
+corepack enable && pnpm install && pnpm dev
 ```
 
 ### 项目结构
 
 ```
-apps/desktop      桌面端（Electron，双击即用，内置 SQLite）
-apps/web          Web 工作台（React + Vite）
-apps/backend      本地 API（Hono + Prisma）
-apps/agents       终端 Agent
-packages/schemas  共享协议
+electron/    Electron 主进程 + 本地运行时（文件存储、模型调用）
+src/         前端工作台（React + Vite + Tailwind）
+apps/agents  终端 Agent CLI
 ```
 
 
