@@ -8,6 +8,21 @@ export type DesktopAssetDto = {
   data: Record<string, unknown>
 }
 
+export type DesktopMp4ExportStartPayload = {
+  projectId: string
+  webmBytes: ArrayBuffer
+  outputName?: string
+  resolution?: '720p' | '1080p'
+  quality?: 'small' | 'standard' | 'high'
+  fps?: number
+}
+
+export type DesktopMp4ExportResult = {
+  absolutePath: string
+  relativePath: string
+  size: number
+}
+
 export type DesktopBridge = {
   platform: string
   projects: {
@@ -38,6 +53,9 @@ export type DesktopBridge = {
       bytes: ArrayBuffer
       kind?: string
     }) => Promise<DesktopAssetDto>
+  }
+  exports: {
+    start: (payload: DesktopMp4ExportStartPayload) => Promise<DesktopMp4ExportResult>
   }
   tasks: {
     run: (payload: unknown) => Promise<unknown>

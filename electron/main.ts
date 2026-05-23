@@ -24,6 +24,7 @@ import {
   runAgentChat,
   runTask,
   saveProject,
+  startTimelineMp4Export,
   testModelCatalogMapping,
   upsertModelCatalogMapping,
   upsertModelCatalogModel,
@@ -179,6 +180,7 @@ function registerIpc(): void {
   ipcMain.handle("nomi:assets:import-remote-url", (_event, payload) => importRemoteAsset(payload));
   ipcMain.handle("nomi:assets:import-file", (_event, payload) => importLocalFile(payload));
   ipcMain.handle("nomi:assets:list", (_event, payload) => listProjectAssets(payload));
+  ipcMain.handle("nomi:exports:start", (_event, payload) => startTimelineMp4Export(payload));
   ipcMain.handle("nomi:tasks:run", (_event, payload) => runTask(payload));
   ipcMain.handle("nomi:tasks:result", (_event, payload) => fetchTaskResult(payload));
   ipcMain.handle("nomi:agents:chat", (_event, payload) => runAgentChat(payload));

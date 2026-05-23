@@ -18,6 +18,7 @@ export type TimelineWebmExportOptions = {
   width?: number
   background?: string
   mimeType?: string
+  autoDownload?: boolean
   onProgress?: (progress: TimelineExportProgress) => void
 }
 
@@ -357,6 +358,8 @@ export async function exportTimelineToWebm(options: TimelineWebmExportOptions): 
   const now = new Date()
   const pad = (n: number) => String(n).padStart(2, '0')
   const filename = `nomi-${now.getFullYear()}${pad(now.getMonth()+1)}${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}.webm`
-  downloadBlob(blob, filename)
+  if (options.autoDownload !== false) {
+    downloadBlob(blob, filename)
+  }
   return blob
 }

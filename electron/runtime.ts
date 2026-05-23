@@ -4,6 +4,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { generateText } from "ai";
 import { buildAiSdkModel } from "./ai/buildAiSdkModel";
+import { transcodeWebmToMp4 } from "./export/ffmpegRunner";
 
 type JsonRecord = Record<string, unknown>;
 
@@ -109,6 +110,15 @@ type TaskRequest = {
   steps?: number;
   cfgScale?: number;
   extras?: Record<string, unknown>;
+};
+
+type TimelineMp4ExportRequest = {
+  projectId?: string;
+  webmBytes?: ArrayBuffer | Uint8Array | number[];
+  outputName?: string;
+  resolution?: "720p" | "1080p";
+  quality?: "small" | "standard" | "high";
+  fps?: number;
 };
 
 type TaskResult = {
@@ -445,6 +455,30 @@ export function resolveProjectRelativePath(projectId: string, relativePath: stri
     throw new Error("Path escapes project root");
   }
   return resolved;
+}
+
+function bufferFromExportBytes(input: TimelineMp4ExportRequest["webmBytes"]): Buffer {
+  if (input instanceof ArrayBuffer) return Buffer.from(input);
+  if (ArrayBuffer.isView(input)) return Buffer.from(input.buffer, input.byteOffset, input.byteLength);
+  if (Array.isArray(input)) return Buffer.from(input);
+  throw new Error("导出失败：缺少 WebM 输入数据");
+}
+
+export async function startTimelineMp4Export(payload: unknown): Promise<unknown> {
+  const raw = (payload || {}) as TimelineMp4ExportRequest;
+  const projectId = String(raw.projectId || "").trim();
+  if (!projectId) throw new Error("导出失败：缺少项目 ID");
+  const projectDir = projectDirById(projectId);
+  if (!projectDir) throw new Error("导出失败：Project not found");
+  ensureProjectFolders(projectDir);
+  return transcodeWebmToMp4({
+    projectDir,
+    inputBytes: bufferFromExportBytes(raw.webmBytes),
+    outputName: raw.outputName || "nomi-export",
+    resolution: raw.resolution || "1080p",
+    quality: raw.quality || "standard",
+    fps: raw.fps || 30,
+  });
 }
 
 function catalogPath(): string {

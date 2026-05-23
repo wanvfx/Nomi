@@ -6,7 +6,7 @@ import { useWorkbenchStore } from '../workbenchStore'
 import type { TimelineClip, TimelineState } from '../timeline/timelineTypes'
 import type { PreviewAspectRatio } from '../workbenchTypes'
 import { resolveVideoClipMediaTimeSeconds } from '../player/timelinePlayback'
-import { exportTimelineToWebm, type ExportStatus } from '../export/timelineWebmExport'
+import { exportTimelineToMp4, type ExportTimelineToMp4Options } from '../export/exportApi'
 import { toast } from '../../ui/toast'
 import { buildVideoPlaybackUrl } from '../../media/videoPlaybackUrl'
 import { diagnoseVideoPlaybackFailure, logVideoPlaybackFailure } from '../../media/videoPlaybackDiagnostics'
@@ -19,6 +19,8 @@ type TimelinePreviewProps = {
   playheadFrame: number
   timeline: TimelineState
 }
+
+type PreviewExportStatus = 'idle' | 'preparing' | 'recording' | 'converting' | 'done' | 'error'
 
 function findClip(activeClips: TimelineClip[], type: TimelineClip['type']): TimelineClip | null {
   return activeClips.find((clip) => clip.type === type) || null
@@ -88,7 +90,7 @@ export default function TimelinePreview({ activeClips, aspectRatio, fps, playhea
   const [mediaOffset, setMediaOffset] = React.useState({ x: 0, y: 0 })
   const [fitMode, setFitMode] = React.useState<PreviewFitMode>('contain')
   const [safeAreaVisible, setSafeAreaVisible] = React.useState(false)
-  const [exportStatus, setExportStatus] = React.useState<ExportStatus>('idle')
+  const [exportStatus, setExportStatus] = React.useState<PreviewExportStatus>('idle')
   const [exportRatio, setExportRatio] = React.useState(0)
   const [playbackError, setPlaybackError] = React.useState('')
   const setPreviewAspectRatio = useWorkbenchStore((state) => state.setPreviewAspectRatio)
@@ -188,23 +190,25 @@ export default function TimelinePreview({ activeClips, aspectRatio, fps, playhea
   }, [])
 
   const handleExport = React.useCallback(async () => {
-    if (exportStatus === 'preparing' || exportStatus === 'recording') return
+    if (exportStatus === 'preparing' || exportStatus === 'recording' || exportStatus === 'converting') return
     const hasVideoClips = timeline.tracks.some(t => t.clips.some(c => c.type === 'video'))
     if (hasVideoClips) {
-      toast('注意：导出 WebM 不包含音频轨道', 'info')
+      toast('注意：基础 MP4 导出暂不包含音频轨道', 'info')
     }
     try {
       setExportStatus('preparing')
       setExportRatio(0)
-      await exportTimelineToWebm({
+      const result = await exportTimelineToMp4({
         timeline,
         aspectRatio,
-        onProgress: (progress) => {
+        resolution: '1080p',
+        quality: 'standard',
+        onProgress: (progress: Parameters<NonNullable<ExportTimelineToMp4Options['onProgress']>>[0]) => {
           setExportStatus(progress.status)
           setExportRatio(progress.ratio)
         },
       })
-      toast('导出完成，文件已下载', 'success')
+      toast(`已导出到项目 exports 文件夹：${result.relativePath}`, 'success')
       setExportStatus('idle')
     } catch (error) {
       setExportStatus('idle')
@@ -413,7 +417,7 @@ export default function TimelinePreview({ activeClips, aspectRatio, fps, playhea
             'workbench-preview-player__control-separator',
             'w-px h-5 bg-[var(--workbench-border-soft)]',
           )} aria-hidden="true" />
-          {(exportStatus === 'preparing' || exportStatus === 'recording') ? (
+          {(exportStatus === 'preparing' || exportStatus === 'recording' || exportStatus === 'converting') ? (
             <div className={cn(
               'workbench-preview-player__export-progress',
               'flex items-center gap-2 px-2',
@@ -434,17 +438,17 @@ export default function TimelinePreview({ activeClips, aspectRatio, fps, playhea
                 'workbench-preview-player__export-progress-label',
                 'text-xs text-white/70 whitespace-nowrap',
               )}>
-                {exportStatus === 'preparing' ? '准备中…' : `导出中 ${Math.round(exportRatio * 100)}%`}
+                {exportStatus === 'preparing' ? '准备中…' : exportStatus === 'converting' ? '转码 MP4…' : `导出中 ${Math.round(exportRatio * 100)}%`}
               </span>
             </div>
           ) : null}
           <WorkbenchIconButton
             className={cn('workbench-preview-player__icon-button', 'w-6 h-6 inline-grid place-items-center p-0 border border-transparent rounded-full bg-transparent text-[var(--workbench-muted)] cursor-pointer hover:bg-[var(--workbench-hover)] hover:text-[var(--workbench-ink)]')}
-            label="导出 WebM"
+            label="导出 MP4"
             onClick={handleExport}
-            disabled={exportStatus === 'preparing' || exportStatus === 'recording'}
-            title={exportStatus === 'recording' ? `导出中 ${Math.round(exportRatio * 100)}%` : '导出 WebM'}
-            icon={exportStatus === 'preparing' || exportStatus === 'recording' ? <NomiLoadingMark size={16} className={cn('workbench-preview-player__spinner', 'animate-spin')} /> : <IconDownload size={16} />}
+            disabled={exportStatus === 'preparing' || exportStatus === 'recording' || exportStatus === 'converting' || isEmpty}
+            title={exportStatus === 'recording' ? `导出中 ${Math.round(exportRatio * 100)}%` : exportStatus === 'converting' ? '正在转码 MP4' : isEmpty ? '时间轴为空，先添加素材' : '导出 MP4'}
+            icon={exportStatus === 'preparing' || exportStatus === 'recording' || exportStatus === 'converting' ? <NomiLoadingMark size={16} className={cn('workbench-preview-player__spinner', 'animate-spin')} /> : <IconDownload size={16} />}
           />
           <WorkbenchButton
             className={cn(
