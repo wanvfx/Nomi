@@ -7,6 +7,7 @@ import type { TimelineClip, TimelineState } from '../timeline/timelineTypes'
 import type { PreviewAspectRatio } from '../workbenchTypes'
 import { resolveVideoClipMediaTimeSeconds } from '../player/timelinePlayback'
 import { exportTimelineToMp4, type ExportTimelineToMp4Options } from '../export/exportApi'
+import { buildMp4ExportButtonTitle } from '../export/exportCopy'
 import { toast } from '../../ui/toast'
 import { buildVideoPlaybackUrl } from '../../media/videoPlaybackUrl'
 import { diagnoseVideoPlaybackFailure, logVideoPlaybackFailure } from '../../media/videoPlaybackDiagnostics'
@@ -109,6 +110,16 @@ export default function TimelinePreview({ activeClips, aspectRatio, fps, playhea
   const totalFrames = computeTimelineDuration(timeline)
   const currentSeconds = (playheadFrame / (timeline.fps || 30)).toFixed(1)
   const totalSeconds = (totalFrames / (timeline.fps || 30)).toFixed(1)
+  const hasVideoClips = timeline.tracks.some(t => t.clips.some(c => c.type === 'video'))
+  const exportBusy = exportStatus === 'preparing' || exportStatus === 'recording' || exportStatus === 'converting'
+  const exportTitle = buildMp4ExportButtonTitle({
+    aspectRatio,
+    hasVideoClips,
+    isEmpty,
+    isRecording: exportStatus === 'recording',
+    isConverting: exportStatus === 'converting',
+    progressPercent: exportRatio * 100,
+  })
 
   React.useEffect(() => {
     const video = videoRef.current
@@ -191,8 +202,7 @@ export default function TimelinePreview({ activeClips, aspectRatio, fps, playhea
   }, [])
 
   const handleExport = React.useCallback(async () => {
-    if (exportStatus === 'preparing' || exportStatus === 'recording' || exportStatus === 'converting') return
-    const hasVideoClips = timeline.tracks.some(t => t.clips.some(c => c.type === 'video'))
+    if (exportBusy) return
     if (hasVideoClips) {
       toast('注意：基础 MP4 导出暂不包含音频轨道', 'info')
     }
@@ -217,7 +227,7 @@ export default function TimelinePreview({ activeClips, aspectRatio, fps, playhea
       const message = error instanceof Error ? error.message : '导出失败'
       toast(message, 'error')
     }
-  }, [aspectRatio, exportStatus, timeline])
+  }, [aspectRatio, exportBusy, hasVideoClips, timeline])
 
   const togglePlayback = React.useCallback(() => {
     const durationFrame = timeline.tracks.reduce((maxFrame, track) => {
@@ -444,14 +454,23 @@ export default function TimelinePreview({ activeClips, aspectRatio, fps, playhea
               </span>
             </div>
           ) : null}
-          <WorkbenchIconButton
-            className={cn('workbench-preview-player__icon-button', 'w-6 h-6 inline-grid place-items-center p-0 border border-transparent rounded-full bg-transparent text-[var(--workbench-muted)] cursor-pointer hover:bg-[var(--workbench-hover)] hover:text-[var(--workbench-ink)]')}
-            label="导出 MP4"
+          <WorkbenchButton
+            className={cn(
+              'workbench-preview-player__export-button',
+              'h-7 min-w-[92px] px-3 border border-transparent rounded-full',
+              'inline-flex items-center justify-center gap-1.5',
+              'bg-[var(--nomi-ink)] text-[var(--nomi-paper)] text-[11.5px] font-bold cursor-pointer',
+              'hover:bg-[var(--nomi-accent)] hover:text-[var(--nomi-paper)]',
+              'disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:bg-[var(--nomi-ink)]',
+            )}
+            aria-label="导出 MP4"
             onClick={handleExport}
-            disabled={exportStatus === 'preparing' || exportStatus === 'recording' || exportStatus === 'converting' || isEmpty}
-            title={exportStatus === 'recording' ? `导出中 ${Math.round(exportRatio * 100)}%` : exportStatus === 'converting' ? '正在转码 MP4' : isEmpty ? '时间轴为空，先添加素材' : '导出 MP4'}
-            icon={exportStatus === 'preparing' || exportStatus === 'recording' || exportStatus === 'converting' ? <NomiLoadingMark size={16} className={cn('workbench-preview-player__spinner', 'animate-spin')} /> : <IconDownload size={16} />}
-          />
+            disabled={exportBusy || isEmpty}
+            title={exportTitle}
+          >
+            {exportBusy ? <NomiLoadingMark size={15} className={cn('workbench-preview-player__spinner', 'animate-spin')} /> : <IconDownload size={15} />}
+            导出 MP4
+          </WorkbenchButton>
           <WorkbenchButton
             className={cn(
               'workbench-preview-player__mode',
