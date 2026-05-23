@@ -28,6 +28,8 @@ type ProfileKind =
   | "text_to_video"
   | "image_edit";
 
+type AiSdkProviderKind = "openai-compatible" | "anthropic";
+
 type Vendor = {
   key: string;
   name: string;
@@ -37,6 +39,12 @@ type Vendor = {
   authType?: "none" | "bearer" | "x-api-key" | "query";
   authHeader?: string | null;
   authQueryParam?: string | null;
+  /**
+   * Which Vercel AI SDK provider implementation to use for this vendor.
+   * Optional; absent / unknown values fall back to "openai-compatible"
+   * so existing model-catalog.json files keep working without migration.
+   */
+  providerKind?: AiSdkProviderKind;
   meta?: unknown;
   createdAt: string;
   updatedAt: string;
@@ -455,6 +463,7 @@ function defaultCatalog(): CatalogState {
         authType: "bearer",
         authHeader: null,
         authQueryParam: null,
+        providerKind: "openai-compatible",
         createdAt: t,
         updatedAt: t,
       },
@@ -508,6 +517,7 @@ function readCatalog(): CatalogState {
     ...parsed,
     vendors: parsed.vendors.map((vendor) => ({
       ...vendor,
+      providerKind: normalizeProviderKind(vendor.providerKind),
       hasApiKey: Boolean(apiKeysByVendor[vendor.key]?.apiKey && apiKeysByVendor[vendor.key]?.enabled !== false),
     })),
     apiKeysByVendor,
@@ -521,6 +531,10 @@ function writeCatalog(state: CatalogState): CatalogState {
 
 function normalizeEnabled(value: unknown, fallback = true): boolean {
   return typeof value === "boolean" ? value : fallback;
+}
+
+function normalizeProviderKind(value: unknown, fallback: AiSdkProviderKind = "openai-compatible"): AiSdkProviderKind {
+  return value === "anthropic" || value === "openai-compatible" ? value : fallback;
 }
 
 function filterByParams<T extends { vendorKey?: string; kind?: BillingModelKind; enabled?: boolean; taskKind?: ProfileKind }>(
@@ -610,6 +624,7 @@ export function upsertModelCatalogVendor(payload: unknown): Vendor {
     authType: (raw.authType as Vendor["authType"]) || existing?.authType || "bearer",
     authHeader: typeof raw.authHeader === "string" ? raw.authHeader.trim() || null : existing?.authHeader ?? null,
     authQueryParam: typeof raw.authQueryParam === "string" ? raw.authQueryParam.trim() || null : existing?.authQueryParam ?? null,
+    providerKind: normalizeProviderKind(raw.providerKind, existing?.providerKind ?? "openai-compatible"),
     meta: raw.meta ?? existing?.meta,
     createdAt: existing?.createdAt || t,
     updatedAt: t,
