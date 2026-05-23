@@ -125,6 +125,70 @@ export async function runGenerationNode(
   }
 }
 
+export type RunGenerationNodesBatchOptions = RunGenerationNodeOptions & {
+  /** Maximum concurrent runs. Defaults to 2 so two nodes can execute in parallel without overwhelming the provider. */
+  concurrency?: number
+  /** Called whenever a node finishes (success or failure) so the UI can update progress. */
+  onNodeResult?: (event:
+    | { ok: true; nodeId: string; result: GenerationNodeResult }
+    | { ok: false; nodeId: string; error: Error }
+  ) => void
+}
+
+export type RunGenerationNodesBatchResult = {
+  totalCount: number
+  successes: Array<{ nodeId: string; result: GenerationNodeResult }>
+  failures: Array<{ nodeId: string; error: Error }>
+}
+
+function normalizeConcurrency(value: unknown): number {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return 2
+  return Math.max(1, Math.min(4, Math.floor(value)))
+}
+
+/**
+ * Run a batch of generation nodes with bounded concurrency. Each node
+ * goes through the same retry/failure semantics as `runGenerationNode`,
+ * so callers can still display a per-node retry button if a run fails.
+ * This is the runtime used by the storyboard demo's "全部生成" action.
+ */
+export async function runGenerationNodesBatch(
+  nodeIds: readonly string[],
+  options: RunGenerationNodesBatchOptions = {},
+): Promise<RunGenerationNodesBatchResult> {
+  const queue = nodeIds
+    .map((value) => String(value || '').trim())
+    .filter((value, index, array) => Boolean(value) && array.indexOf(value) === index)
+  const concurrency = normalizeConcurrency(options.concurrency)
+  const successes: RunGenerationNodesBatchResult['successes'] = []
+  const failures: RunGenerationNodesBatchResult['failures'] = []
+  let cursor = 0
+
+  async function worker(): Promise<void> {
+    while (cursor < queue.length) {
+      const nextIndex = cursor
+      cursor += 1
+      const nodeId = queue[nextIndex]
+      try {
+        const result = await runGenerationNode(nodeId, {
+          executor: options.executor,
+          retry: options.retry,
+        })
+        successes.push({ nodeId, result })
+        options.onNodeResult?.({ ok: true, nodeId, result })
+      } catch (error: unknown) {
+        const normalizedError = error instanceof Error ? error : new Error(String(error))
+        failures.push({ nodeId, error: normalizedError })
+        options.onNodeResult?.({ ok: false, nodeId, error: normalizedError })
+      }
+    }
+  }
+
+  const workers = Array.from({ length: Math.min(concurrency, queue.length) }, () => worker())
+  await Promise.all(workers)
+  return { totalCount: queue.length, successes, failures }
+}
+
 export async function rerunGenerationNodeAsNewNode(
   nodeId: string,
   options: RunGenerationNodeOptions = {},

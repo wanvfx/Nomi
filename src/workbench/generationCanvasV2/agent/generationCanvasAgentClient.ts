@@ -17,6 +17,19 @@ type SendGenerationCanvasAgentMessageInput = {
   snapshot: GenerationCanvasSnapshot
   selectedNodes: GenerationCanvasNode[]
   mode?: 'agent' | 'chat' | 'refine'
+  /**
+   * Optional override for which skill (system prompt + tool whitelist) the
+   * agent loads. Defaults to the generation-canvas planner. The Story to
+   * Storyboard demo uses `workbench.storyboard.planner`.
+   */
+  skill?: { key: string; name: string }
+  /**
+   * Optional override for the prompt builder. When set, the agent uses the
+   * caller-provided prompt verbatim instead of the default canvas-planner
+   * prompt. Useful when a skill already defines the full system prompt and
+   * we just want to forward the user's raw story text.
+   */
+  buildPrompt?: (input: { message: string; snapshot: GenerationCanvasSnapshot; selectedNodes: GenerationCanvasNode[] }) => string
   onContent?: (delta: string, text: string) => void
   /**
    * Called whenever the LLM issues a tool call. The caller is responsible
@@ -157,15 +170,18 @@ async function defaultExecuteToolCall(event: ToolCallEvent): Promise<void> {
 export async function sendGenerationCanvasAgentMessage(
   input: SendGenerationCanvasAgentMessageInput,
 ): Promise<GenerationCanvasAgentResponse> {
+  const prompt = input.buildPrompt
+    ? input.buildPrompt({ message: input.message, snapshot: input.snapshot, selectedNodes: input.selectedNodes })
+    : buildGenerationCanvasAgentPrompt(input)
   const request = {
-    prompt: buildGenerationCanvasAgentPrompt(input),
+    prompt,
     displayPrompt: input.message,
     sessionKey: 'nomi:generation:local',
     projectId: '',
     flowId: '',
     projectName: '',
-    skillKey: 'workbench.generation.canvas-planner',
-    skillName: '生成区节点规划',
+    skillKey: input.skill?.key || 'workbench.generation.canvas-planner',
+    skillName: input.skill?.name || '生成区节点规划',
     mode: 'auto' as const,
   }
 

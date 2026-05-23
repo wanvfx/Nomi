@@ -611,9 +611,9 @@ Agent({
 
 ### 当前状态
 
-**总进度**: 14/29 tasks (48%)
-**当前 Phase**: ✅ Phase A + B 完成 → 启动 Phase C
-**最后更新**: 2026-05-23 (Phase B 完结)
+**总进度**: 22/29 tasks (76%)
+**当前 Phase**: ✅ Phase A + B + C 完成 → 启动 Phase D
+**最后更新**: 2026-05-23 (Phase C 完结)
 
 ### Phase A 进度
 
@@ -650,17 +650,27 @@ Agent({
 
 ### Phase C 进度
 
-| Task | 状态 | Commit |
+| Task | 状态 | Commit (rebased final SHA on main) |
 |---|---|---|
-| C1 storyboard skill | ⏸ | - |
-| C2 拆镜头按钮 | ⏸ | - |
-| C3 Plan card UI | ⏸ | - |
-| C4 批量生成 | ⏸ | - |
-| C5 一键时间轴 | ⏸ | - |
-| C6 Try-Now 首页 | ⏸ | - |
-| C7 demo 视频 | ⏸ | - |
-| C8 单元测试 | ⏸ | - |
-| C 验证关卡 | ⏸ | - |
+| C1 storyboard skill | ✅ | `b403f76` |
+| C2 拆镜头按钮 | ✅ | `ec5a128` |
+| C3 Plan card UI | ✅ | `ba31187` |
+| C4 批量生成 runtime + 全部生成 button | ✅ | `58ece2f` + `0556943` (button wiring post-audit) |
+| C5 一键时间轴 | ✅ | `64db42e` |
+| C6 Try-Now 首页 | ✅ | `07199cc` |
+| C7 demo 视频 | ⏸ deferred manual | (需 dev 环境录制，v0.4.0 发版前完成) |
+| C8 单元测试 (17 tests) | ✅ | `49b52d6` |
+| C 验证关卡 | ✅ | VERDICT: PROCEED_TO_PHASE_D_WITH_FOLLOWUPS |
+
+**Phase C 备注**：
+- Executor 完成 7 个 task（C1-C6, C8），C7 demo 视频如预期 skip（无 dev 环境）
+- Audit 发现 C4 缺 UI button — orchestrator post-audit 补一个 commit (`0556943`) 把 `runGenerationNodesBatch` 接到 CanvasToolbar 的"全部生成"按钮，C4 真正闭环
+- Executor 顺手修复了 Phase B 遗留的 `applyConfirmedToolCall` 未定义引用 — 这个 Phase B audit 未抓到的运行时 bug 现已修好
+- 51 个测试全过（17 storyboard + 24 canvasTools + 4 buildAiSdk + 6 ffmpeg）
+- Audit 残留 followups（不阻塞 Phase D）：
+  - 录制 C7 demo 视频（v0.4.0 release 前）
+  - 用 store slice 替换 storyboardLauncher 的 CustomEvent + setTimeout（Phase D 期间顺手）
+  - Phase B audit 流程改进：仅 tsc 通过不足以验证运行时正确性
 
 ### Phase D 进度
 

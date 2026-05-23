@@ -7,6 +7,13 @@ import {
   type ToolCallEvent,
 } from '../agent/generationCanvasAgentClient'
 import { generationCanvasTools } from '../agent/generationCanvasTools'
+import {
+  buildStoryboardPlanningMessage,
+  STORYBOARD_PLANNER_SKILL,
+  STORYBOARD_PLANNING_EVENT,
+  type StoryboardPlanningRequest,
+} from '../agent/storyboardLauncher'
+import AgentPlanCard, { summarizeAgentPlan } from './AgentPlanCard'
 import { getGenerationNodeDefaultTitle } from '../model/generationNodeKinds'
 import type { GenerationNodeKind } from '../model/generationCanvasTypes'
 import { useGenerationCanvasStore } from '../store/generationCanvasStore'
@@ -18,7 +25,15 @@ type PendingToolCall = {
   toolCallId: string
   toolName: string
   args: unknown
-  confirm: (decision: { ok: true; result?: unknown } | { ok: false; message?: string }) => Promise<void>
+  /**
+   * Confirm or reject the pending tool call. `overrides` lets the UI
+   * patch the args before they are applied — used by the plan card so a
+   * user-edited prompt overrides the agent's original suggestion.
+   */
+  confirm: (
+    decision: { ok: true; result?: unknown } | { ok: false; message?: string },
+    overrides?: Record<string, unknown>,
+  ) => Promise<void>
 }
 
 function summarizeToolCall(toolName: string, args: unknown): string {
@@ -67,10 +82,14 @@ export default function CanvasAssistantPanel({
   const [mode, setMode] = React.useState<'agent' | 'chat' | 'refine'>('agent')
   const [pendingToolCalls, setPendingToolCalls] = React.useState<PendingToolCall[]>([])
 
-  const resolvePending = React.useCallback((toolCallId: string, decision: { ok: true; result?: unknown } | { ok: false; message?: string }) => {
+  const resolvePending = React.useCallback((
+    toolCallId: string,
+    decision: { ok: true; result?: unknown } | { ok: false; message?: string },
+    overrides?: Record<string, unknown>,
+  ) => {
     setPendingToolCalls((current) => {
       const target = current.find((item) => item.toolCallId === toolCallId)
-      if (target) void target.confirm(decision)
+      if (target) void target.confirm(decision, overrides)
       return current.filter((item) => item.toolCallId !== toolCallId)
     })
   }, [])
@@ -109,12 +128,78 @@ export default function CanvasAssistantPanel({
     )))
   }, [setMessages])
 
-  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
-    const text = draft.trim()
+  /**
+   * Apply a confirmed tool call by routing through the renderer-side
+   * generationCanvasTools store. Returns a structured result that we feed
+   * back to the LLM. Phase B left this referenced but undefined; C2/C3
+   * fills the gap so the confirmation card can actually mutate the canvas.
+   */
+  const applyConfirmedToolCall = React.useCallback(async (toolName: string, args: unknown): Promise<unknown> => {
+    const record = (args && typeof args === 'object') ? args as Record<string, unknown> : {}
+    if (toolName === 'create_canvas_nodes') {
+      const incoming = Array.isArray(record.nodes) ? record.nodes : []
+      const inputs = incoming.map((raw, index) => {
+        const node = (raw && typeof raw === 'object') ? raw as Record<string, unknown> : {}
+        const kind = (typeof node.kind === 'string' ? node.kind : 'image') as GenerationNodeKind
+        const positionRecord = (node.position && typeof node.position === 'object') ? node.position as Record<string, unknown> : null
+        return {
+          kind,
+          title: typeof node.title === 'string' && node.title.trim()
+            ? node.title.trim()
+            : `${getGenerationNodeDefaultTitle(kind)} ${index + 1}`,
+          prompt: typeof node.prompt === 'string' ? node.prompt : '',
+          position: {
+            x: typeof positionRecord?.x === 'number' ? positionRecord.x : 160 + index * 340,
+            y: typeof positionRecord?.y === 'number' ? positionRecord.y : 260 + (index % 2) * 220,
+          },
+        }
+      })
+      const created = generationCanvasTools.create_nodes(inputs)
+      const clientIdToNodeId: Record<string, string> = {}
+      incoming.forEach((raw, index) => {
+        const node = (raw && typeof raw === 'object') ? raw as Record<string, unknown> : {}
+        const clientId = typeof node.clientId === 'string' ? node.clientId : ''
+        if (clientId && created[index]) clientIdToNodeId[clientId] = created[index].id
+      })
+      return {
+        createdNodeIds: created.map((node) => node.id),
+        clientIdToNodeId,
+      }
+    }
+    if (toolName === 'connect_canvas_edges') {
+      const rawEdges = Array.isArray(record.edges) ? record.edges : []
+      const edges = rawEdges
+        .map((raw) => (raw && typeof raw === 'object') ? raw as Record<string, unknown> : {})
+        .map((edge) => ({
+          source: String(edge.sourceClientId || edge.source || '').trim(),
+          target: String(edge.targetClientId || edge.target || '').trim(),
+        }))
+        .filter((edge) => edge.source && edge.target)
+      if (edges.length > 0) generationCanvasTools.connect_nodes(edges)
+      return { connectedCount: edges.length }
+    }
+    if (toolName === 'set_node_prompt') {
+      const nodeId = String(record.nodeId || '').trim()
+      const prompt = typeof record.prompt === 'string' ? record.prompt : ''
+      const node = generationCanvasTools.update_node_prompt(nodeId, prompt)
+      if (!node) throw new Error('node_not_found')
+      return { nodeId: node.id }
+    }
+    if (toolName === 'delete_canvas_nodes') {
+      throw new Error('delete_canvas_nodes is not yet implemented')
+    }
+    throw new Error(`unknown tool ${toolName}`)
+  }, [])
+
+  type SubmitMessageOptions = {
+    skill?: { key: string; name: string }
+    displayMessage?: string
+  }
+
+  const submitAgentMessage = React.useCallback((text: string, options: SubmitMessageOptions = {}) => {
     if (!text || busy) return
     setDraft('')
-    appendMessage({ role: 'user', content: text })
+    appendMessage({ role: 'user', content: options.displayMessage || text })
     const assistantMessageId = createMessageId()
     setMessages((current) => [
       ...current,
@@ -129,6 +214,7 @@ export default function CanvasAssistantPanel({
           snapshot,
           selectedNodes,
           mode,
+          skill: options.skill,
           onContent: (_delta, streamedText) => {
             updateMessage(assistantMessageId, streamedText || '处理中...')
           },
@@ -145,10 +231,14 @@ export default function CanvasAssistantPanel({
               toolCallId: event.toolCallId,
               toolName: event.toolName,
               args: event.args,
-              confirm: async (decision) => {
+              confirm: async (decision, overrides) => {
                 if (decision.ok) {
+                  const baseArgs = (event.args && typeof event.args === 'object')
+                    ? event.args as Record<string, unknown>
+                    : {}
+                  const effectiveArgs = overrides ? { ...baseArgs, ...overrides } : baseArgs
                   try {
-                    const result = await applyConfirmedToolCall(event.toolName, event.args)
+                    const result = await applyConfirmedToolCall(event.toolName, effectiveArgs)
                     toolActionCount += 1
                     await event.confirm({ ok: true, result })
                   } catch (error: unknown) {
@@ -181,7 +271,33 @@ export default function CanvasAssistantPanel({
         setBusy(false)
       }
     })()
+  }, [appendMessage, applyConfirmedToolCall, busy, mode, selectedNodes, setDraft, setMessages, snapshot, updateMessage])
+
+  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    submitAgentMessage(draft.trim())
   }
+
+  // Listen for "Story → Storyboard" requests dispatched from the creation
+  // editor (C2) or the project library "Try Now" hero (C6). The panel
+  // expands, drops the user's story into the chat thread, and runs the
+  // storyboard-planner skill which will trigger create_canvas_nodes +
+  // connect_canvas_edges tool calls.
+  React.useEffect(() => {
+    const handler = (event: Event) => {
+      const detail = (event as CustomEvent<StoryboardPlanningRequest>).detail
+      const storyText = detail?.storyText?.trim() || ''
+      if (!storyText) return
+      setCollapsed(false)
+      const message = buildStoryboardPlanningMessage(storyText)
+      submitAgentMessage(message, {
+        skill: STORYBOARD_PLANNER_SKILL,
+        displayMessage: `🎬 拆镜头\n\n${storyText}`,
+      })
+    }
+    window.addEventListener(STORYBOARD_PLANNING_EVENT, handler as EventListener)
+    return () => window.removeEventListener(STORYBOARD_PLANNING_EVENT, handler as EventListener)
+  }, [setCollapsed, submitAgentMessage])
 
   const handleNewConversation = React.useCallback(() => {
     resetConversation()
@@ -262,18 +378,32 @@ export default function CanvasAssistantPanel({
         </div>
       </header>
       <div className={cn('flex flex-col gap-3 min-h-0 overflow-auto p-4')}>
-        {pendingToolCalls.length > 0 ? (
-          <div
-            className={cn(
-              'flex flex-col gap-2 p-3 rounded-nomi border border-nomi-accent-soft bg-nomi-accent-soft/40',
-            )}
-            data-pending-tool-calls="true"
-            aria-label="待确认的 Agent 工具调用"
-          >
-            <div className={cn('text-nomi-accent text-[12px] font-medium uppercase tracking-wider')}>
-              Agent 准备调用工具
-            </div>
-            {pendingToolCalls.map((call) => (
+        {pendingToolCalls.length > 0 ? (() => {
+          // Aggregate consecutive create_canvas_nodes + connect_canvas_edges
+          // pairs into a single storyboard plan card; everything else falls
+          // back to the per-call confirmation list below.
+          const plan = summarizeAgentPlan(pendingToolCalls)
+          const planCallIds = new Set([plan?.createCallId, plan?.connectCallId].filter(Boolean) as string[])
+          const remaining = plan
+            ? pendingToolCalls.filter((call) => !planCallIds.has(call.toolCallId))
+            : pendingToolCalls
+          return (
+            <div className={cn('flex flex-col gap-3')}>
+              {plan ? (
+                <AgentPlanCard plan={plan} resolveCall={resolvePending} />
+              ) : null}
+              {remaining.length > 0 ? (
+                <div
+                  className={cn(
+                    'flex flex-col gap-2 p-3 rounded-nomi border border-nomi-accent-soft bg-nomi-accent-soft/40',
+                  )}
+                  data-pending-tool-calls="true"
+                  aria-label="待确认的 Agent 工具调用"
+                >
+                  <div className={cn('text-nomi-accent text-[12px] font-medium uppercase tracking-wider')}>
+                    Agent 准备调用工具
+                  </div>
+                  {remaining.map((call) => (
               <div
                 key={call.toolCallId}
                 className={cn('flex flex-col gap-2 p-2 rounded-nomi-sm bg-nomi-paper border border-nomi-line-soft')}
@@ -308,9 +438,12 @@ export default function CanvasAssistantPanel({
                   </WorkbenchButton>
                 </div>
               </div>
-            ))}
-          </div>
-        ) : null}
+                  ))}
+                </div>
+              ) : null}
+            </div>
+          )
+        })() : null}
         {messages.length === 0 ? (
           <div className={cn(
             'flex flex-1 flex-col items-center justify-center gap-[10px]',
