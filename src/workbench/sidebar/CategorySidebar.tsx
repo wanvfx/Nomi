@@ -20,7 +20,10 @@ export default function CategorySidebar({ categories }: Props): JSX.Element {
   const groups = useGenerationCanvasStore((s) => s.groups)
   const selectedNodeIds = useGenerationCanvasStore((s) => s.selectedNodeIds)
   const selectNode = useGenerationCanvasStore((s) => s.selectNode)
-  const reassignCategory = useGenerationCanvasStore((s) => s.reassignNodeCategory)
+  const copyNodeToCategory = useGenerationCanvasStore((s) => s.copyNodeToCategory)
+  const moveNodeToGroup = useGenerationCanvasStore((s) => s.moveNodeToGroup)
+  const removeNodeFromGroup = useGenerationCanvasStore((s) => s.removeNodeFromGroup)
+  const reorderGroup = useGenerationCanvasStore((s) => s.reorderGroup)
   const [expandedCategoryIds, setExpandedCategoryIds] = React.useState<Set<string>>(() => new Set([activeCategoryId]))
 
   const visible = React.useMemo(() => {
@@ -64,9 +67,6 @@ export default function CategorySidebar({ categories }: Props): JSX.Element {
       if (list) list.push(group)
       else map.set(group.categoryId, [group])
     }
-    for (const list of map.values()) {
-      list.sort((left, right) => left.createdAt - right.createdAt)
-    }
     return map
   }, [groups])
 
@@ -100,6 +100,28 @@ export default function CategorySidebar({ categories }: Props): JSX.Element {
   const handleSelectNode = React.useCallback((nodeId: string) => {
     selectNode(nodeId)
   }, [selectNode])
+
+  const handleDropNodeOnCategory = React.useCallback((nodeId: string, categoryId: string) => {
+    const node = nodeById.get(nodeId)
+    if (!node) return
+    if (node.categoryId === categoryId) {
+      removeNodeFromGroup(nodeId)
+      return
+    }
+    copyNodeToCategory(nodeId, categoryId)
+  }, [copyNodeToCategory, nodeById, removeNodeFromGroup])
+
+  const handleDropNodeOnGroup = React.useCallback((nodeId: string, groupId: string) => {
+    const node = nodeById.get(nodeId)
+    const group = groups.find((candidate) => candidate.id === groupId)
+    if (!node || !group) return
+    if (node.categoryId === group.categoryId) {
+      moveNodeToGroup(nodeId, groupId)
+      return
+    }
+    const copied = copyNodeToCategory(nodeId, group.categoryId)
+    if (copied) moveNodeToGroup(copied.id, groupId)
+  }, [copyNodeToCategory, groups, moveNodeToGroup, nodeById])
 
   return (
     <aside
@@ -152,7 +174,7 @@ export default function CategorySidebar({ categories }: Props): JSX.Element {
                     active={activeCategoryId === cat.id}
                     collapsed={collapsed}
                     onActivate={() => handleActivateCategory(cat.id)}
-                    onDropNode={(nodeId) => reassignCategory(nodeId, cat.id)}
+                    onDropNode={(nodeId) => handleDropNodeOnCategory(nodeId, cat.id)}
                   />
                 </div>
               </div>
@@ -178,6 +200,8 @@ export default function CategorySidebar({ categories }: Props): JSX.Element {
                         nodes={memberNodes}
                         selectedNodeIds={selectedNodeIds}
                         onSelectNode={handleSelectNode}
+                        onDropNode={handleDropNodeOnGroup}
+                        onDropGroup={(activeGroupId, overGroupId) => reorderGroup(cat.id, activeGroupId, overGroupId)}
                       />
                     )
                   })}

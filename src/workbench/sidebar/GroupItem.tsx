@@ -8,15 +8,53 @@ type Props = {
   nodes: GenerationCanvasNode[]
   selectedNodeIds: string[]
   onSelectNode?: (nodeId: string) => void
+  onDropNode?: (nodeId: string, groupId: string) => void
+  onDropGroup?: (activeGroupId: string, overGroupId: string) => void
 }
 
-export default function GroupItem({ group, nodes, selectedNodeIds, onSelectNode }: Props): JSX.Element {
+export default function GroupItem({ group, nodes, selectedNodeIds, onSelectNode, onDropNode, onDropGroup }: Props): JSX.Element {
   const [expanded, setExpanded] = React.useState(!group.collapsed)
+  const [dragOver, setDragOver] = React.useState(false)
+
+  const handleDragStart = React.useCallback((event: React.DragEvent<HTMLButtonElement>) => {
+    event.dataTransfer.setData('application/x-nomi-group-id', group.id)
+    event.dataTransfer.effectAllowed = 'move'
+  }, [group.id])
+
+  const handleDragOver = React.useCallback((event: React.DragEvent<HTMLDivElement>) => {
+    const types = Array.from(event.dataTransfer?.types || [])
+    if (!types.includes('application/x-nomi-node-id') && !types.includes('application/x-nomi-group-id')) return
+    event.preventDefault()
+    event.dataTransfer.dropEffect = 'move'
+    if (!dragOver) setDragOver(true)
+  }, [dragOver])
+
+  const handleDrop = React.useCallback((event: React.DragEvent<HTMLDivElement>) => {
+    const nodeId = event.dataTransfer.getData('application/x-nomi-node-id')
+    const activeGroupId = event.dataTransfer.getData('application/x-nomi-group-id')
+    setDragOver(false)
+    if (nodeId) {
+      event.preventDefault()
+      onDropNode?.(nodeId, group.id)
+      return
+    }
+    if (activeGroupId && activeGroupId !== group.id) {
+      event.preventDefault()
+      onDropGroup?.(activeGroupId, group.id)
+    }
+  }, [group.id, onDropGroup, onDropNode])
 
   return (
-    <div className="rounded-md border border-nomi-line/70 bg-white/35">
+    <div
+      className={cn('rounded-md border border-nomi-line/70 bg-white/35', dragOver && 'ring-2 ring-nomi-accent/60')}
+      onDragOver={handleDragOver}
+      onDragLeave={() => setDragOver(false)}
+      onDrop={handleDrop}
+    >
       <button
         type="button"
+        draggable
+        onDragStart={handleDragStart}
         onClick={() => setExpanded((value) => !value)}
         aria-expanded={expanded}
         className={cn(

@@ -106,6 +106,10 @@ type GenerationCanvasState = {
   duplicateNodeForRegeneration: (nodeId: string) => GenerationCanvasNode | null
   /** Phase E: move a node into a different category (sidebar drop / right-click). */
   reassignNodeCategory: (nodeId: string, categoryId: string) => void
+  copyNodeToCategory: (nodeId: string, categoryId: string) => GenerationCanvasNode | null
+  moveNodeToGroup: (nodeId: string, groupId: string) => void
+  removeNodeFromGroup: (nodeId: string) => void
+  reorderGroup: (categoryId: string, activeGroupId: string, overGroupId: string) => void
   rollbackHistory: (nodeId: string, resultId: string) => void
   readSnapshot: () => GenerationCanvasSnapshot
   restoreSnapshot: (snapshot: unknown) => void
@@ -797,6 +801,91 @@ export const useGenerationCanvasStore = create<GenerationCanvasState>()(subscrib
       if (node.categoryId === id) return
       node.categoryId = id
       bumpPersistRevision(state)
+    })
+  },
+  copyNodeToCategory: (nodeId, categoryId) => {
+    const id = String(categoryId || '').trim()
+    if (!isCategoryId(id)) return null
+    const source = get().nodes.find((candidate) => candidate.id === nodeId)
+    if (!source) return null
+    const { id: _sourceId, categoryId: _sourceCategoryId, groupId: _sourceGroupId, ...rest } = source
+    const copiedNode: GenerationCanvasNode = {
+      ...rest,
+      id: createClipboardNodeId(source.id),
+      title: source.title ? `${source.title} 副本` : source.title,
+      position: {
+        x: source.position.x + CLIPBOARD_OFFSET,
+        y: source.position.y + CLIPBOARD_OFFSET,
+      },
+      categoryId: id,
+      derivedFrom: source.id,
+      references: source.references ? [...source.references] : undefined,
+      history: source.history ? [...source.history] : undefined,
+      runs: source.runs ? [...source.runs] : undefined,
+      meta: source.meta ? { ...source.meta } : undefined,
+      size: source.size ? { ...source.size } : source.size,
+    }
+    pushUndoSnapshot(get())
+    set((state) => {
+      state.nodes.push(copiedNode)
+      state.selectedNodeIds = [copiedNode.id]
+      bumpPersistRevision(state)
+      Object.assign(state, getHistoryFlags())
+    })
+    return copiedNode
+  },
+  moveNodeToGroup: (nodeId, groupId) => {
+    const id = String(groupId || '').trim()
+    if (!id) return
+    const current = get()
+    const sourceNode = current.nodes.find((candidate) => candidate.id === nodeId)
+    const targetGroup = current.groups.find((candidate) => candidate.id === id)
+    if (!sourceNode || !targetGroup || sourceNode.categoryId !== targetGroup.categoryId) return
+    pushUndoSnapshot(current)
+    set((state) => {
+      const node = state.nodes.find((candidate) => candidate.id === nodeId)
+      const group = state.groups.find((candidate) => candidate.id === id)
+      if (!node || !group || node.categoryId !== group.categoryId) return
+      for (const candidate of state.groups) {
+        candidate.nodeIds = candidate.nodeIds.filter((candidateNodeId) => candidateNodeId !== nodeId)
+      }
+      node.groupId = group.id
+      if (!group.nodeIds.includes(nodeId)) group.nodeIds.push(nodeId)
+      group.updatedAt = Date.now()
+      bumpPersistRevision(state)
+      Object.assign(state, getHistoryFlags())
+    })
+  },
+  removeNodeFromGroup: (nodeId) => {
+    pushUndoSnapshot(get())
+    set((state) => {
+      const node = state.nodes.find((candidate) => candidate.id === nodeId)
+      if (!node?.groupId) return
+      for (const group of state.groups) {
+        group.nodeIds = group.nodeIds.filter((candidateNodeId) => candidateNodeId !== nodeId)
+      }
+      delete node.groupId
+      bumpPersistRevision(state)
+      Object.assign(state, getHistoryFlags())
+    })
+  },
+  reorderGroup: (categoryId, activeGroupId, overGroupId) => {
+    const id = String(categoryId || '').trim()
+    if (!isCategoryId(id) || activeGroupId === overGroupId) return
+    pushUndoSnapshot(get())
+    set((state) => {
+      const categoryGroups = state.groups.filter((group) => group.categoryId === id)
+      const activeIndex = categoryGroups.findIndex((group) => group.id === activeGroupId)
+      const overIndex = categoryGroups.findIndex((group) => group.id === overGroupId)
+      if (activeIndex < 0 || overIndex < 0) return
+      const reordered = [...categoryGroups]
+      const [active] = reordered.splice(activeIndex, 1)
+      if (!active) return
+      reordered.splice(overIndex, 0, active)
+      const queue = [...reordered]
+      state.groups = state.groups.map((group) => group.categoryId === id ? queue.shift() || group : group)
+      bumpPersistRevision(state)
+      Object.assign(state, getHistoryFlags())
     })
   },
   rollbackHistory: (nodeId, resultId) => {
