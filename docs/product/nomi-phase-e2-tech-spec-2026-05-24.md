@@ -44,6 +44,7 @@
 
 ✅ 在范围内：
 - 5 个固定大分类（**分镜 / 角色 / 场景 / 道具 / 声音**）
+- **目录树仅在生成区显示**，创作 / 预览 step 不显示（用户最新决议）
 - 每分类独立子画布（独立 viewport + selection）
 - 用户可在每个大分类内**手动建子组/文件夹**（1 层，不嵌套）
 - 节点可挂多个分类（multi-category membership）
@@ -52,6 +53,7 @@
 - Cmd+C/V 真复制；拖到另一分类 = 多挂载
 - 删除语义：从当前分类移除；多挂载时其他分类保留
 - 视觉照 Mura 原型（命名调整见 §2）
+- **v0.5 老节点中 categoryId 属于已废除 4 个分类（故事/风格/资源池/导出）的，直接删除**（用户最新决议 — 老 user base < 20 人，不需要兜底归档）
 
 ❌ 不在范围内（推到 Phase F/G）：
 - 用户自建大分类（5 个固定）
@@ -309,45 +311,57 @@ type NodeGroup = {                 // ★ NEW
 
 ### 4.4 v0.5 → v0.6 数据迁移
 
-迁移函数 (Phase E.2 第一个 task)：
+**用户决议：旧节点直接删除，不兜底归档。**
+
+理由：v0.5.0 老 user base < 20 人，故事/风格/资源池/导出 4 个分类的节点本就语义不强。归档组兜底反而增加用户的清理负担。直接删，干净。
+
+迁移函数：
 
 ```typescript
 function migrateProjectV5ToV6(payload: ProjectPayloadV5): ProjectPayloadV6 {
+  const KEEP: Set<string> = new Set(['shots', 'characters', 'scenes', 'audio'])
+  const KIND_MAP: Record<string, CategoryId> = {
+    shots: 'shots',
+    characters: 'cast',
+    scenes: 'scene',
+    audio: 'audio',
+    // story / style / inbox / exports → 不在 KEEP，会被过滤
+  }
+  
+  const survivingNodes = payload.generationCanvas.nodes
+    .filter(node => KEEP.has(node.categoryId))
+    .map(node => ({
+      ...node,
+      categoryIds: [KIND_MAP[node.categoryId]],
+      // 旧 categoryId 字段保留 1 个版本 + @deprecated tag
+    }))
+  
+  const survivingEdges = payload.generationCanvas.edges
+    .filter(edge => {
+      const validIds = new Set(survivingNodes.map(n => n.id))
+      return validIds.has(edge.source) && validIds.has(edge.target)
+    })
+  
+  // 道具 (prop) 分类无任何旧节点对应 — 它是新引入的
+  
   return {
     ...payload,
     generationCanvas: {
       ...payload.generationCanvas,
-      nodes: payload.generationCanvas.nodes.map(node => ({
-        ...node,
-        categoryIds: node.categoryId 
-          ? [migrateLegacyCategoryId(node.categoryId)]
-          : ['shots'],          // 兜底：未知分类的入分镜
-        // 保留旧 categoryId 字段一个版本，便于 rollback
-      })),
-      groups: [],                 // 老项目没有 groups
+      nodes: survivingNodes,
+      edges: survivingEdges,
+      groups: [],  // 老项目没有 groups
     },
   }
 }
-
-function migrateLegacyCategoryId(old: string): CategoryId {
-  // v0.5 8 分类 → v0.6 5 分类
-  const map: Record<string, CategoryId> = {
-    story: 'shots',     // 故事并入分镜（用户后续可移到其他）
-    characters: 'cast',
-    scenes: 'scene',
-    style: 'shots',     // 风格归并到分镜
-    shots: 'shots',
-    audio: 'audio',
-    inbox: 'shots',     // 资源池暂归分镜
-    exports: 'shots',   // 导出暂归分镜
-  }
-  return map[old] || 'shots'
-}
 ```
 
-**风险**：故事 / 风格 / 资源池 / 导出 的节点全归到分镜会让分镜变得很拥挤。
+**Migration toast**：弹一次性提示
+> 项目升级到 v0.6.0。已删除旧版"故事/风格/资源池/导出"分类下的 N 个节点。如需保留请先回到 v0.5。
 
-**对策**：迁移时自动**为每个旧分类创建一个对应的组**（"故事归档" / "风格归档" / "资源池归档" / "导出归档"），用户随时可以删 / 改名。
+**用户操作路径**：
+- 用户接受 → 继续工作
+- 用户后悔 → 关闭 app，回滚 binary 到 v0.5.0，原 project.json 在 `cache/backup-pre-migration-*.json` 仍可读取（v0.5 Phase E 已建的备份机制）
 
 ---
 
@@ -444,9 +458,17 @@ function useNodesInActiveCategory() {
 #### Task E.2-3: Built-in categories 调整
 - 修改 `src/workbench/project/projectCategories.ts`：
   - 从 8 个改成 5 个：shots（分镜）/ cast（角色）/ scene（场景）/ prop（道具）/ audio（声音）
-  - 删除 story/style/inbox/exports 的 built-in 定义（保留类型兼容）
+  - **彻底删除** story/style/inbox/exports 的 built-in 定义（不保留兼容字段，迁移时已处理）
 - 修改 Mura 风格图标（Tabler 选 5 个）
 - 提交：`refactor(project): collapse to 5 fixed top-level categories`
+
+#### Task E.2-3b: Sidebar 挂载点下沉到生成区
+- 修改 `src/workbench/WorkbenchShell.tsx`：**移除** `<CategorySidebar />` 挂载（line 104）
+- 修改 `src/workbench/generation/GenerationWorkspace.tsx`：在 main 区域**新增** `<CategorySidebar />` 挂载
+- 创作 step (CreationWorkspace) 与预览 step (PreviewWorkspace) 不再渲染 sidebar
+- 创作 + 预览 step 的 body 重新获得全宽
+- 提交：`refactor(workbench): mount category sidebar only inside generation step`
+- 验收：3 个 step 切换时仅生成 step 显示左侧目录树
 
 ### Wave 2: Sidebar 树视图 (W2)
 
@@ -627,8 +649,9 @@ Phase H+I+J (v0.9-1.0) — 中片闭环 + NLE 升级 + 长片闭环
 | Wave | Task | 状态 | Commit |
 |---|---|---|---|
 | W1 | E.2-1 schema 升级 | ⏸ | - |
-| W1 | E.2-2 migration v5→v6 | ⏸ | - |
+| W1 | E.2-2 migration v5→v6 (硬删旧分类节点) | ⏸ | - |
 | W1 | E.2-3 5 大分类调整 | ⏸ | - |
+| W1 | E.2-3b sidebar 挂载下沉到生成区 | ⏸ | - |
 | W2 | E.2-4 dnd-kit 引入 | ⏸ | - |
 | W2 | E.2-5 sidebar 树渲染 | ⏸ | - |
 | W2 | E.2-6 sidebar 拖拽 | ⏸ | - |
@@ -657,7 +680,9 @@ Phase H+I+J (v0.9-1.0) — 中片闭环 + NLE 升级 + 长片闭环
 | 删除 | Task | 文件 / 标识 | 删除 commit | 状态 |
 |---|---|---|---|---|
 | `categoryId` field on node（旧的单值字段） | 待 v0.7 | `GenerationCanvasNode.categoryId` | TBD | ⏸ 等下版本统一删 |
-| 旧的 8 built-in categories（story/style/inbox/exports）| E.2-3 | `projectCategories.ts` | TBD | ⏸ |
+| 旧的 8 built-in categories（story/style/inbox/exports）| E.2-3 | `projectCategories.ts` 中 4 个废除分类的定义 | TBD | ⏸ |
+| **旧项目中 4 个废除分类下的所有节点** | E.2-2 | migrate v5→v6 时直接过滤掉 | TBD | ⏸ |
+| Sidebar 在 WorkbenchShell 的挂载 | E.2-3b | `WorkbenchShell.tsx:104` `<CategorySidebar />` | TBD | ⏸ |
 | 节点悬浮 composer 旧实现 | E.2-16 | `BaseGenerationNode.tsx` 中相关 selection-based show 逻辑 | TBD | ⏸ |
 | 棋盘背景（占位态）| E.2-16 | 同上 | TBD | ⏸ |
 
