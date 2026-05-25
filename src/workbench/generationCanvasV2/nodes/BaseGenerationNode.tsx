@@ -514,6 +514,9 @@ export default function BaseGenerationNode({ node, selected, readOnly = false, f
 
   const status = node.status || 'idle'
   const size = node.size || { width: 320, height: 360 }
+  // E.2.1: shots 分类的 composer 真正 flex-inlined（不再 absolute 浮在节点下方）
+  // 配合 spec §6.1 修正 3：composer 内嵌到 card flex 流，与图像区共占节点视觉空间
+  const isInlineComposer = node.categoryId === 'shots' && !readOnly && node.kind !== 'panorama'
   const isImageGridSplitNode = node.kind === 'image' && typeof node.meta?.source === 'string' && node.meta.source.startsWith('image-grid-split-')
   const storedPreviewHeight = typeof node.meta?.previewHeight === 'number' && Number.isFinite(node.meta.previewHeight)
     ? isImageGridSplitNode
@@ -682,20 +685,23 @@ export default function BaseGenerationNode({ node, selected, readOnly = false, f
     <article
       className={cn(
         'generation-canvas-v2-node',
-        'absolute block p-0 border-0 rounded-none bg-transparent shadow-none',
+        'absolute p-0 border-0 rounded-none bg-transparent shadow-none',
         'cursor-grab select-none touch-none overflow-visible',
         'data-[selected=true]:z-[5]',
+        // E.2.1: inline composer 时改用 flex column 让图像区和 composer 共享垂直空间
+        isInlineComposer ? 'flex flex-col' : 'block',
       )}
       data-kind={node.kind}
       data-expanded={selected ? 'true' : 'false'}
       data-selected={selected ? 'true' : 'false'}
       data-focus-flash={focusFlash ? 'true' : 'false'}
+      data-inline-composer={isInlineComposer ? 'true' : 'false'}
       data-status={status}
       style={{
         transform: `translate(${node.position.x}px, ${node.position.y}px)`,
         width: visualSize.width,
         height: visualSize.height,
-        gridTemplateRows: `${previewHeight}px`,
+        ...(isInlineComposer ? {} : { gridTemplateRows: `${previewHeight}px` }),
         willChange: 'transform',
       }}
       onPointerDown={handlePointerDown}
@@ -930,7 +936,9 @@ export default function BaseGenerationNode({ node, selected, readOnly = false, f
       <div
         className={cn(
           'generation-canvas-v2-node__preview',
-          'relative w-full h-full min-h-0 overflow-hidden',
+          'relative w-full min-h-0 overflow-hidden',
+          // E.2.1: inline composer 时图像区取 flex-1（剩余空间），否则填满 grid 行
+          isInlineComposer ? 'flex-1' : 'h-full',
           'rounded-nomi shadow-nomi-md cursor-grab touch-none',
           'bg-[repeating-linear-gradient(45deg,var(--nomi-ink-05)_0_10px,var(--nomi-ink-10)_10px_20px)]',
         )}
@@ -1060,23 +1068,25 @@ export default function BaseGenerationNode({ node, selected, readOnly = false, f
         </div>
       ) : null}
 
-      {/* E.2C-18: shots 分类节点的 composer 永久可见（不再 gated by selected）。
-          其它分类保持选中浮层。配合 §6.1 修正 3 决策：composer 内嵌到节点视觉里。
-          注：当前实现仍是 absolute 浮在节点下方（小改动），future iteration
-          会把它真正放进 card flex 流里。 */}
-      {(node.categoryId === 'shots' || selected) && !readOnly && node.kind !== 'panorama' ? (
+      {/* E.2.1: composer 渲染分两种模式：
+          - inline (shots 分类): 作为 flex child 嵌入 card 下半部分 (Mura 设计)
+          - floating (其它分类 + selected): 仍 absolute 浮在节点下方（保持现有行为）
+          one JSX, conditional positioning via className/style. */}
+      {(isInlineComposer || (selected && !readOnly && node.kind !== 'panorama')) ? (
         <div
           className={cn(
             'generation-canvas-v2-node__composer',
-            'absolute left-1/2 z-[8] flex flex-col gap-[6px]',
-            'min-h-[150px] p-[10px]',
+            'flex flex-col gap-[6px]',
+            'p-[10px]',
             'border border-nomi-line-soft rounded-nomi',
-            'bg-nomi-paper shadow-nomi-lg overflow-auto',
-            '-translate-x-1/2',
-            // 未选中且永久显示时，降低视觉权重避免与近邻节点抢注意力
-            node.categoryId === 'shots' && !selected && 'opacity-90',
+            'bg-nomi-paper overflow-auto',
+            isInlineComposer
+              // inline: flex child in article, no absolute positioning
+              ? 'relative flex-shrink-0 mt-[6px] min-h-[120px] max-h-[180px]'
+              // floating: absolute below node, shadow for separation
+              : 'absolute left-1/2 z-[8] shadow-nomi-lg -translate-x-1/2 min-h-[150px]',
           )}
-          style={{
+          style={isInlineComposer ? undefined : {
             width: composerLayout.width,
             maxHeight: composerLayout.maxHeight,
             top: `calc(100% + ${composerLayout.gap}px)`,
