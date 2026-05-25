@@ -1,6 +1,6 @@
 import React from 'react'
 import { IconCopy, IconCut, IconFolderPlus, IconX } from '@tabler/icons-react'
-import { Scissors } from 'lucide-react'
+import { IconScissors } from '@tabler/icons-react'
 import { WorkbenchButton, WorkbenchIconButton } from '../../../design'
 import { toast } from '../../../ui/toast'
 import { cn } from '../../../utils/cn'
@@ -1000,7 +1000,7 @@ export default function GenerationCanvas({ readOnly = false }: GenerationCanvasP
                               setActiveEdge(null)
                             }}
                           >
-                            <Scissors size={16} strokeWidth={2.2} aria-hidden="true" />
+                            <IconScissors size={16} stroke={2.2} aria-hidden="true" />
                           </button>
                         </div>
                       </foreignObject>

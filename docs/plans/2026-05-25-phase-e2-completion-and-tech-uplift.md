@@ -862,7 +862,7 @@ export const iconsByName = {
 
 ## 10. 进度跟踪
 
-**有效进度**: 11 / 18 tasks (61%)（W2 5 个分离组件 over-engineered，简化合并；W0 升级 → E.3）
+**有效进度**: 12 / 18 tasks (67%)（W2 5 个分离组件 over-engineered，简化合并；W0 升级 → E.3）
 **当前 Wave**: 🚧 W3 进行中
 **最后更新**: 2026-05-25
 
@@ -878,7 +878,7 @@ export const iconsByName = {
 | ~~W0~~ | E.2C-08 | Tanstack Query 5 替代 SWR | → Phase E.3 | - |
 | ~~W0~~ | E.2C-09 | TipTap 4 | → Phase E.3 | - |
 | ~~W0~~ | E.2C-10 | Electron 33 minor | → Phase E.3 | - |
-| W3 | E.2C-11 | 删除 lucide-react（并入 W3 视觉打磨）| ⏸ | - |
+| W3 | E.2C-11 | 删除 lucide-react（并入 W3 视觉打磨）| ✓ | pending |
 | ~~W0~~ | E.2C-12 | 持久化层抽象 | → Phase E.3 | - |
 | W1 | E.2C-13 | 删除 viewType 系统 | ✓ | pending |
 | W1 | E.2C-14 | NodeRenderKind + Tabler 图标映射 | ✓ | pending |
