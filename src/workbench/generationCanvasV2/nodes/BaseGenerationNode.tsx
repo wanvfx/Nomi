@@ -1,7 +1,8 @@
 import React from 'react'
-import { IconGitBranch, IconGripVertical, IconGrid3x3, IconInfoCircle, IconLayoutGrid, IconMaximize, IconUpload } from '@tabler/icons-react'
+import { IconCopy, IconGripVertical, IconGrid3x3, IconInfoCircle, IconLayoutGrid, IconMaximize, IconUpload } from '@tabler/icons-react'
 import ProvenancePanel from './ProvenancePanel'
 import TitlePill from './TitlePill'
+import { getBuiltinCategoryById } from '../../project/projectCategories'
 import { cn } from '../../../utils/cn'
 import type { GenerationCanvasNode } from '../model/generationCanvasTypes'
 import { useWorkbenchStore } from '../../workbenchStore'
@@ -532,6 +533,15 @@ export default function BaseGenerationNode({ node, selected, readOnly = false, f
   const showStatusBadge = status === 'queued' || status === 'running' || status === 'error'
   const composerLayout = floatingComposerLayout(visualSize.width, visualSize.height, node.kind)
   const sourceNodeLabel = sourceNode?.title || sourceNode?.id || (node.derivedFrom ? '源节点已不在当前项目' : '')
+  // E.2C-25 副本角标文案：跨分类独立副本显示 "📋 独立副本（来自 [分类]·[名]）"
+  const sourceCategoryName = sourceNode?.categoryId
+    ? getBuiltinCategoryById(sourceNode.categoryId)?.name
+    : null
+  const independentCopyLabel = sourceCategoryName && sourceNode
+    ? `独立副本（来自 ${sourceCategoryName}·${sourceNodeLabel}）`
+    : sourceNode
+      ? `独立副本（来自 ${sourceNodeLabel}）`
+      : '独立副本（源节点已不存在）'
   const nodeExecutionKind = getGenerationNodeExecutionKind(node.kind)
   const handlePanoramaScreenshot = React.useCallback((screenshot: PanoramaScreenshot) => {
     const { dataUrl, dimensions } = screenshot
@@ -842,18 +852,21 @@ export default function BaseGenerationNode({ node, selected, readOnly = false, f
             {STATUS_LABEL[status] ?? status}
           </span>
         ) : null}
+        {/* E.2C-25 副本角标（spec §6.3）：跨分类独立副本永久显示。
+            注：经 E.2C-16 migration 后，derivedFrom 仅承载跨分类独立副本语义；
+            同分类内"基于此重生成"链路存到 regeneratedFrom 字段，不进此角标。 */}
         {node.derivedFrom ? (
           <button
             type="button"
             className="generation-canvas-v2-node__derived-badge"
             aria-label={sourceNode ? `定位源节点：${sourceNodeLabel}` : '源节点已不存在'}
-            title={sourceNode ? `派生自：${sourceNodeLabel}` : '源节点已不存在'}
+            title={independentCopyLabel}
             disabled={!sourceNode}
             onClick={handleFocusSourceNode}
             onPointerDown={(event) => event.stopPropagation()}
           >
-            <IconGitBranch size={13} stroke={1.8} aria-hidden="true" />
-            <span>{sourceNode ? '派生' : '源缺失'}</span>
+            <IconCopy size={13} stroke={1.8} aria-hidden="true" />
+            <span>独立副本</span>
           </button>
         ) : null}
         {hasResult ? (
