@@ -9,13 +9,9 @@ describe('projectTemplates', () => {
     expect(PROJECT_TEMPLATES['free-form']).toBeDefined()
   })
 
-  it('manga-short enables 7 categories including story / characters / scenes / shots', () => {
+  it('manga-short enables the v0.6 five-category workspace', () => {
     const tpl = PROJECT_TEMPLATES['manga-short']
-    expect(tpl.enabledCategories).toContain('story')
-    expect(tpl.enabledCategories).toContain('characters')
-    expect(tpl.enabledCategories).toContain('scenes')
-    expect(tpl.enabledCategories).toContain('shots')
-    expect(tpl.enabledCategories.length).toBeGreaterThanOrEqual(6)
+    expect(tpl.enabledCategories).toEqual(['shots', 'cast', 'scene', 'prop', 'audio'])
   })
 
   it('product-demo enables fewer categories than manga-short', () => {
@@ -24,8 +20,8 @@ describe('projectTemplates', () => {
     expect(demo).toBeLessThan(manga)
   })
 
-  it('free-form enables all 8 categories', () => {
-    expect(PROJECT_TEMPLATES['free-form'].enabledCategories.length).toBe(8)
+  it('free-form enables all 5 v0.6 categories', () => {
+    expect(PROJECT_TEMPLATES['free-form'].enabledCategories).toEqual(['shots', 'cast', 'scene', 'prop', 'audio'])
   })
 
   it('each template has a non-empty name and description', () => {

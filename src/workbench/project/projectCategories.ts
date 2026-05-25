@@ -23,31 +23,25 @@ export type ProjectCategory = {
 }
 
 export const BUILTIN_CATEGORY_IDS = [
-  'story',
-  'characters',
-  'scenes',
-  'style',
   'shots',
+  'cast',
+  'scene',
+  'prop',
   'audio',
-  'inbox',
-  'exports',
 ] as const
 
 export type BuiltinCategoryId = (typeof BUILTIN_CATEGORY_IDS)[number]
 
 export const BUILTIN_CATEGORIES: ProjectCategory[] = [
-  { id: 'story', name: '故事', icon: '📖', order: 1, viewType: 'document', isBuiltin: true },
-  { id: 'characters', name: '角色', icon: '👥', order: 2, viewType: 'card-grid', isBuiltin: true },
-  { id: 'scenes', name: '场景', icon: '🌍', order: 3, viewType: 'card-grid', isBuiltin: true },
-  { id: 'style', name: '风格', icon: '🎨', order: 4, viewType: 'card-grid', isBuiltin: true },
-  { id: 'shots', name: '分镜', icon: '🎬', order: 5, viewType: 'graph-canvas', isBuiltin: true },
-  { id: 'audio', name: '声音', icon: '🎵', order: 6, viewType: 'audio-list', isBuiltin: true },
-  { id: 'inbox', name: '资源池', icon: '🖼️', order: 7, viewType: 'asset-library', isBuiltin: true },
-  { id: 'exports', name: '导出', icon: '📦', order: 8, viewType: 'list-with-status', isBuiltin: true },
+  { id: 'shots', name: '分镜', icon: '🎬', order: 1, viewType: 'graph-canvas', isBuiltin: true },
+  { id: 'cast', name: '角色', icon: '👥', order: 2, viewType: 'card-grid', isBuiltin: true },
+  { id: 'scene', name: '场景', icon: '🌍', order: 3, viewType: 'card-grid', isBuiltin: true },
+  { id: 'prop', name: '道具', icon: '🧰', order: 4, viewType: 'card-grid', isBuiltin: true },
+  { id: 'audio', name: '声音', icon: '🎵', order: 5, viewType: 'audio-list', isBuiltin: true },
 ]
 
 export const DEFAULT_CATEGORY_ID: BuiltinCategoryId = 'shots'
-export const FALLBACK_CATEGORY_ID: BuiltinCategoryId = 'inbox'
+export const FALLBACK_CATEGORY_ID: BuiltinCategoryId = 'shots'
 
 export const projectCategorySchema = z.object({
   id: z.string().min(1),
@@ -79,6 +73,7 @@ export function normalizeCategories(input: unknown): ProjectCategory[] {
   for (const item of input) {
     const parsed = projectCategorySchema.safeParse(item)
     if (!parsed.success) continue
+    if (!isBuiltinCategoryId(parsed.data.id)) continue
     merged.set(parsed.data.id, parsed.data)
   }
   return Array.from(merged.values()).sort((a, b) => a.order - b.order)

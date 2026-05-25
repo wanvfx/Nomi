@@ -1,103 +1,214 @@
-import type {
-  GenerationCanvasEdge,
-  GenerationCanvasNode,
-  GenerationCanvasSnapshot,
+import {
+  CATEGORY_IDS,
+  type CategoryId,
+  type GenerationCanvasEdge,
+  type GenerationCanvasNode,
+  type GenerationCanvasSnapshot,
+  type NodeGroup,
 } from '../generationCanvasV2/model/generationCanvasTypes'
 import type { WorkbenchProjectPayload, WorkbenchProjectRecordV1 } from './projectRecordSchema'
 import { cloneBuiltinCategories } from './projectCategories'
 
 /**
- * Phase E4: auto-migration of legacy v0.4 projects into the directory-tree
- * model. A project is "migrated" when every node has a `categoryId` AND the
- * payload carries a non-empty `categories` array. The migration is idempotent
- * — running it twice on the same project is a no-op.
- *
- * Heuristic mapping by node kind:
- *  - text                  → story
- *  - character             → characters
- *  - scene / panorama      → scenes
- *  - image / video         → shots (if part of a temporal edge), else inbox
- *  - output                → exports
- *  - (everything else)     → inbox
+ * Phase E.2: normalize legacy project category ids into the v0.6 five-category
+ * model. v0.5 categories `shots` and `audio` are retained, `characters` maps to
+ * `cast`, `scenes` maps to `scene`, and removed buckets (`story`, `style`,
+ * `inbox`, `exports`) are deleted instead of archived.
  */
+
+
+const LEGACY_CATEGORY_MAP: Record<string, CategoryId | null> = {
+  shots: 'shots',
+  characters: 'cast',
+  scenes: 'scene',
+  audio: 'audio',
+  story: null,
+  style: null,
+  inbox: null,
+  exports: null,
+}
 
 export type CategoryMigrationDiagnostic = {
   projectId?: string
   totalNodes: number
   migratedNodes: number
+  removedNodes: number
+  removedCategoryIds: string[]
   categoriesSeeded: boolean
   alreadyMigrated: boolean
 }
 
-function isLikelyShot(node: GenerationCanvasNode, edges: readonly GenerationCanvasEdge[]): boolean {
-  return edges.some((edge) => edge.source === node.id || edge.target === node.id)
+export function isCategoryId(value: unknown): value is CategoryId {
+  return typeof value === 'string' && (CATEGORY_IDS as readonly string[]).includes(value)
+}
+
+function readCategoryId(value: unknown): string | undefined {
+  if (!value || typeof value !== 'object') return undefined
+  const categoryId = (value as { categoryId?: unknown }).categoryId
+  return typeof categoryId === 'string' ? categoryId : undefined
+}
+
+function mapLegacyCategoryId(categoryId: string): CategoryId | null {
+  if (Object.prototype.hasOwnProperty.call(LEGACY_CATEGORY_MAP, categoryId)) {
+    return LEGACY_CATEGORY_MAP[categoryId]
+  }
+  return isCategoryId(categoryId) ? categoryId : null
 }
 
 export function migrateNodeToCategoryId(
   node: GenerationCanvasNode,
-  edges: readonly GenerationCanvasEdge[],
-): string {
-  if (node.categoryId) return node.categoryId
+  _edges: readonly GenerationCanvasEdge[],
+): CategoryId | null {
+  const existingCategoryId = readCategoryId(node)
+  if (existingCategoryId) return mapLegacyCategoryId(existingCategoryId)
+
   const kind = node.kind
-  if (kind === 'text') return 'story'
-  if (kind === 'character') return 'characters'
-  if (kind === 'scene' || kind === 'panorama') return 'scenes'
-  if (kind === 'image' || kind === 'video') {
-    return isLikelyShot(node, edges) ? 'shots' : 'inbox'
+  if (kind === 'character') return 'cast'
+  if (kind === 'scene' || kind === 'panorama') return 'scene'
+  if (kind === 'image' || kind === 'video' || kind === 'keyframe' || kind === 'shot') return 'shots'
+  return null
+}
+
+function unique(values: readonly string[]): string[] {
+  return Array.from(new Set(values))
+}
+
+function normalizeGroups(input: unknown, existingNodeIds: ReadonlySet<string>): { groups: NodeGroup[]; changed: boolean } {
+  if (!Array.isArray(input)) return { groups: [], changed: true }
+  const groups: NodeGroup[] = []
+  let changed = false
+  for (const item of input) {
+    if (!item || typeof item !== 'object') {
+      changed = true
+      continue
+    }
+    const originalCategoryId = readCategoryId(item)
+    const categoryId = mapLegacyCategoryId(originalCategoryId || '')
+    if (!categoryId) {
+      changed = true
+      continue
+    }
+    const originalNodeIds = Array.isArray((item as { nodeIds?: unknown }).nodeIds)
+      ? (item as { nodeIds: unknown[] }).nodeIds
+      : []
+    const nodeIds = originalNodeIds.filter((nodeId): nodeId is string => (
+      typeof nodeId === 'string' && existingNodeIds.has(nodeId)
+    ))
+    const nodeIdsChanged = nodeIds.length !== originalNodeIds.length || nodeIds.some((nodeId, index) => nodeId !== originalNodeIds[index])
+    if (originalCategoryId !== categoryId || nodeIdsChanged) changed = true
+    groups.push(originalCategoryId === categoryId && !nodeIdsChanged
+      ? item as NodeGroup
+      : {
+          ...(item as NodeGroup),
+          categoryId,
+          nodeIds,
+        })
   }
-  if (kind === 'output') return 'exports'
-  return 'inbox'
+  return { groups, changed }
 }
 
 export function migrateGenerationCanvasSnapshot(
   snapshot: GenerationCanvasSnapshot,
-): { snapshot: GenerationCanvasSnapshot; migratedCount: number } {
+): {
+  snapshot: GenerationCanvasSnapshot
+  migratedCount: number
+  removedCount: number
+  removedCategoryIds: string[]
+} {
   let migratedCount = 0
-  const nextNodes = snapshot.nodes.map((node) => {
-    if (node.categoryId) return node
-    migratedCount += 1
-    return {
-      ...node,
-      categoryId: migrateNodeToCategoryId(node, snapshot.edges),
+  const removedCategoryIds: string[] = []
+  const nextNodes: GenerationCanvasNode[] = []
+
+  for (const node of snapshot.nodes) {
+    const categoryId = migrateNodeToCategoryId(node, snapshot.edges)
+    if (!categoryId) {
+      removedCategoryIds.push(readCategoryId(node) || '(uncategorized)')
+      continue
     }
-  })
-  if (!migratedCount) return { snapshot, migratedCount: 0 }
-  return {
-    snapshot: { ...snapshot, nodes: nextNodes },
-    migratedCount,
+    if (readCategoryId(node) !== categoryId) migratedCount += 1
+    nextNodes.push({
+      ...node,
+      categoryId,
+    })
   }
+
+  const nextNodeIds = new Set(nextNodes.map((node) => node.id))
+  const nextEdges = snapshot.edges.filter((edge) => nextNodeIds.has(edge.source) && nextNodeIds.has(edge.target))
+  const nextSelectedNodeIds = snapshot.selectedNodeIds.filter((nodeId) => nextNodeIds.has(nodeId))
+  const groupsNormalization = normalizeGroups((snapshot as { groups?: unknown }).groups, nextNodeIds)
+  const nextGroups = groupsNormalization.groups
+  const removedCount = snapshot.nodes.length - nextNodes.length
+
+  if (!migratedCount && !removedCount && nextEdges.length === snapshot.edges.length &&
+    nextSelectedNodeIds.length === snapshot.selectedNodeIds.length && !groupsNormalization.changed) {
+    return { snapshot, migratedCount: 0, removedCount: 0, removedCategoryIds: [] }
+  }
+
+  return {
+    snapshot: {
+      ...snapshot,
+      nodes: nextNodes,
+      edges: nextEdges,
+      selectedNodeIds: nextSelectedNodeIds,
+      groups: nextGroups,
+    },
+    migratedCount,
+    removedCount,
+    removedCategoryIds: unique(removedCategoryIds),
+  }
+}
+
+function normalizePayloadCategories(payload: WorkbenchProjectPayload): { categories: WorkbenchProjectPayload['categories']; seeded: boolean } {
+  if (!Array.isArray(payload.categories) || payload.categories.length === 0) {
+    return { categories: cloneBuiltinCategories(), seeded: true }
+  }
+  const byId = new Map(cloneBuiltinCategories().map((category) => [category.id, category]))
+  for (const category of payload.categories) {
+    const categoryId = mapLegacyCategoryId(category.id)
+    if (!categoryId) continue
+    const builtin = byId.get(categoryId)
+    byId.set(categoryId, { ...builtin, ...category, id: categoryId, order: builtin?.order ?? category.order })
+  }
+  return { categories: Array.from(byId.values()).sort((a, b) => a.order - b.order), seeded: false }
 }
 
 export function migrateProjectPayload(payload: WorkbenchProjectPayload): {
   payload: WorkbenchProjectPayload
   diagnostic: CategoryMigrationDiagnostic
 } {
-  const hasCategories = Array.isArray(payload.categories) && payload.categories.length > 0
+  const categoryNormalization = normalizePayloadCategories(payload)
   const nodeMigration = migrateGenerationCanvasSnapshot(payload.generationCanvas)
   const totalNodes = payload.generationCanvas.nodes.length
-  const alreadyMigrated = hasCategories && nodeMigration.migratedCount === 0
+  const categoryIds = payload.categories?.map((category) => category.id) || []
+  const nextCategoryIds = categoryNormalization.categories?.map((category) => category.id) || []
+  const categoriesChanged = categoryIds.length !== nextCategoryIds.length || categoryIds.some((id, index) => id !== nextCategoryIds[index])
+  const alreadyMigrated = !categoriesChanged && nodeMigration.snapshot === payload.generationCanvas &&
+    nodeMigration.migratedCount === 0 && nodeMigration.removedCount === 0
   if (alreadyMigrated) {
     return {
       payload,
       diagnostic: {
         totalNodes,
         migratedNodes: 0,
+        removedNodes: 0,
+        removedCategoryIds: [],
         categoriesSeeded: false,
         alreadyMigrated: true,
       },
     }
   }
-  const categoriesSeeded = !hasCategories
   return {
     payload: {
       ...payload,
-      ...(categoriesSeeded ? { categories: cloneBuiltinCategories() } : {}),
+      categories: categoryNormalization.categories,
       generationCanvas: nodeMigration.snapshot,
     },
     diagnostic: {
       totalNodes,
       migratedNodes: nodeMigration.migratedCount,
-      categoriesSeeded,
+      removedNodes: nodeMigration.removedCount,
+      removedCategoryIds: nodeMigration.removedCategoryIds,
+      categoriesSeeded: categoryNormalization.seeded,
       alreadyMigrated: false,
     },
   }

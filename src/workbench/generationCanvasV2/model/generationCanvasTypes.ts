@@ -8,6 +8,10 @@ export type GenerationResultType = 'image' | 'video' | 'text'
 
 export type GenerationNodeTaskKind = 'text' | 'image' | 'video' | 'workflow' | 'asset' | 'unknown'
 
+export const CATEGORY_IDS = ['shots', 'cast', 'scene', 'prop', 'audio'] as const
+
+export type CategoryId = (typeof CATEGORY_IDS)[number]
+
 /**
  * Phase E Task E11 — Complete provenance record for a generated asset.
  *
@@ -96,9 +100,24 @@ export type GenerationCanvasNode = {
   /**
    * Phase E: category this node belongs to within the project's directory tree.
    * Legacy v0.4 nodes have no value here; the project loader normalizes them
-   * via projectCategoryMigration (E4). Optional for backward compat.
+   * via projectCategoryMigration (E4). Optional for backward compat; after v0.6
+   * normalization every node should have a categoryId.
    */
-  categoryId?: string
+  categoryId?: CategoryId
+  groupId?: string
+  derivedFrom?: string
+}
+
+export type NodeGroup = {
+  id: string
+  name: string
+  categoryId: CategoryId
+  nodeIds: string[]
+  color?: string
+  frameBounds?: { x: number; y: number; w: number; h: number }
+  collapsed?: boolean
+  createdAt: number
+  updatedAt: number
 }
 
 export type GenerationCanvasEdge = {
@@ -127,4 +146,5 @@ export type GenerationCanvasSnapshot = {
   nodes: GenerationCanvasNode[]
   edges: GenerationCanvasEdge[]
   selectedNodeIds: string[]
+  groups: NodeGroup[]
 }

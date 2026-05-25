@@ -22,5 +22,6 @@ export function createDefaultGenerationCanvasSnapshot(): GenerationCanvasSnapsho
     nodes: [textNode, imageNode],
     edges: [{ id: 'edge-gen-v2-text-1-gen-v2-image-1', source: textNode.id, target: imageNode.id }],
     selectedNodeIds: [],
+    groups: [],
   }
 }

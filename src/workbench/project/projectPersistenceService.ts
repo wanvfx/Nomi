@@ -93,7 +93,7 @@ export function createWorkbenchProjectPersistenceService(deps: Dependencies): Wo
     const { record: catUpgraded, diagnostic } = migrateProjectRecord(mediaUpgraded)
     const upgraded = catUpgraded
     const changed = upgraded !== project
-    if (!diagnostic.alreadyMigrated && (diagnostic.migratedNodes > 0 || diagnostic.categoriesSeeded)) {
+    if (!diagnostic.alreadyMigrated && (diagnostic.migratedNodes > 0 || diagnostic.removedNodes > 0 || diagnostic.categoriesSeeded)) {
       lastCategoryMigrationDiagnostic = diagnostic
     }
     if (changed) {
