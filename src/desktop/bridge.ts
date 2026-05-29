@@ -101,6 +101,22 @@ export type DesktopBridge = {
     cancelChatV2: (sessionId: string) => Promise<{ ok: boolean; error?: string }>
     onChatV2Event: (sessionId: string, callback: (event: unknown) => void) => () => void
   }
+  onboarding: {
+    start: (payload: {
+      docsUrl: string
+      userApiKey: string
+      targetKind?: 'text' | 'image' | 'video' | 'audio'
+      maxSteps?: number
+      agent?: {
+        providerKind?: 'openai-compatible' | 'anthropic'
+        baseUrl?: string
+        modelId?: string
+        apiKey?: string
+      }
+    }) => Promise<{ trialId: string }>
+    cancel: (trialId: string) => Promise<{ ok: boolean; error?: string }>
+    onEvent: (trialId: string, callback: (event: unknown) => void) => () => void
+  }
   modelCatalog: {
     listVendors: () => unknown[]
     listModels: (params?: unknown) => unknown[]

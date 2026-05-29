@@ -5,11 +5,13 @@ import {
     IconDatabaseCog,
     IconDownload,
     IconKey,
+    IconPlus,
     IconRefresh,
     IconCircleCheck,
     IconCircleDashed,
     IconAlertCircle,
 } from "@tabler/icons-react";
+import { OnboardingWizard } from "../../../onboarding/OnboardingWizard";
 import {
     deleteModelCatalogMapping,
     deleteModelCatalogModel,
@@ -120,6 +122,7 @@ export default function StatsModelCatalogManagement({
         React.useState<MappingEditorState | null>(null);
     const [catalogDetailsOpened, setCatalogDetailsOpened] =
         React.useState(false);
+    const [onboardingOpened, setOnboardingOpened] = React.useState(false);
 
     const vendorSelectData = React.useMemo(() => {
         const base = vendors
@@ -508,6 +511,13 @@ export default function StatsModelCatalogManagement({
                     gap={6}
                     wrap='wrap'>
                     <DesignButton
+                        className='stats-model-catalog-toolbar-add-model'
+                        size='xs'
+                        leftSection={<IconPlus size={14} />}
+                        onClick={() => setOnboardingOpened(true)}>
+                        添加模型
+                    </DesignButton>
+                    <DesignButton
                         className='stats-model-catalog-toolbar-vendors'
                         size='xs'
                         variant='light'
@@ -797,6 +807,12 @@ export default function StatsModelCatalogManagement({
                 vendorOptions={vendorOptions}
                 onClose={() => setMappingEditor(null)}
                 onSaved={reloadAll}
+            />
+
+            <OnboardingWizard
+                opened={onboardingOpened}
+                onClose={() => setOnboardingOpened(false)}
+                onCommitted={() => { void reloadAll(); }}
             />
         </Stack>
     );

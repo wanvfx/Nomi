@@ -363,13 +363,15 @@ function registerOnboardingIpc(): void {
 
     const agentConfig = (payload?.agent || {}) as Record<string, unknown>;
     const agent = {
-      providerKind: String(agentConfig.providerKind || "openai-compatible") as ProviderKind,
-      baseUrl: String(agentConfig.baseUrl || ""),
-      modelId: String(agentConfig.modelId || ""),
-      apiKey: String(agentConfig.apiKey || ""),
+      providerKind: String(agentConfig.providerKind || process.env.NOMI_ONBOARDING_AGENT_PROVIDER || "openai-compatible") as ProviderKind,
+      baseUrl: String(agentConfig.baseUrl || process.env.NOMI_ONBOARDING_AGENT_BASE_URL || ""),
+      modelId: String(agentConfig.modelId || process.env.NOMI_ONBOARDING_AGENT_MODEL || ""),
+      apiKey: String(agentConfig.apiKey || process.env.NOMI_ONBOARDING_AGENT_KEY || ""),
     };
     if (!agent.baseUrl || !agent.modelId || !agent.apiKey) {
-      throw new Error("agent.baseUrl + agent.modelId + agent.apiKey required");
+      throw new Error(
+        "Onboarding agent not configured. Set NOMI_ONBOARDING_AGENT_BASE_URL / MODEL / KEY env vars, or pass agent.{baseUrl,modelId,apiKey} in the payload.",
+      );
     }
 
     // Optional target kind hint; if absent, the agent infers from the docs.
