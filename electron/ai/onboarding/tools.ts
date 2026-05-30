@@ -6,7 +6,7 @@
  *  2. Tools mutate a draft (never the real catalog)  -  commit_model is the only promote step
  *  3. Tools that touch the network use hardenedFetch (SSRF / size limits)
  *  4. execute_test_curl uses {{user_api_key}} placeholder  -  agent never sees real key
- *  5. add_field_with_evidence requires non-trivial evidence  -  Zod enforces
+ *  5. set_fields requires non-trivial evidence per field  -  Zod enforces
  *
  * Each tool returns a normalized result:
  *   { ok: true, value: ... }  or  { ok: false, error: string }
@@ -18,9 +18,8 @@ import { hardenedFetch, hardenedFetchText } from "../../hardenedFetch";
 import { draftStore } from "./draft";
 import { extractTables, extractCurlExamples, extractCodeBlocks, htmlToMarkdown } from "./docExtractors";
 import { parseCurlBlueprint } from "./curlBlueprint";
-import { CHECKLISTS, formatChecklistForPrompt } from "./checklist";
 import type {
-  ModelKind, ProviderKind, AuthType, ParameterControlType,
+  ProviderKind, AuthType,
   FieldEvidence, FieldDefinition, RequestProfileOperation, RequestProfileStage,
 } from "./types";
 
@@ -214,7 +213,7 @@ export function buildOnboardingTools(hooks: ToolHooks) {
     // -----------------------------------------------------------
     set_fields: tool({
       description:
-        "Add MULTIPLE parameter fields in one call (always prefer this over calling add_field_with_evidence repeatedly). " +
+        "Add MULTIPLE parameter fields in one call. " +
         "Each field still requires evidence: >=20 chars of actual doc text + evidence_location. " +
         "If you have 3 fields to add, make ONE set_fields call, not 3 add_field calls.",
       parameters: z.object({
@@ -254,86 +253,6 @@ export function buildOnboardingTools(hooks: ToolHooks) {
       },
     }),
 
-    // -----------------------------------------------------------
-    // 5b. add_field_with_evidence   -  single-field fallback, prefer set_fields
-    // -----------------------------------------------------------
-    add_field_with_evidence: tool({
-      description:
-        "DEPRECATED — prefer set_fields(fields: [...]) which adds many fields in one call. " +
-        "Use this only when adding exactly one missing field after batch. " +
-        "Evidence must be >=20 chars; evidence_location is required.",
-      parameters: z.object({
-        key: z.string().min(1).describe("Field name as the server expects, e.g. 'duration', 'aspect_ratio'"),
-        displayName: z.string().min(1),
-        type: ParamControlSchema,
-        options: z.array(ParamOptionSchema).optional(),
-        default: z.string().optional().describe("Default value as string; runtime parses per field type"),
-        evidence: EvidenceSchema,
-      }),
-      execute: async (params) => {
-        // ensure field.key matches evidence.field
-        if (params.key !== params.evidence.field) {
-          return err(`evidence.field must equal key. Got key='${params.key}', evidence.field='${params.evidence.field}'`);
-        }
-        const field: FieldDefinition = {
-          key: params.key,
-          displayName: params.displayName,
-          type: params.type,
-          ...(params.options ? { options: params.options } : {}),
-          ...(params.default !== undefined ? { default: params.default } : {}),
-          evidence: params.evidence as FieldEvidence,
-        };
-        draftStore.upsertField(sessionId, field);
-        const result = ok({ added: field.key, type: field.type, totalFields: draftStore.get(sessionId).modelFields.length });
-        hooks.onToolCall?.({ tool: "add_field_with_evidence", args: params, result });
-        return result;
-      },
-    }),
-
-    // -----------------------------------------------------------
-    // 6. check_completeness   -  hard gate before commit
-    // -----------------------------------------------------------
-    check_completeness: tool({
-      description:
-        "Get the standard checklist of common fields for this model kind. " +
-        "For EACH item you must declare: 'has' / 'no' / 'unsure'. " +
-        "'unsure' is not allowed in final state  -  you must re-read docs and resolve. " +
-        "Call this near the end, before commit_model.",
-      parameters: z.object({
-        kind: z.enum(["text", "image", "video", "audio"]),
-        assessment: z.array(z.object({
-          field: z.string(),
-          status: z.enum(["has", "no", "unsure"]),
-          reasoning: z.string().min(10).describe("Why has/no/unsure  -  cite evidence if has, justify if no"),
-        })).optional().describe("If you have an assessment to record, pass it here. Otherwise omit to just retrieve the checklist."),
-      }),
-      execute: async ({ kind, assessment }) => {
-        const checklist = CHECKLISTS[kind as ModelKind];
-        if (assessment) {
-          const unsure = assessment.filter((a) => a.status === "unsure");
-          draftStore.patch(sessionId, {
-            completenessCheck: {
-              kind: kind as ModelKind,
-              items: assessment,
-            },
-          });
-          const result = ok({
-            checklist,
-            recorded: assessment.length,
-            unsure_count: unsure.length,
-            ...(unsure.length > 0
-              ? { warning: `${unsure.length} fields still 'unsure'. Re-scan docs and call add_field_with_evidence or update assessment.` }
-              : { ready_for_commit: true }),
-          });
-          hooks.onToolCall?.({ tool: "check_completeness", args: { kind, assessment }, result });
-          return result;
-        }
-        // Just retrieve checklist
-        const result = ok({ checklist, instruction: "Run through each item. For 'has' you should have added it via add_field_with_evidence." });
-        hooks.onToolCall?.({ tool: "check_completeness", args: { kind }, result });
-        return result;
-      },
-    }),
 
     // -----------------------------------------------------------
     // 7. set_mapping_request   -  define create/query operation
@@ -513,7 +432,7 @@ export function buildOnboardingTools(hooks: ToolHooks) {
     commit_model: tool({
       description:
         "Promote the current draft into a real catalog entry. " +
-        "Requires: vendor + model + mapping.create + at least one successful execute_test_curl + check_completeness with no 'unsure' items. " +
+        "Requires: vendor + model + mapping.create + at least one successful execute_test_curl. " +
         "If the checks fail, returns the list of issues  -  fix and call again.",
       parameters: z.object({
         confirm: z.literal(true),
@@ -656,4 +575,3 @@ function extractErrorMessage(body: unknown): string | null {
   return null;
 }
 
-export { formatChecklistForPrompt };
