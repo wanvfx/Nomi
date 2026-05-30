@@ -90,7 +90,7 @@ export function OnboardingDrawer(): JSX.Element {
   for (const m of models) byKind[m.kind].push(m)
 
   return (
-    <Stack gap="md" p="md" h="100%">
+    <Stack gap="md" p="md">
       <Group justify="space-between" align="center">
         <Text size="sm" fw={700} c="var(--nomi-ink)">模型设置</Text>
         <DesignButton

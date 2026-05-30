@@ -4,8 +4,7 @@ import WorkbenchShell from './WorkbenchShell'
 import ProjectLibraryPage from './library/ProjectLibraryPage'
 import { CanvasAssistantPanel, GenerationCanvas } from './generationCanvasV2'
 import { ToastHost } from '../ui/toast'
-import { OnboardingDrawer } from '../ui/onboarding/OnboardingDrawer'
-import { DesignDrawer } from '../design'
+import { OnboardingFloatingPanel } from '../ui/onboarding/OnboardingFloatingPanel'
 import {
   createLocalProject,
   deleteLocalProject,
@@ -258,17 +257,10 @@ export default function NomiStudioApp(): JSX.Element {
         onOpenModelCatalog={() => setModelCatalogOpened(true)}
         onRenameProject={handleRenameProject}
       />
-      <DesignDrawer
+      <OnboardingFloatingPanel
         opened={modelCatalogOpened}
         onClose={() => setModelCatalogOpened(false)}
-        position="right"
-        size={420}
-        zIndex={4000}
-        withinPortal
-        withCloseButton={false}
-      >
-        <OnboardingDrawer />
-      </DesignDrawer>
+      />
       <ToastHost />
     </div>
   )
