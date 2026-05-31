@@ -51,6 +51,13 @@
 - 修复：`WorkbenchShell` 的 `<main>` 漏了 `flex` class（合并时误取 HEAD 版），补回 → 文件树侧栏与内容并排。
 - 验收：electron tsc 0 错、`build:renderer` 通过、`pnpm test` 46 files / 397+1 todo 全绿（含全部 workspace 新测试）、grep 无冲突标记、无 cost 残留。
 
+### 7.1 目测验证时发现并修复的潜在 bug（非合并回归，是 workspace 功能自带缺陷）
+- 现象：启动打包后的 app，点已有项目 → URL 进 `#/studio` 但视图弹回项目库，控制台刷 `本地项目记录损坏：payload 缺少必要字段`。
+- 根因：workspace 文件夹迁移会写 **version:2** manifest（`.nomi/project.json`，payload 嵌套 + `lastKnownRootPath`），但 renderer 的 `workbenchProjectRecordSchema` 只认 `version: z.literal(1)`。V2 记录解析失败 → 落到 `normalizeLegacyRecord`（读顶层 `workbenchDocument` 等，V2 里这些在 payload 内 → undefined）→ `normalizePayload` 抛错。
+- 这是 workspace 分支自身遗漏：electron 侧产出 V2，renderer 侧从没教会读 V2（folder-picker commit 只给 `createLocalProject` 加了 `rootPath` 选项，没碰 normalizeRecord）。今天迁移生成的 V2 manifest 才触发。
+- 修复：`projectRecordSchema.ts` 的版本 schema 改为 `z.union([z.literal(1), z.literal(2)]).transform(()=>1)`——V1/V2 payload 同形，统一规整到内存里的 version:1 表示；加 `projectRepository.workspace.test.ts` 读 V2 记录回归测试。
+- 目测结果（CDP 截图 `/tmp/nomi-studio.png`）：项目正常进 STUDIO，左侧文件树并排渲染（assets / generated / imported / cache / exports / project.json + 真实文件），`flex` 布局生效，日志 0 payload 错误。文件管理功能确认可见可用。
+
 ## 8. 根因复盘（告知另一 AI）
 
 **核心原因：workspace 功能是在 detached HEAD（游离头指针）上开发的，从未合并/变基到 main。**
