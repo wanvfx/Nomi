@@ -7,7 +7,14 @@ import { createDefaultGenerationCanvasSnapshot } from '../generationCanvasV2/sto
 import type { GenerationCanvasSnapshot } from '../generationCanvasV2/model/generationCanvasTypes'
 import { cloneBuiltinCategories, projectCategorySchema, type ProjectCategory } from './projectCategories'
 
-export const workbenchProjectRecordVersionSchema = z.literal(1)
+// Persisted records come in two shapes that carry an identical `payload`:
+//   v1 = legacy single-file project.json
+//   v2 = workspace folder manifest (.nomi/project.json), adds lastKnownRootPath
+// The renderer keeps a single in-memory representation (version 1); both
+// persisted versions normalize into it, so we accept either tag here.
+export const workbenchProjectRecordVersionSchema = z
+  .union([z.literal(1), z.literal(2)])
+  .transform(() => 1 as const)
 
 const workbenchProjectGenerationCanvasPayloadSchema = z.object({
   nodes: z.array(z.unknown()),
