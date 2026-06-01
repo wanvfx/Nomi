@@ -144,15 +144,14 @@ export default function CategoryTree({ categories }: Props): JSX.Element {
     })
   }, [setActiveCategoryId])
 
-  // 整行点击：与「文件」tab 的文件夹 / 子组一致——点哪都能收放。
-  // 分类多一层导航语义：点未激活的分类 → 切到它并展开；点已激活的 → 收放它的树。
+  // 整行单击即收放——与「文件」tab 的文件夹 / 子组完全一致（点哪都收放，无两段式）。
+  // 「激活」只作为展开时的副作用（展开 = 我要在这个分类里干活 → 画布跟随聚焦）；
+  // 收起不改聚焦，避免关一个分类却把画布跳过去的意外。
   const handleCategoryRowClick = React.useCallback((categoryId: string) => {
-    if (activeCategoryId !== categoryId) {
-      handleActivateCategory(categoryId)
-      return
-    }
+    const willExpand = !expandedCategoryIds.has(categoryId)
     toggleCategory(categoryId)
-  }, [activeCategoryId, handleActivateCategory, toggleCategory])
+    if (willExpand) setActiveCategoryId(categoryId)
+  }, [expandedCategoryIds, setActiveCategoryId, toggleCategory])
 
   const handleSelectNode = React.useCallback((nodeId: string) => {
     selectNode(nodeId)
