@@ -6,7 +6,8 @@
 
 <p align="center">
   <strong>写一段剧本，自动生成图片、视频、剪辑成片。</strong><br />
-  开源、本地优先、双击即用的 AI 视频创作工作台。
+  开源、本地优先、双击即用的 AI 视频创作工作台。<br />
+  <sub>Open-source, local-first desktop app for AI video creation — script → images &amp; video → timeline → export. Bring your own model &amp; key.</sub>
 </p>
 
 <p align="center">
