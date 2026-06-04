@@ -83,6 +83,9 @@ runtime.ts 最终退化为薄装配/re-export 层，main.ts 的 import 列表自
 | 3 | assets/assetPaths（extensionFromMime/contentTypeFromPath/stableAssetId 等 7 个纯 helper） | ✅ | `d71c088` | 3030 → 2984 |
 | 4 | catalog/secrets（ApiKeyRecord + safeStorage 加密/解密） | ✅ | 见下 | 2984 → 2933 |
 
-**低风险自主批次（步 1-4）完成：runtime.ts 3150 → 2933（-217 行），新增 4 个有测试的模块。**
-后续步 5+（catalog store/repository、tasks/runner、export、agent）是中心/有副作用模块，
-按计划停下来与用户确认、必要时拉角色 agent（规则 9）。
+| 5 | runtimePaths（基础设施地基：路径/目录/JSON 读 + getWorkspaceRepositoryDeps；并消除 writeJson 并行实现，改用 jsonFile.writeJsonFileAtomic） | ✅ | 见下 | 2933 → 2891 |
+| 6 | projects → 接下来（依赖 runtimePaths，已解开循环） | — | — | — |
+
+**进度：runtime.ts 3150 → 2891（-259 行）。** 第 5 步是关键的"基础设施层"——projects/assets/catalog
+都依赖它，先抽它才能解开这些域之间的循环依赖；同时顺手消除了 writeJson 与 jsonFile 的并行实现（规则 1）。
+用户指示"先切完再做用户有感的事"，继续按依赖序往上抽（projects → assets → catalog → tasks → export → agent）。

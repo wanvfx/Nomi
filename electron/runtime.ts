@@ -70,6 +70,20 @@ import {
   isSafeStorageAvailable,
   makeApiKeyRecordFromPlain,
 } from "./catalog/secrets";
+import { writeJsonFileAtomic } from "./jsonFile";
+import {
+  CATALOG_FILE,
+  PROJECT_FILE,
+  PROJECT_ROOT_ENV,
+  SKILLS_ROOT_ENV,
+  ensureDir,
+  getProjectsRoot,
+  getSettingsRoot,
+  getSkillsRoots,
+  getWorkspaceRepositoryDeps,
+  readJson,
+  readText,
+} from "./runtimePaths";
 
 type ProjectRecord = {
   id: string;
@@ -283,10 +297,6 @@ type TaskResult = {
   };
 };
 
-const PROJECT_FILE = "project.json";
-const PROJECT_ROOT_ENV = "NOMI_PROJECTS_DIR";
-const CATALOG_FILE = "model-catalog.json";
-const SKILLS_ROOT_ENV = "NOMI_SKILLS_DIR";
 const taskCache = new Map<string, CachedTask>();
 const exportJobManager = new ExportJobManager();
 
@@ -328,52 +338,6 @@ type SkillRecord = {
 };
 
 
-function getProjectsRoot(): string {
-  const configured = String(process.env[PROJECT_ROOT_ENV] || "").trim();
-  return configured || path.join(app.getPath("documents"), "Nomi Projects");
-}
-
-function getSettingsRoot(): string {
-  return app.getPath("userData");
-}
-
-function getWorkspaceRepositoryDeps(): WorkspaceRepositoryDeps {
-  return {
-    settingsRoot: getSettingsRoot(),
-    defaultProjectsRoot: getProjectsRoot(),
-  };
-}
-
-function getSkillsRoots(): string[] {
-  const candidates = [
-    String(process.env[SKILLS_ROOT_ENV] || "").trim(),
-    path.join(process.cwd(), "skills"),
-    path.join(app.getAppPath(), "skills"),
-    path.join(__dirname, "../skills"),
-    path.join(process.resourcesPath || "", "skills"),
-  ].filter(Boolean);
-  return Array.from(new Set(candidates.map((item) => path.resolve(item))));
-}
-
-function ensureDir(dir: string): void {
-  fs.mkdirSync(dir, { recursive: true });
-}
-
-function readJson<T>(filePath: string, fallback: T): T {
-  try {
-    return JSON.parse(fs.readFileSync(filePath, "utf8")) as T;
-  } catch {
-    return fallback;
-  }
-}
-
-function readText(filePath: string): string {
-  try {
-    return fs.readFileSync(filePath, "utf8");
-  } catch {
-    return "";
-  }
-}
 
 function parseSkillName(markdown: string, directoryName: string): string {
   const match = markdown.match(/^---\s*\n([\s\S]*?)\n---/);
@@ -478,12 +442,6 @@ function buildSkillSystemPrompt(payload: JsonRecord): string {
   ].join("\n");
 }
 
-function writeJson(filePath: string, value: unknown): void {
-  ensureDir(path.dirname(filePath));
-  const tempPath = `${filePath}.${process.pid}.${Date.now()}.tmp`;
-  fs.writeFileSync(tempPath, `${JSON.stringify(value, null, 2)}\n`, "utf8");
-  fs.renameSync(tempPath, filePath);
-}
 
 function sanitizeName(value: unknown, fallback = "Untitled"): string {
   const text = String(value || "").trim() || fallback;
@@ -597,7 +555,7 @@ export function saveProject(projectId: string, input: unknown): ProjectRecord {
   if (!projectDir) throw new Error("Cannot save unknown workspace project");
   const record = normalizeProjectRecord({ ...(input as JsonRecord), id });
   ensureProjectFolders(projectDir);
-  writeJson(path.join(projectDir, PROJECT_FILE), record);
+  writeJsonFileAtomic(path.join(projectDir, PROJECT_FILE), record);
   return record;
 }
 
@@ -1209,7 +1167,7 @@ function migrateCatalogForward(state: CatalogState): CatalogState {
 }
 
 function writeCatalog(state: CatalogState): CatalogState {
-  writeJson(catalogPath(), state);
+  writeJsonFileAtomic(catalogPath(), state);
   return state;
 }
 
