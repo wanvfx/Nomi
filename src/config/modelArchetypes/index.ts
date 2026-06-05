@@ -2,7 +2,7 @@ import type { ModelParameterControl } from "../modelCatalogMeta";
 import { SEEDANCE_2_ARCHETYPE } from "./seedance";
 import type { ModelArchetype } from "./types";
 
-export type { ModelArchetype, ArchetypeMode, ArchetypeReferenceSlot, ArchetypeIntent } from "./types";
+export type { ModelArchetype, ArchetypeMode, ArchetypeReferenceSlot, ArchetypeReferenceSlotKind, ArchetypeIntent } from "./types";
 
 /** 内置档案注册表。新模型族在这里登记一条。 */
 export const MODEL_ARCHETYPES: readonly ModelArchetype[] = [SEEDANCE_2_ARCHETYPE];

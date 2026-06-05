@@ -1,10 +1,11 @@
 import type { ModelParameterControl } from "../modelCatalogMeta";
 import type { ModelArchetype } from "./types";
 
-// Seedance 2.0 档案。本轮（C1 薄垂直片）只先放「首帧」一个模式验证打通；
-// 「首尾帧 / 全能参考」在 C2/C3 增量加（数据加在这里、UI 随之）。
+// Seedance 2.0 档案。C1 放「首帧」打通；C2b 加「首尾帧」（验模式分段切换 + M2 互斥 hide）；
+// 「全能参考」(omni 多参考数组槽) 在 C3 增量加。
 // resolution/aspect_ratio/duration 取自 kie.ai 文档（docs.kie.ai/market/bytedance/seedance-2）。
 // 标量参数用现有的 ModelParameterControl 形状（规则 1，不另造）。
+// 首帧 / 首尾帧两模式标量参数相同（仅参考槽不同），故共用 FIRST_MODE_PARAMS。
 
 const toOptions = (values: string[]): ModelParameterControl["options"] =>
   values.map((value) => ({ value, label: value }));
@@ -38,6 +39,18 @@ export const SEEDANCE_2_ARCHETYPE: ModelArchetype = {
       hint: "单张首帧图驱动生成",
       promptRequired: true,
       slots: [{ kind: "first_frame", label: "首帧", min: 1, max: 1 }],
+      params: FIRST_MODE_PARAMS,
+    },
+    {
+      id: "firstlast",
+      intent: "firstlast",
+      vendorTerm: "首尾帧",
+      hint: "首帧 + 尾帧，过渡更可控",
+      promptRequired: true,
+      slots: [
+        { kind: "first_frame", label: "首帧", min: 1, max: 1 },
+        { kind: "last_frame", label: "尾帧", min: 1, max: 1 },
+      ],
       params: FIRST_MODE_PARAMS,
     },
   ],

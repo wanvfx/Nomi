@@ -23,6 +23,8 @@ import {
   isVideoLikeGenerationNodeKind,
 } from '../model/generationNodeKinds'
 import type { ResolvedGenerationReferences } from './generationReferenceResolver'
+import { resolveArchetypeForModel } from '../../../config/modelArchetypes'
+import { archetypeManagedFrameUrlKeys, projectArchetypeFrameExtras } from '../nodes/controls/archetypeMeta'
 
 export type CatalogTaskActionOptions = {
   references?: Partial<ResolvedGenerationReferences>
@@ -271,13 +273,35 @@ function buildReferenceExtras(
     ...readStringArray(meta.compositionReferenceImages),
     ...(references.compositionReferenceImages || []),
   ])
-  const firstFrameUrl = asTrimmedString(references.firstFrameUrl) || asTrimmedString(meta.firstFrameUrl)
-  const lastFrameUrl = asTrimmedString(references.lastFrameUrl) || asTrimmedString(meta.lastFrameUrl)
+  // 认得档案的模型 → 帧键由「当前模式」投影（M2 互斥：首帧模式不带 lastFrameUrl，即便 meta 里
+  // 还残留 —— 否则上游收到混了 last 的 body 而 422，见 §2 坑2）。认不出 → 现有无条件带首/尾帧。
+  const archetype = resolveArchetypeForModel({
+    modelKey: asTrimmedString(meta.modelKey),
+    modelAlias: asTrimmedString(meta.modelAlias),
+    meta,
+  })
+  // archetype 分支：先把所有受管帧键置 undefined（挡住 buildCatalogTaskRequest 里 `...meta` 把
+  // 别的模式残留的全局帧值泄露进 body），再覆盖回当前模式投影出的活跃键。
+  const frameExtras = archetype
+    ? {
+        ...Object.fromEntries(archetypeManagedFrameUrlKeys(archetype).map((key) => [key, undefined])),
+        ...projectArchetypeFrameExtras(meta, archetype, {
+          firstFrameUrl: asTrimmedString(references.firstFrameUrl) || null,
+          lastFrameUrl: asTrimmedString(references.lastFrameUrl) || null,
+        }),
+      }
+    : {
+        ...(asTrimmedString(references.firstFrameUrl) || asTrimmedString(meta.firstFrameUrl)
+          ? { firstFrameUrl: asTrimmedString(references.firstFrameUrl) || asTrimmedString(meta.firstFrameUrl) }
+          : {}),
+        ...(asTrimmedString(references.lastFrameUrl) || asTrimmedString(meta.lastFrameUrl)
+          ? { lastFrameUrl: asTrimmedString(references.lastFrameUrl) || asTrimmedString(meta.lastFrameUrl) }
+          : {}),
+      }
 
   return {
     ...(referenceImages.length ? { referenceImages } : {}),
-    ...(firstFrameUrl ? { firstFrameUrl } : {}),
-    ...(lastFrameUrl ? { lastFrameUrl } : {}),
+    ...frameExtras,
     ...(styleReferenceImages.length ? { styleReferenceImages } : {}),
     ...(characterReferenceImages.length ? { characterReferenceImages } : {}),
     ...(compositionReferenceImages.length ? { compositionReferenceImages } : {}),

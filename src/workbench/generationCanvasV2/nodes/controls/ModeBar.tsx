@@ -1,0 +1,57 @@
+import React from 'react'
+import { cn } from '../../../../utils/cn'
+import type { ArchetypeModeChoice } from './archetypeMeta'
+
+// 「生成方式」分段切换 —— 常驻参考区的头（样张 v3：切它能当场看到下方参考槽变化，不被弹层遮挡）。
+// 主标签用跨模型统一意图词（角色参考/单图首帧/首尾帧…），vendor 原词 + 说明放下方提示行（U1）。
+// 视觉对齐样张 .seg；用 Tailwind 写在元素上（规则 10），与本目录既有的手写文本模式切换器一致，
+// 不引 Mantine（节点微观尺度，Mantine SegmentedControl 需大量覆盖才合身）。
+
+type ModeBarProps = {
+  choices: ArchetypeModeChoice[]
+  activeId: string
+  onSelect: (modeId: string) => void
+}
+
+export default function ModeBar({ choices, activeId, onSelect }: ModeBarProps): JSX.Element | null {
+  // 只有 >1 模式时才显示分段（单模式无需切换）。
+  if (choices.length <= 1) return null
+  const active = choices.find((c) => c.id === activeId) ?? choices[0]
+  return (
+    <div className={cn('flex flex-col gap-[4px]')}>
+      <span className={cn('text-nomi-ink-40 text-[9.5px] leading-none')}>生成方式</span>
+      <div
+        className={cn('inline-flex flex-wrap gap-[2px] p-[2px] rounded-[5px] bg-nomi-ink-05 self-start')}
+        role="group"
+        aria-label="生成方式"
+      >
+        {choices.map((choice) => {
+          const isActive = choice.id === active.id
+          return (
+            <button
+              key={choice.id}
+              type="button"
+              aria-pressed={isActive}
+              data-active={isActive ? 'true' : 'false'}
+              className={cn(
+                'rounded-[4px] px-[10px] py-[4px] text-[11px] leading-none font-[inherit]',
+                'text-nomi-ink-60 cursor-pointer transition-colors',
+                'data-[active=true]:bg-nomi-paper data-[active=true]:text-nomi-ink',
+                'data-[active=true]:font-semibold data-[active=true]:shadow-nomi-sm',
+              )}
+              onClick={(event) => {
+                event.stopPropagation()
+                onSelect(choice.id)
+              }}
+            >
+              {choice.label}
+            </button>
+          )
+        })}
+      </div>
+      <div className={cn('text-nomi-ink-40 text-[10.5px] leading-[1.35]')}>
+        该模型称「{active.vendorTerm}」 · {active.hint}
+      </div>
+    </div>
+  )
+}
