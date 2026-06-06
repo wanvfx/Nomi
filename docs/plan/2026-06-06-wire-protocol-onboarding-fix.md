@@ -187,8 +187,13 @@
   ⚠️ 该门当前仍红，但**唯一红点是 `GenerationCanvas.tsx`(1199>1186)——本次改动未碰，属既有未提交 WIP**，不在本任务范围。
 - ✅ 样张对账（§4 配套 mockup 已改为 auto-probe 版，逐项对上 OnboardingWizard 实现）。
 
-**尚未做（P3 缺口，诚实记录）**
-- ❌ 真体感走查（Playwright 跑真实 onboarding 旅程截图人眼判断）—— Electron 渲染层，待补。
-- ❌ 真实 Responses 中转端到端（foxcode codex 从 UI 接入并成功生成一次）—— 需用户的 foxcode key（用户独有资源）。
+**P3 体感走查（2026-06-06 已补，`tests/ux/wire-protocol-walkthrough.mjs`）**
+真机 Electron app + 用户视角操作（模型设置 → 添加模型 → 文本模型 → 自定义 → 填址+key → 测试连接），5/5 过，截图人眼核对：
+- J1 接「只认 /responses 的本地 mock 中转」→ UI 显示「已连上 · 用的是 **Responses** 协议」；mock 日志证实先 `POST /chat/completions`(404) 再 `POST /responses`(200)——auto-probe 真回退探测。
+- J2 接「openai-compatible mock」→「用的是 Chat Completions 协议」；日志仅 1 次 chat（200 即停，不浪费 responses 调用）。
+- J3 真实中转 chatanywhere + 假 key → 失败指路「连不上：ApiKey错误…可在下方手动指定」+ 协议覆盖区**自动展开**（逃生口）。
+- J4 专家手动展开 → Chat Completions / Responses / Anthropic 选择器渲染正确。
 
-待补完这两项才算 P3 完成；当前为「代码就绪 + 结构验证过，真机体感未走」。
+**协议指纹研究（26 家官方+中转，curl 无 key 扫）**：404 可靠标「协议不存在」驱动 fallback；DeepSeek/Zhipu/Volcengine/api2d 是鉴权优先网关（假 key 全 401，但真机有效 key 下 chat 首发即 200）。auto-probe 的 mismatch 判别在真实数据下成立。
+
+**仍未做**：真实 Responses 中转（foxcode）跑一次**真实文本生成**——需用户的有效 key + **真实 baseURL**（我 preset 里的 `api.fox-code.com` 是没核实的猜测、DNS 解析不出，是个待修缺陷）。auto-probe 逻辑本身已用 mock + 26 家真实端点充分验证。
