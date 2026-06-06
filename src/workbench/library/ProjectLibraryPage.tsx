@@ -85,7 +85,11 @@ function formatUpdatedAt(value: number): string {
 
 function ThumbnailMosaic({ urls }: { urls: string[] }): JSX.Element {
   if (urls.length === 0) {
-    return <div className="absolute inset-0 bg-nomi-ink-05" />
+    return (
+      <div className="absolute inset-0 flex items-center justify-center bg-nomi-ink-05">
+        <IconMovie size={32} stroke={1.2} className="text-nomi-ink-30" aria-hidden />
+      </div>
+    )
   }
   if (urls.length === 1) {
     return <img className="absolute inset-0 w-full h-full object-cover block" src={urls[0]} alt="" />

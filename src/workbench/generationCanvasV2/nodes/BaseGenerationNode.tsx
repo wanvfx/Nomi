@@ -1156,7 +1156,7 @@ function BaseGenerationNodeImpl({
                     // 棋盘格占位底纹只在「未生成」态出现；有结果后节点尺寸已贴合图片比例，
                     // 不再露出底纹，避免图片外面套一层框。
                     !hasResult &&
-                        "bg-[repeating-linear-gradient(45deg,var(--nomi-ink-05)_0_10px,var(--nomi-ink-10)_10px_20px)]",
+                        "bg-[repeating-linear-gradient(45deg,var(--nomi-ink-05)_0_23px,var(--nomi-ink-20)_23px_24px)]",
                     // [DESIGN-CARDS-07] 卡片模式隐藏 preview div；C5 文本节点同理。
                     (isCardKind || isTextKind) && "hidden",
                 )}
