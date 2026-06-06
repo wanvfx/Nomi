@@ -110,6 +110,18 @@ try {
   assert(afterUpload.badge1, "上传后角色图 chip 带 ① 数字徽标（character1）");
   assert(afterUpload.hasCue, "prompt 旁出现 character1.. 提示（U2）");
 
+  // @ 键唤起 suggestion：描述框打 @ → 弹出已加参考缩略图列表（规范 §4 快捷路径,渲染在 body 不被裁）
+  await win.locator(".generation-canvas-v2-node__prompt-input").last().click();
+  await win.keyboard.type("光 @");
+  await win.waitForTimeout(500);
+  const atPanel = await win.evaluate(() => ({
+    hasPanel: Array.from(document.body.querySelectorAll("span")).some((s) => s.textContent.trim() === "放入哪张"),
+    opts: document.body.querySelectorAll('button[aria-label^="插入参考"]').length,
+  }));
+  assert(atPanel.hasPanel && atPanel.opts >= 1, "打 @ → 弹出参考缩略图 suggestion 列表");
+  await win.keyboard.press("Escape");
+  await win.waitForTimeout(200);
+
   // @ 内联引用主路径：点已加的参考 tile → 描述框光标处插入 18px chip（规范 §4）
   await win.locator(".generation-canvas-v2-node__prompt-input").last().click();
   await win.keyboard.type("阳光下 ");

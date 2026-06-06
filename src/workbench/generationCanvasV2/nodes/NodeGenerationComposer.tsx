@@ -2,6 +2,7 @@ import React from 'react'
 import type { Editor } from '@tiptap/react'
 import { cn } from '../../../utils/cn'
 import PromptEditor from '../../assets/PromptEditor'
+import { readArchetypeArray } from './controls/archetypeMeta'
 import type { GenerationCanvasNode } from '../model/generationCanvasTypes'
 import { useGenerationCanvasStore } from '../store/generationCanvasStore'
 import { canRunGenerationNode, rerunGenerationNodeAsNewNode, runGenerationNode } from '../runner/generationRunController'
@@ -153,6 +154,7 @@ export default function NodeGenerationComposer({ node, visualSize }: Props): JSX
         onChange={(next) => updateNode(node.id, { prompt: next })}
         onBlur={() => { void persistActiveWorkbenchProjectNow().catch(() => {}) }}
         onReady={setPromptEditor}
+        mentionCandidates={readArchetypeArray(node.meta || {}, 'referenceImageUrls')}
       />
       <div className={cn('flex items-center gap-2 mt-auto min-w-0 pt-1')}>
         <NodeParameterControls

@@ -4,6 +4,7 @@ import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
 import { cn } from '../../utils/cn'
 import { AssetMention } from './AssetMentionNode'
+import { createAssetMentionSuggestion } from './AssetMentionSuggestion'
 import { parsePromptSegments, encodeMention } from './promptMentions'
 
 // 生成节点的描述框(规范 §4):Tiptap 编辑器替换原 textarea —— 句中可放 18px 缩略图 chip(@ 内联引用),
@@ -48,11 +49,17 @@ type PromptEditorProps = {
   onBlur?: () => void
   /** 暴露 editor 实例,供「点 tile 插入 chip」等外部命令(insertAssetMention)。 */
   onReady?: (editor: Editor) => void
+  /** 打 @ 时可引用的 image 参考 url 列表(= node 的 referenceImageUrls,单源)。 */
+  mentionCandidates?: string[]
 }
 
-export default function PromptEditor({ value, onChange, placeholder, className, onBlur, onReady }: PromptEditorProps): JSX.Element {
+export default function PromptEditor({ value, onChange, placeholder, className, onBlur, onReady, mentionCandidates }: PromptEditorProps): JSX.Element {
   const onChangeRef = React.useRef(onChange)
   React.useEffect(() => { onChangeRef.current = onChange }, [onChange])
+  // @ suggestion 候选用 ref 喂(扩展只在 editor 创建时配一次,靠 ref 读最新参考列表)。
+  const candidatesRef = React.useRef<string[]>(mentionCandidates || [])
+  React.useEffect(() => { candidatesRef.current = mentionCandidates || [] }, [mentionCandidates])
+  const suggestionExt = React.useMemo(() => createAssetMentionSuggestion({ getCandidates: () => candidatesRef.current }), [])
   // 防控制内容回灌死循环:记下编辑器自身最后产出的字符串,外部 value 等于它就不重设。
   const lastStringRef = React.useRef(value)
 
@@ -61,6 +68,7 @@ export default function PromptEditor({ value, onChange, placeholder, className, 
       StarterKit.configure({ heading: false, bulletList: false, orderedList: false, blockquote: false, codeBlock: false, horizontalRule: false }),
       Placeholder.configure({ placeholder: placeholder ?? '' }),
       AssetMention,
+      suggestionExt,
     ],
     content: promptToContent(value),
     editorProps: { attributes: { class: 'generation-canvas-v2-node__prompt-input outline-0' } },
