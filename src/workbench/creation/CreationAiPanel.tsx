@@ -150,7 +150,7 @@ export default function CreationAiPanel(): JSX.Element {
   }, [documentText, selectedText, setDraft, setError, setMessages, setWorkspaceMode])
 
   // Tier2 定妆：把剧本交给 AI，按剧本为主要角色/场景建卡 + 注入身份板提示词（与拆镜头同构）。
-  const launchFixationPlanning = React.useCallback((displayPrompt = '💄 定妆') => {
+  const launchFixationPlanning = React.useCallback((displayPrompt = '🎭 立角色卡') => {
     const storyText = (selectedText || documentText).trim()
     if (!storyText) {
       setError('先在左侧写一段剧本，再让 AI 按剧本定妆。')
@@ -451,10 +451,10 @@ export default function CreationAiPanel(): JSX.Element {
             type="button"
             title="把剧本交给 AI，为主要角色/场景建卡并写好身份板提示词"
             disabled={sending || !(selectedText || documentText).trim()}
-            onClick={() => launchFixationPlanning('💄 定妆')}
+            onClick={() => launchFixationPlanning('🎭 立角色卡')}
           >
             <IconSparkles size={14} />
-            <span>定妆</span>
+            <span>立角色卡</span>
           </WorkbenchButton>
           {sending ? (
             <WorkbenchIconButton

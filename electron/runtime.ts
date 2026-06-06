@@ -2509,10 +2509,10 @@ export async function runAgentChatV2(
 
   const { finalText, finalFinish, finalUsage, ok } = await consumeAgentStreamWithTimeout(result, abortController, hooks, { firstChunkTimeoutMs: 90_000, label: `${vendor?.key}/${model?.modelKey}/${resolvedSkillKey}` });
 
-  // 仅成功时落历史（失败/中断不污染下轮上下文）。
+  // 历史只存简短 displayPrompt（不存含整张快照的完整 prompt，否则每轮各存一份旧快照、token 膨胀）。
   if (ok && sessionKey) {
     const generated = (await result.response).messages as CoreMessage[];
-    agentChatV2History.set(sessionKey, capAgentHistory([...priorMessages, userMessage, ...generated]));
+    agentChatV2History.set(sessionKey, capAgentHistory([...priorMessages, { role: "user", content: sanitizeForBroadCompat(trim(payload.displayPrompt)) || userPrompt }, ...generated]));
   }
 
   return { id: `agent-${crypto.randomUUID()}`, text: finalText, finishReason: finalFinish, usage: finalUsage };

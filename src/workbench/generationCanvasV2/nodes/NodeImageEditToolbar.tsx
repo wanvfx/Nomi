@@ -50,12 +50,12 @@ export default function NodeImageEditToolbar({
               'hover:bg-nomi-accent-soft',
             )}
             type="button"
-            aria-label="定妆"
+            aria-label="基于此图定妆"
             title="定妆：基于这张图，预填一份角色/场景身份板提示词到新节点（不自动生成）"
             onClick={onMakeup}
           >
             <IconSparkles size={16} stroke={1.8} />
-            <span>定妆</span>
+            <span>基于此图定妆</span>
           </button>
           <span className={cn('w-px h-[22px] bg-[rgba(18,24,38,0.1)]')} />
         </>
