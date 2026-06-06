@@ -8,16 +8,31 @@ import {
   type ToolSet,
 } from "ai";
 
-// History cap by message count. Slicing can decapitate a tool-call/tool-result
-// pair, so after trimming we drop any leading orphan `tool` messages (results
-// the provider would reject) — advancing to the next clean boundary.
-// (Token-aware budgeting / compaction is tracked separately in the harness plan.)
+// History cap: bound BOTH message count AND estimated tokens, so a single fat
+// message (e.g. a big tool result) can't blow a small context window even within
+// the count cap. Slicing can decapitate a tool-call/tool-result pair, so after
+// trimming we drop leading orphan `tool` messages (results the provider rejects).
+// Note: token estimate is a provider-agnostic ~4 chars/token heuristic (CJK runs
+// denser, so this errs conservative). Summarization-based compaction of dropped
+// turns is a later step — for now we truncate oldest-first.
 const AGENT_HISTORY_MAX_MESSAGES = 30;
+const AGENT_HISTORY_TOKEN_BUDGET = 24_000;
+
+function estimateMessageTokens(message: CoreMessage): number {
+  const content = typeof message.content === "string" ? message.content : JSON.stringify(message.content);
+  return Math.ceil((content?.length ?? 0) / 4);
+}
+
 export function capAgentHistory(messages: CoreMessage[]): CoreMessage[] {
   let trimmed =
     messages.length > AGENT_HISTORY_MAX_MESSAGES
       ? messages.slice(messages.length - AGENT_HISTORY_MAX_MESSAGES)
       : messages;
+  let total = trimmed.reduce((sum, message) => sum + estimateMessageTokens(message), 0);
+  while (trimmed.length > 1 && total > AGENT_HISTORY_TOKEN_BUDGET) {
+    total -= estimateMessageTokens(trimmed[0]);
+    trimmed = trimmed.slice(1);
+  }
   while (trimmed.length > 0 && trimmed[0].role === "tool") {
     trimmed = trimmed.slice(1);
   }
