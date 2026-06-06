@@ -1,0 +1,73 @@
+import { describe, it, expect } from 'vitest'
+import type { GenerationCanvasNode } from '../generationCanvasV2/model/generationCanvasTypes'
+import type { WorkspaceFileNode } from '../../../electron/workspace/workspaceFileIndex'
+import { canvasNodeToAssetRef, workspaceNodeToAssetRef, flattenWorkspaceFiles } from './assetTypes'
+
+const canvasNode = (overrides: Partial<GenerationCanvasNode>): GenerationCanvasNode =>
+  ({ id: 'n1', title: '', ...overrides } as GenerationCanvasNode)
+
+const wsNode = (overrides: Partial<WorkspaceFileNode>): WorkspaceFileNode =>
+  ({ id: '', name: '', relativePath: '', kind: 'file', ...overrides } as WorkspaceFileNode)
+
+describe('canvasNodeToAssetRef', () => {
+  it('maps an image result node, carrying canvas origin', () => {
+    const ref = canvasNodeToAssetRef(
+      canvasNode({ id: 'n1', title: '日落', result: { id: 'r1', type: 'image', url: 'nomi-local://asset/p/a.png' } as never }),
+    )
+    expect(ref).toMatchObject({
+      id: 'n1',
+      kind: 'image',
+      name: '日落',
+      renderUrl: 'nomi-local://asset/p/a.png',
+      source: 'canvas',
+      origin: { source: 'canvas', nodeId: 'n1' },
+    })
+  })
+
+  it('skips text results and nodes without a url', () => {
+    expect(canvasNodeToAssetRef(canvasNode({ result: { id: 'r', type: 'text', text: 'hi' } as never }))).toBeNull()
+    expect(canvasNodeToAssetRef(canvasNode({ result: { id: 'r', type: 'image' } as never }))).toBeNull()
+    expect(canvasNodeToAssetRef(canvasNode({}))).toBeNull()
+  })
+
+  it('falls back to thumbnailUrl when url is absent and defaults name to kind', () => {
+    const ref = canvasNodeToAssetRef(canvasNode({ result: { id: 'r', type: 'video', thumbnailUrl: 'nomi-local://t.jpg' } as never }))
+    expect(ref?.renderUrl).toBe('nomi-local://t.jpg')
+    expect(ref?.name).toBe('video')
+  })
+})
+
+describe('workspaceNodeToAssetRef', () => {
+  it('derives a nomi-local url and keeps project origin', () => {
+    const ref = workspaceNodeToAssetRef(wsNode({ name: 'a.png', relativePath: 'refs/a.png', kind: 'image' }), 'proj1')
+    expect(ref?.kind).toBe('image')
+    expect(ref?.renderUrl.startsWith('nomi-local://asset/')).toBe(true)
+    expect(ref?.origin).toEqual({ source: 'project', projectId: 'proj1', relativePath: 'refs/a.png' })
+  })
+
+  it('skips non-asset kinds (directory / document / text)', () => {
+    expect(workspaceNodeToAssetRef(wsNode({ kind: 'directory' }), 'p')).toBeNull()
+    expect(workspaceNodeToAssetRef(wsNode({ kind: 'document' }), 'p')).toBeNull()
+    expect(workspaceNodeToAssetRef(wsNode({ kind: 'text' }), 'p')).toBeNull()
+  })
+
+  it('keeps audio and video', () => {
+    expect(workspaceNodeToAssetRef(wsNode({ relativePath: 'a.mp3', kind: 'audio' }), 'p')?.kind).toBe('audio')
+    expect(workspaceNodeToAssetRef(wsNode({ relativePath: 'a.mp4', kind: 'video' }), 'p')?.kind).toBe('video')
+  })
+})
+
+describe('flattenWorkspaceFiles', () => {
+  it('flattens nested directories depth-first', () => {
+    const tree: WorkspaceFileNode[] = [
+      wsNode({ relativePath: 'a.png', kind: 'image' }),
+      wsNode({
+        relativePath: 'sub',
+        kind: 'directory',
+        children: [wsNode({ relativePath: 'sub/b.png', kind: 'image' })],
+      }),
+    ]
+    const flat = flattenWorkspaceFiles(tree)
+    expect(flat.map((n) => n.relativePath)).toEqual(['a.png', 'sub', 'sub/b.png'])
+  })
+})
