@@ -1,5 +1,5 @@
 import React from 'react'
-import { IconCrop, IconFlipHorizontal, IconFlipVertical, IconGrid3x3, IconLayoutGrid, IconRotate2, IconRotateClockwise2 } from '@tabler/icons-react'
+import { IconCrop, IconFlipHorizontal, IconFlipVertical, IconGrid3x3, IconLayoutGrid, IconRotate2, IconRotateClockwise2, IconSparkles } from '@tabler/icons-react'
 import { cn } from '../../../utils/cn'
 import { IMAGE_TRANSFORM_LABEL, type ImageGridSize, type ImageTransformOp } from './useNodeImageEditing'
 
@@ -13,6 +13,8 @@ type Props = {
   onGridSplit: (gridSize: ImageGridSize) => void
   onCrop: () => void
   onTransform: (op: ImageTransformOp) => void
+  /** Tier1「定妆」：基于当前图建一个预填身份板提示词的新节点（不自动生成）。缺省不渲染该按钮。 */
+  onMakeup?: () => void
 }
 
 export default function NodeImageEditToolbar({
@@ -22,6 +24,7 @@ export default function NodeImageEditToolbar({
   onGridSplit,
   onCrop,
   onTransform,
+  onMakeup,
 }: Props): JSX.Element {
   return (
     <div
@@ -37,6 +40,26 @@ export default function NodeImageEditToolbar({
       aria-label="图片切图操作"
       onPointerDown={(event) => event.stopPropagation()}
     >
+      {onMakeup ? (
+        <>
+          <button
+            className={cn(
+              'inline-flex items-center justify-center gap-[7px]',
+              'min-w-0 min-h-[34px] px-[11px] border-0 rounded-[9px]',
+              'bg-transparent text-nomi-accent font-[inherit] text-[13px] leading-none whitespace-nowrap cursor-pointer',
+              'hover:bg-nomi-accent-soft',
+            )}
+            type="button"
+            aria-label="定妆"
+            title="定妆：基于这张图，预填一份角色/场景身份板提示词到新节点（不自动生成）"
+            onClick={onMakeup}
+          >
+            <IconSparkles size={16} stroke={1.8} />
+            <span>定妆</span>
+          </button>
+          <span className={cn('w-px h-[22px] bg-[rgba(18,24,38,0.1)]')} />
+        </>
+      ) : null}
       <button
         className={cn(
           'inline-flex items-center justify-center gap-[7px]',

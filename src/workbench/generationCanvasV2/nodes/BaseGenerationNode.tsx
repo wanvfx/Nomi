@@ -40,7 +40,9 @@ import {
     logVideoPlaybackFailure,
 } from "../../../media/videoPlaybackDiagnostics";
 import PanoramaViewer, { type PanoramaScreenshot } from "./PanoramaViewer";
-import { getGenerationNodeExecutionKind } from "../model/generationNodeKinds";
+import { getGenerationNodeExecutionKind, isImageLikeGenerationNodeKind } from "../model/generationNodeKinds";
+import { readCharacterMeta } from "../model/nodeMetaFields";
+import { buildBasicCharacterFixation, buildBasicSceneFixation } from "../fixation/fixationPromptTemplates";
 import {
     canDragGenerationNodeToTimeline,
     TIMELINE_DRAG_HANDLE_LABEL,
@@ -883,6 +885,56 @@ function BaseGenerationNodeImpl({
     // 图片类与素材类共用；衍生物都「跳出新节点」，原图零改动。
     const imageEditing = useNodeImageEditing(node, visualSize);
 
+    // Tier1「定妆」：基于当前图，建一个「{名}·定妆」新节点，预填基础身份板提示词 + 把现有图设为
+    // i2i 参考 + 选中，**但不自动生成**——用户自己点生成（不偷偷花额度，符合「可选生成」）。
+    // 通用提示词只到「最基础那一档」；要贴合剧本得走 Tier2（剧本驱动）。
+    const handleMakeup = React.useCallback(() => {
+        const srcUrl = node.result?.url;
+        if (!srcUrl) return;
+        const store = useGenerationCanvasStore.getState();
+        const isScene = node.categoryId === "scene" || node.kind === "scene";
+        const name = (node.title || "").trim() || (isScene ? "场景" : "角色");
+        const tagline = readCharacterMeta(node).tagline;
+        const prompt = isScene
+            ? buildBasicSceneFixation(name, { tagline })
+            : buildBasicCharacterFixation(name, { tagline });
+        const srcMeta = (node.meta || {}) as Record<string, unknown>;
+        // 复用源节点的图像模型；源节点没有模型（如上传图）才回退到已内置验证过的 GPT Image 2 图生图。
+        const modelMeta =
+            typeof srcMeta.modelKey === "string" && srcMeta.modelKey
+                ? {
+                      modelKey: srcMeta.modelKey,
+                      modelAlias: srcMeta.modelAlias,
+                      modelVendor: srcMeta.modelVendor,
+                      vendor: srcMeta.vendor,
+                      modelLabel: srcMeta.modelLabel,
+                      imageModel: srcMeta.imageModel,
+                      imageModelVendor: srcMeta.imageModelVendor,
+                  }
+                : {
+                      modelKey: "gpt-image-2-image-to-image",
+                      modelAlias: "gpt-image-2-image-to-image",
+                      modelVendor: "kie",
+                      vendor: "kie",
+                      modelLabel: "GPT Image 2 · 图生图",
+                      imageModel: "gpt-image-2-image-to-image",
+                      imageModelVendor: "kie",
+                  };
+        const created = store.addNode({
+            kind: "image",
+            title: `${name}·定妆`,
+            position: { x: node.position.x + (node.size?.width || 300) + 64, y: node.position.y },
+            categoryId: node.categoryId,
+        });
+        store.updateNode(created.id, {
+            prompt,
+            references: [srcUrl],
+            meta: { ...modelMeta, referenceImages: [srcUrl], referenceImageUrls: [srcUrl] },
+        });
+        store.selectNode(created.id);
+        toast("已生成定妆节点：检查提示词后点生成", "success");
+    }, [node]);
+
     return (
         <article
             className={cn(
@@ -1030,7 +1082,7 @@ function BaseGenerationNodeImpl({
                 </div>
             ) : null}
 
-            {(node.kind === "image" || isAssetKind) &&
+            {(node.kind === "image" || isAssetKind || isImageLikeGenerationNodeKind(node.kind)) &&
             selected &&
             !readOnly &&
             node.result?.type === "image" &&
@@ -1039,6 +1091,7 @@ function BaseGenerationNodeImpl({
                     splittingGridSize={imageEditing.splittingGridSize}
                     cropMode={imageEditing.cropMode}
                     imageOpBusy={imageEditing.imageOpBusy}
+                    onMakeup={handleMakeup}
                     onGridSplit={(gridSize) => {
                         void imageEditing.handleImageGridSplit(gridSize);
                     }}
