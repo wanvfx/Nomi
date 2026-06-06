@@ -139,6 +139,14 @@ export type Mapping = {
   id: string;
   vendorKey: string;
   taskKind: ProfileKind;
+  /**
+   * 可选：把这条 mapping 绑定到**特定模型**。缺省（generic）= 该 (vendor, taskKind) 桶的通用模板，
+   * 多个模型共享（如 Seedance + Fast 共用一条 image_to_video）。当同一 vendor 下两个模型的**同一 taskKind
+   * 需要不同请求形状**时（如 kie 的 HappyHorse 与 Kling 都是 text_to_video，但 body 字段不同），各自带
+   * modelKey 区分，避免「按 (vendor,taskKind) 找 mapping 时第一个赢、另一个静默套错模板」。
+   * 选择优先级见 selectTaskMapping：精确 modelKey > generic > 任意 enabled。
+   */
+  modelKey?: string;
   name: string;
   enabled: boolean;
   create: HttpOperation;
@@ -147,6 +155,27 @@ export type Mapping = {
   createdAt: string;
   updatedAt: string;
 };
+
+/**
+ * 纯函数：在一组 mapping 里选出该 (vendor, taskKind, modelKey) 该用的那条。
+ * 优先级：① 精确绑定该 modelKey 的 → ② generic（无 modelKey）→ ③ 任意 enabled（兜底，兼容老数据）。
+ * 抽成纯函数是为了可单测（runtime.findTaskMapping 读 catalog 后调它）。
+ */
+export function selectTaskMapping(
+  mappings: Mapping[],
+  vendorKey: string,
+  taskKind: ProfileKind,
+  modelKey?: string,
+): Mapping | null {
+  const inBucket = mappings.filter((m) => m.enabled && m.vendorKey === vendorKey && m.taskKind === taskKind);
+  if (inBucket.length === 0) return null;
+  const key = (modelKey || "").trim();
+  return (
+    (key ? inBucket.find((m) => (m.modelKey || "").trim() === key) : undefined) ||
+    inBucket.find((m) => !m.modelKey) ||
+    inBucket[0]
+  );
+}
 
 /** Catalog version.
  *  v2 added Model.onboarding + ApiKeyRecord.enc.

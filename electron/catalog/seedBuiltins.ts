@@ -130,9 +130,12 @@ export function applyBuiltinSeeds(
   //   · 已存在（按稳定 seed id）→ **强制对账**代码所有字段，让老装机自愈。
   // 所有权边界：create/query/statusMapping/taskKind = 代码所有（对账覆盖）；enabled/name/createdAt = 用户所有（保留）。
   // 加新 curated mapping = 这里加一行，自动覆盖「装新机」与「老机自愈」两条路——这个类的 bug 结构上不再复发。
-  const CURATED_MAPPINGS: { id: string; taskKind: Mapping["taskKind"]; name: string; create: HttpOperation; query: HttpOperation; statusMapping?: Mapping["statusMapping"] }[] = [
+  // modelKey：把 mapping 绑到特定模型，避免「同 vendor 同 taskKind 两个模型撞一个桶、第一个赢」。
+  // HappyHorse 与（用户机器上可能残留的）Kling 都是 (kie, text_to_video) 但请求形状不同 → HappyHorse
+  // 显式带 modelKey，selectTaskMapping 精确路由到它。Seedance（含 Fast 共用）/ GPT 仍是 generic（无 modelKey）。
+  const CURATED_MAPPINGS: { id: string; taskKind: Mapping["taskKind"]; modelKey?: string; name: string; create: HttpOperation; query: HttpOperation; statusMapping?: Mapping["statusMapping"] }[] = [
     { id: SEEDANCE_MAPPING_ID, taskKind: SEEDANCE_2_IMAGE_TO_VIDEO_MAPPING.taskKind, name: SEEDANCE_2_IMAGE_TO_VIDEO_MAPPING.name, create: SEEDANCE_2_CREATE_OP, query: SEEDANCE_2_QUERY_OP },
-    { id: HAPPYHORSE_MAPPING_ID, taskKind: HAPPYHORSE_MAPPING.taskKind, name: HAPPYHORSE_MAPPING.name, create: HAPPYHORSE_CREATE_OP, query: HAPPYHORSE_QUERY_OP },
+    { id: HAPPYHORSE_MAPPING_ID, taskKind: HAPPYHORSE_MAPPING.taskKind, modelKey: HAPPYHORSE_MODEL_SEED.modelKey, name: HAPPYHORSE_MAPPING.name, create: HAPPYHORSE_CREATE_OP, query: HAPPYHORSE_QUERY_OP },
     { id: GPT_IMAGE_2_T2I_MAPPING_ID, taskKind: GPT_IMAGE_2_T2I_MAPPING.taskKind, name: GPT_IMAGE_2_T2I_MAPPING.name, create: GPT_IMAGE_2_T2I_MAPPING.create, query: GPT_IMAGE_2_T2I_MAPPING.query, statusMapping: GPT_IMAGE_2_T2I_MAPPING.statusMapping },
     { id: GPT_IMAGE_2_I2I_MAPPING_ID, taskKind: GPT_IMAGE_2_I2I_MAPPING.taskKind, name: GPT_IMAGE_2_I2I_MAPPING.name, create: GPT_IMAGE_2_I2I_MAPPING.create, query: GPT_IMAGE_2_I2I_MAPPING.query, statusMapping: GPT_IMAGE_2_I2I_MAPPING.statusMapping },
   ];
@@ -142,22 +145,25 @@ export function applyBuiltinSeeds(
       const ex = mappings[i];
       const drift =
         ex.taskKind !== c.taskKind ||
+        (ex.modelKey || undefined) !== (c.modelKey || undefined) ||
         JSON.stringify(ex.create) !== JSON.stringify(c.create) ||
         JSON.stringify(ex.query) !== JSON.stringify(c.query) ||
         JSON.stringify(ex.statusMapping) !== JSON.stringify(c.statusMapping);
       if (drift) {
-        mappings[i] = { ...ex, taskKind: c.taskKind, name: ex.name ?? c.name, create: c.create, query: c.query, statusMapping: c.statusMapping, updatedAt: now };
+        mappings[i] = { ...ex, taskKind: c.taskKind, modelKey: c.modelKey, name: ex.name ?? c.name, create: c.create, query: c.query, statusMapping: c.statusMapping, updatedAt: now };
         changed = true;
       }
       continue;
     }
-    // 还没有这条 curated 记录：仅当该 (vendor, taskKind) 槽未被占用时插入（GPT repair 修过的记录、
-    // 或 Kling 占用的 text_to_video 槽都不被重复，保持既有行为）。
-    if (mappings.some((m) => m.vendorKey === KIE_VENDOR_SEED.key && m.taskKind === c.taskKind)) continue;
+    // 还没有这条 curated 记录：仅当**同 (vendor, taskKind, modelKey) 身份**未被占用时插入。
+    // 这样 HappyHorse(text_to_video, modelKey=happyhorse) 能与 Kling(text_to_video, generic) 共存；
+    // generic 条目（Seedance/GPT）仍不与既有同桶 generic 记录重复（保持原行为）。
+    if (mappings.some((m) => m.vendorKey === KIE_VENDOR_SEED.key && m.taskKind === c.taskKind && (m.modelKey || undefined) === (c.modelKey || undefined))) continue;
     mappings.push({
       id: c.id,
       vendorKey: KIE_VENDOR_SEED.key,
       taskKind: c.taskKind,
+      ...(c.modelKey ? { modelKey: c.modelKey } : {}),
       name: c.name,
       enabled: true,
       create: c.create,

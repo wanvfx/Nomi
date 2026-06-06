@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import type { CatalogState } from "./types";
+import { selectTaskMapping } from "./types";
 import { applyBuiltinSeeds } from "./seedBuiltins";
 
 function emptyCatalog(): CatalogState {
@@ -125,6 +126,25 @@ describe("applyBuiltinSeeds", () => {
     const { state: next } = applyBuiltinSeeds(state, "2026-06-06T00:00:00.000Z");
     const mine = next.mappings.find((mp) => mp.id === "user-custom-1");
     expect(mine?.create.body).toEqual({ foo: "bar" }); // 原样不动
+  });
+
+  it("路由根因：text_to_video 槽被 Kling(generic) 占着时，HappyHorse 仍被种入（靠 modelKey 共存，不再被抢）", () => {
+    const state = emptyCatalog();
+    // 模拟用户机器上残留的 Kling 试装 mapping，占着 (kie, text_to_video) 的 generic 槽。
+    state.mappings.push({
+      id: "kling-leftover", vendorKey: "kie", taskKind: "text_to_video", name: "Kling 3.0", enabled: true,
+      create: { method: "POST", path: "/api/v1/jobs/createTask", headers: {}, body: { input: { mode: "kling" } } },
+      createdAt: "old", updatedAt: "old",
+    });
+    const { state: next } = applyBuiltinSeeds(state, NOW);
+    const t2v = next.mappings.filter((mp) => mp.vendorKey === "kie" && mp.taskKind === "text_to_video");
+    // 两条共存：Kling(generic) + HappyHorse(modelKey=happyhorse)
+    expect(t2v).toHaveLength(2);
+    const happy = next.mappings.find((mp) => mp.id === "seed-kie-happyhorse-text_to_video");
+    expect(happy).toBeTruthy();
+    expect(happy?.modelKey).toBe("happyhorse");
+    expect(selectTaskMapping(next.mappings, "kie", "text_to_video", "happyhorse")?.id).toBe("seed-kie-happyhorse-text_to_video");
+    expect(selectTaskMapping(next.mappings, "kie", "text_to_video", "some-other-model")?.id).toBe("kling-leftover");
   });
 
   it("存在即跳过：不覆盖用户已有的同 key 记录", () => {

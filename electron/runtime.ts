@@ -115,7 +115,7 @@ import type {
   ProfileKind,
   Vendor,
 } from "./catalog/types";
-import { CURRENT_CATALOG_VERSION } from "./catalog/types";
+import { CURRENT_CATALOG_VERSION, selectTaskMapping } from "./catalog/types";
 import { referenceInputParams } from "./catalog/archetypeInput";
 import { applyBuiltinSeeds } from "./catalog/seedBuiltins";
 export type {
@@ -1841,9 +1841,10 @@ async function localizeTaskAsset(projectId: string, assetUrl: string, type: "ima
 }
 
 
-function findTaskMapping(vendorKey: string, taskKind: ProfileKind): Mapping | null {
-  const state = readCatalog();
-  return state.mappings.find((mapping) => mapping.enabled && mapping.vendorKey === vendorKey && mapping.taskKind === taskKind) || null;
+function findTaskMapping(vendorKey: string, taskKind: ProfileKind, modelKey?: string): Mapping | null {
+  // 按 (vendor, taskKind, modelKey) 选——同 vendor 下两个模型共用一个 taskKind 但请求形状不同时
+  // （如 HappyHorse 与 Kling 都 text_to_video），靠 modelKey 精确路由，不再「第一个赢、另一个套错模板」。
+  return selectTaskMapping(readCatalog().mappings, vendorKey, taskKind, modelKey);
 }
 
 function firstReferenceImage(request: TaskRequest): string {
@@ -2059,7 +2060,7 @@ export async function runTask(payload: unknown): Promise<TaskResult> {
   const projectId = trim(request.extras?.projectId);
   const nodeId = trim(request.extras?.nodeId);
   const taskId = `task-${crypto.randomUUID()}`;
-  const mapping = findTaskMapping(vendorKey, kind);
+  const mapping = findTaskMapping(vendorKey, kind, modelKey);
 
   if (mapping) {
     const executed = await executeProfileOperation({ vendor, model, apiKey, request, operation: mapping.create });
