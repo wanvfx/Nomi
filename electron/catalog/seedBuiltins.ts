@@ -31,10 +31,19 @@ const HAPPYHORSE_MAPPING_ID = "seed-kie-happyhorse-text_to_video";
 const GPT_IMAGE_2_T2I_MAPPING_ID = "seed-kie-gpt-image-2-text_to_image";
 const GPT_IMAGE_2_I2I_MAPPING_ID = "seed-kie-gpt-image-2-image_edit";
 
-/** 模型 meta：指向内置档案（渲染层据此套 UI 模板，见档案层）。 */
-const SEEDANCE_MODEL_META = { archetypeId: "seedance-2" };
-const SEEDANCE_FAST_MODEL_META = { archetypeId: "seedance-2-fast" };
-const HAPPYHORSE_MODEL_META = { archetypeId: "happyhorse" };
+/**
+ * 所有 curated 内置模型的**单一真相源**（insert + 启动对账共用，和 mapping 同一套思路）。
+ * archetypeId = 能力档案指针（渲染层据此套 UI/能力模板）——它和 kind 是**代码所有**，漂了会让模型套错能力，
+ * 是和 mapping 一样的"持久副本漂移"根因，必须对账。enabled / labelZh(用户可能改名) / createdAt = 用户所有，保留。
+ * GPT Image 2 暂无 archetype（图像档案路径未补，见缺口清单）——archetypeId 缺省即可，对账结构已就位。
+ */
+const CURATED_MODELS: { modelKey: string; labelZh: string; kind: Model["kind"]; archetypeId?: string }[] = [
+  { modelKey: SEEDANCE_2_MODEL_SEED.modelKey, labelZh: SEEDANCE_2_MODEL_SEED.labelZh, kind: SEEDANCE_2_MODEL_SEED.kind, archetypeId: "seedance-2" },
+  { modelKey: SEEDANCE_2_FAST_MODEL_SEED.modelKey, labelZh: SEEDANCE_2_FAST_MODEL_SEED.labelZh, kind: SEEDANCE_2_FAST_MODEL_SEED.kind, archetypeId: "seedance-2-fast" },
+  { modelKey: HAPPYHORSE_MODEL_SEED.modelKey, labelZh: HAPPYHORSE_MODEL_SEED.labelZh, kind: HAPPYHORSE_MODEL_SEED.kind, archetypeId: "happyhorse" },
+  { modelKey: GPT_IMAGE_2_T2I_MODEL_SEED.modelKey, labelZh: GPT_IMAGE_2_T2I_MODEL_SEED.labelZh, kind: GPT_IMAGE_2_T2I_MODEL_SEED.kind },
+  { modelKey: GPT_IMAGE_2_I2I_MODEL_SEED.modelKey, labelZh: GPT_IMAGE_2_I2I_MODEL_SEED.labelZh, kind: GPT_IMAGE_2_I2I_MODEL_SEED.kind },
+];
 
 export function applyBuiltinSeeds(
   state: CatalogState,
@@ -60,74 +69,41 @@ export function applyBuiltinSeeds(
     changed = true;
   }
 
-  if (
-    !models.some(
-      (m) => m.modelKey === SEEDANCE_2_MODEL_SEED.modelKey && m.vendorKey === KIE_VENDOR_SEED.key,
-    )
-  ) {
-    const model: Model = {
-      modelKey: SEEDANCE_2_MODEL_SEED.modelKey,
-      vendorKey: KIE_VENDOR_SEED.key,
-      labelZh: SEEDANCE_2_MODEL_SEED.labelZh,
-      kind: SEEDANCE_2_MODEL_SEED.kind,
-      enabled: true,
-      meta: SEEDANCE_MODEL_META,
-      createdAt: now,
-      updatedAt: now,
-    };
-    models.push(model);
-    changed = true;
-  }
-
-  // Seedance 2.0 Fast：同族扩展，只多 1 行 model（复用 Seedance 的 image_to_video mapping）。
-  if (!models.some((m) => m.modelKey === SEEDANCE_2_FAST_MODEL_SEED.modelKey && m.vendorKey === KIE_VENDOR_SEED.key)) {
-    models.push({
-      modelKey: SEEDANCE_2_FAST_MODEL_SEED.modelKey,
-      vendorKey: KIE_VENDOR_SEED.key,
-      labelZh: SEEDANCE_2_FAST_MODEL_SEED.labelZh,
-      kind: SEEDANCE_2_FAST_MODEL_SEED.kind,
-      enabled: true,
-      meta: SEEDANCE_FAST_MODEL_META,
-      createdAt: now,
-      updatedAt: now,
-    });
-    changed = true;
-  }
-
-  // 所有 curated mapping（Seedance / HappyHorse / GPT）的 insert + 对账统一由文件末尾的 CURATED_MAPPINGS 表驱动。
-
-  // HappyHorse 1.0（C4）：同 kie vendor，4 模式合 1 条目（mapping 见末尾统一表）。
-  if (!models.some((m) => m.modelKey === HAPPYHORSE_MODEL_SEED.modelKey && m.vendorKey === KIE_VENDOR_SEED.key)) {
-    models.push({
-      modelKey: HAPPYHORSE_MODEL_SEED.modelKey,
-      vendorKey: KIE_VENDOR_SEED.key,
-      labelZh: HAPPYHORSE_MODEL_SEED.labelZh,
-      kind: HAPPYHORSE_MODEL_SEED.kind,
-      enabled: true,
-      meta: HAPPYHORSE_MODEL_META,
-      createdAt: now,
-      updatedAt: now,
-    });
-    changed = true;
-  }
-
-  // GPT Image 2（图像，2026-06-06）：t2i + i2i 两个模型（mapping 见末尾统一表 + 下面的 repair）。
-  // 契约见 kieGptImage2.ts（直连实测确认）。**额外做 repair**：旧版本（用户 onboarding 抽错）留下的
-  // 视频形状坏 mapping 会被替换——这不算「覆盖用户编辑」，是修我们自己该内置的坏记录。
-  for (const seed of [GPT_IMAGE_2_T2I_MODEL_SEED, GPT_IMAGE_2_I2I_MODEL_SEED]) {
-    if (!models.some((m) => m.modelKey === seed.modelKey && m.vendorKey === KIE_VENDOR_SEED.key)) {
+  // curated 内置模型：insert + 启动对账（单源 CURATED_MODELS 驱动，和 mapping 同一套——model 也是同一个"抽屉"，
+  // 同样的"只插不更"会让 archetypeId 漂移、模型套错能力。代码所有：kind + meta.archetypeId；用户所有：enabled/labelZh/createdAt 保留）。
+  for (const c of CURATED_MODELS) {
+    const i = models.findIndex((m) => m.modelKey === c.modelKey && m.vendorKey === KIE_VENDOR_SEED.key);
+    if (i < 0) {
       models.push({
-        modelKey: seed.modelKey,
+        modelKey: c.modelKey,
         vendorKey: KIE_VENDOR_SEED.key,
-        labelZh: seed.labelZh,
-        kind: seed.kind,
+        labelZh: c.labelZh,
+        kind: c.kind,
         enabled: true,
+        ...(c.archetypeId ? { meta: { archetypeId: c.archetypeId } } : {}),
         createdAt: now,
         updatedAt: now,
       });
       changed = true;
+      continue;
+    }
+    const ex = models[i];
+    const exArch = (ex.meta as { archetypeId?: string } | undefined)?.archetypeId;
+    const drift = ex.kind !== c.kind || (Boolean(c.archetypeId) && exArch !== c.archetypeId);
+    if (drift) {
+      models[i] = {
+        ...ex,
+        kind: c.kind,
+        ...(c.archetypeId ? { meta: { ...(ex.meta || {}), archetypeId: c.archetypeId } } : {}),
+        updatedAt: now,
+      };
+      changed = true;
     }
   }
+
+  // 所有 curated mapping（Seedance / HappyHorse / GPT）的 insert + 对账统一由文件末尾的 CURATED_MAPPINGS 表驱动。
+  // GPT Image 2 还**额外做 repair**：旧版本（用户 onboarding 抽错）留下的视频形状坏 mapping 会被替换——
+  // 这不算「覆盖用户编辑」，是修我们自己该内置的坏记录（契约见 kieGptImage2.ts，直连实测确认）。
 
   // repair：把视频形状的坏 (kie, text_to_image) 替换成正确的 GPT Image 2 文生图契约。
   for (let i = 0; i < mappings.length; i += 1) {

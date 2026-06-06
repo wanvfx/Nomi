@@ -97,6 +97,27 @@ describe("applyBuiltinSeeds", () => {
     }
   });
 
+  it("re-sync（model）：curated 模型的 archetypeId 漂移 → 对账修回，保留 enabled/labelZh（同根因，model 也堵）", () => {
+    const fresh = applyBuiltinSeeds(emptyCatalog(), NOW).state;
+    const idx = fresh.models.findIndex((m) => m.modelKey === "bytedance/seedance-2");
+    fresh.models[idx] = { ...fresh.models[idx], labelZh: "我改名的 Seedance", enabled: false, meta: { archetypeId: "old-stale-id" } };
+    const { state, changed } = applyBuiltinSeeds(fresh, "2026-06-06T00:00:00.000Z");
+    expect(changed).toBe(true);
+    const m = state.models.find((mm) => mm.modelKey === "bytedance/seedance-2");
+    expect((m?.meta as { archetypeId?: string })?.archetypeId).toBe("seedance-2"); // 能力指针修回
+    expect(m?.labelZh).toBe("我改名的 Seedance"); // 用户改名保留
+    expect(m?.enabled).toBe(false); // 用户开关保留
+  });
+
+  it("re-sync（model）：meta 里用户自加的其它键不被对账抹掉（只覆盖 archetypeId）", () => {
+    const fresh = applyBuiltinSeeds(emptyCatalog(), NOW).state;
+    const idx = fresh.models.findIndex((m) => m.modelKey === "bytedance/seedance-2");
+    fresh.models[idx] = { ...fresh.models[idx], meta: { archetypeId: "stale", note: "用户备注" } };
+    const { state } = applyBuiltinSeeds(fresh, "2026-06-06T00:00:00.000Z");
+    const m = state.models.find((mm) => mm.modelKey === "bytedance/seedance-2");
+    expect((m?.meta as { archetypeId?: string; note?: string })).toMatchObject({ archetypeId: "seedance-2", note: "用户备注" });
+  });
+
   it("re-sync：不碰用户自建的 mapping（非 seed id）", () => {
     const state = applyBuiltinSeeds(emptyCatalog(), NOW).state;
     const userMapping = { id: "user-custom-1", vendorKey: "kie", taskKind: "image_to_video" as const, name: "我的自定义", enabled: true, create: { method: "POST", path: "/custom", headers: {}, body: { foo: "bar" } }, createdAt: NOW, updatedAt: NOW };
