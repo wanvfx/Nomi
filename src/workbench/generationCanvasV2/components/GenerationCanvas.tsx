@@ -11,6 +11,7 @@ import { WORKSPACE_FILE_DRAG_MIME, buildWorkspaceFileUrl, parseWorkspaceFileDrag
 import { EDGE_MODE_LABEL } from '../model/graphOps'
 import type { GenerationCanvasNode, GenerationNodeKind, NodeGroup } from '../model/generationCanvasTypes'
 import { getGenerationNodeComponent } from '../nodes/renderRegistry'
+import { completeNodeConnection } from '../nodes/completeNodeConnection'
 import { useGenerationCanvasStore } from '../store/generationCanvasStore'
 import { notifyModelOptionsRefresh, useModelOptionsState } from '../../../config/useModelOptions'
 import { useWorkbenchStore } from '../../workbenchStore'
@@ -192,7 +193,6 @@ export default function GenerationCanvas({ readOnly = false }: GenerationCanvasP
   const commitPersistedChange = useGenerationCanvasStore((state) => state.commitPersistedChange)
   const disconnectEdge = useGenerationCanvasStore((state) => state.disconnectEdge)
   const pendingConnectionSourceId = useGenerationCanvasStore((state) => state.pendingConnectionSourceId)
-  const connectToNode = useGenerationCanvasStore((state) => state.connectToNode)
   const cancelConnection = useGenerationCanvasStore((state) => state.cancelConnection)
   const undo = useGenerationCanvasStore((state) => state.undo)
   const redo = useGenerationCanvasStore((state) => state.redo)
@@ -491,7 +491,7 @@ export default function GenerationCanvas({ readOnly = false }: GenerationCanvasP
                canvasY >= n.position.y && canvasY <= n.position.y + h
       })
       if (targetNode && targetNode.id !== pendingConnectionSourceId) {
-        connectToNode(targetNode.id)
+        completeNodeConnection(targetNode.id)
       } else {
         cancelConnection()
       }
@@ -503,7 +503,7 @@ export default function GenerationCanvas({ readOnly = false }: GenerationCanvasP
       document.removeEventListener('pointermove', handleMove)
       document.removeEventListener('pointerup', handleUp)
     }
-  }, [pendingConnectionSourceId, connectToNode, cancelConnection, readOnly])
+  }, [pendingConnectionSourceId, cancelConnection, readOnly])
 
   const handleGroupSelectedNodes = React.useCallback(() => {
     const group = groupSelectedNodes(activeCategoryId)

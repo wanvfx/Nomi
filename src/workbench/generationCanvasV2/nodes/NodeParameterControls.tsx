@@ -36,6 +36,7 @@ import {
 } from './controls/parameterControlModel'
 import {
   type ArchetypeArraySlot,
+  appendArchetypeArrayValue,
   applyArchetypeModeSwitch,
   archetypeModeArraySlots,
   archetypeModeChoices,
@@ -244,12 +245,11 @@ export default function NodeParameterControls({
   // ── C3 数组参考槽（全能参考，meta-only）：append / remove / 上传，写 node.meta[metaKey] 数组 ──
   const setArrayValue = (metaKey: string, next: string[]) => updateMeta({ [metaKey]: next })
   const handleArrayAdd = (slot: ArchetypeArraySlot, url: string) => {
-    const trimmed = url.trim()
-    if (!trimmed) return
-    const current = readArchetypeArray(node.meta || {}, slot.metaKey)
-    if (current.includes(trimmed)) return // 去重,静默
-    if (current.length >= slot.max) { showInfoToast(`最多 ${slot.max} 个${slot.label}`); return } // 到上限:明确告知(对抗评审:别静默丢)
-    setArrayValue(slot.metaKey, [...current, trimmed])
+    // 单源去重/上限：与拖入/连线共用 appendArchetypeArrayValue（规则 1：不另开写路径）。
+    const result = appendArchetypeArrayValue(node.meta || {}, slot, url)
+    if (result.status === 'full') { showInfoToast(`最多 ${slot.max} 个${slot.label}`); return } // 到上限:明确告知(对抗评审:别静默丢)
+    if (result.status !== 'added') return // empty / duplicate：静默
+    setArrayValue(slot.metaKey, result.next)
     setOpenSlotKey('')
   }
   const handleArrayRemove = (metaKey: string, index: number) => {

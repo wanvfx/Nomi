@@ -2,6 +2,8 @@ import { describe, it, expect } from 'vitest'
 import { getArchetypeById } from '../../../../config/modelArchetypes'
 import { archetypeModeModelEnum } from './archetypeMeta'
 import {
+  type ArchetypeArraySlot,
+  appendArchetypeArrayValue,
   applyArchetypeModeSwitch,
   archetypeModeArraySlots,
   archetypeModeChoices,
@@ -162,6 +164,23 @@ describe('C3 全能参考 — 数组 input 构建（M2 互斥含数组槽，snak
       referenceImageUrls: ['c1.png', 'c2.png'],
     }
     expect(buildArchetypeInputParams(meta, SEEDANCE)).toEqual({ first_frame_url: 'F.png' })
+  })
+})
+
+describe('appendArchetypeArrayValue — 单源去重/上限（拖入/连线/手动加共用）', () => {
+  const slot: ArchetypeArraySlot = { metaKey: 'referenceImageUrls', label: '角色参考', min: 0, max: 2, accept: 'image', numbered: true }
+  it('空 → empty；空白串也算空', () => {
+    expect(appendArchetypeArrayValue({}, slot, '').status).toBe('empty')
+    expect(appendArchetypeArrayValue({}, slot, '   ').status).toBe('empty')
+  })
+  it('正常追加 → added + 带 next（trim 后入列）', () => {
+    expect(appendArchetypeArrayValue({ referenceImageUrls: ['a.png'] }, slot, ' b.png ')).toEqual({ status: 'added', next: ['a.png', 'b.png'] })
+  })
+  it('已存在 → duplicate（静默，不重复）', () => {
+    expect(appendArchetypeArrayValue({ referenceImageUrls: ['a.png'] }, slot, 'a.png').status).toBe('duplicate')
+  })
+  it('到上限 → full（调用方 toast，别静默丢）', () => {
+    expect(appendArchetypeArrayValue({ referenceImageUrls: ['a.png', 'b.png'] }, slot, 'c.png').status).toBe('full')
   })
 })
 

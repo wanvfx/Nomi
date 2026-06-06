@@ -33,6 +33,7 @@ import { canRunGenerationNode, runGenerationNode } from "../runner/generationRun
 import { NodeErrorReport } from "./NodeErrorReport";
 import { WorkbenchButton } from "../../../design";
 import NodeGenerationComposer from "./NodeGenerationComposer";
+import { completeNodeConnection } from "./completeNodeConnection";
 import { buildVideoPlaybackUrl } from "../../../media/videoPlaybackUrl";
 import {
     diagnoseVideoPlaybackFailure,
@@ -233,9 +234,6 @@ function BaseGenerationNodeImpl({
     });
     const startConnection = useGenerationCanvasStore(
         (state) => state.startConnection,
-    );
-    const connectToNode = useGenerationCanvasStore(
-        (state) => state.connectToNode,
     );
     const addNode = useGenerationCanvasStore((state) => state.addNode);
     const updateNode = useGenerationCanvasStore((state) => state.updateNode);
@@ -928,7 +926,7 @@ function BaseGenerationNodeImpl({
                         }}
                         onClick={(event) => {
                             event.stopPropagation();
-                            connectToNode(node.id);
+                            completeNodeConnection(node.id);
                         }}>
                         <span
                             className='generation-canvas-v2-node__handle-dot'

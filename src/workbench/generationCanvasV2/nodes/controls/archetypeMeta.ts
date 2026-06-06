@@ -141,6 +141,30 @@ export function readArchetypeArray(meta: Record<string, unknown> | undefined, me
   return value.filter((item): item is string => typeof item === 'string' && item.trim().length > 0)
 }
 
+export type ArchetypeArrayAppend =
+  | { status: 'added'; next: string[] }
+  | { status: 'empty' }
+  | { status: 'duplicate' }
+  | { status: 'full' }
+
+/**
+ * 往数组参考槽追加一个 URL 的**纯**单源逻辑（去重 + 上限判定）。renderer 的 handleArrayAdd、
+ * 拖入(useNodeAssetDrop)、连线(completeNodeConnection)三处入口共用它——保证「加参考」只有一套
+ * 去重/上限规则（规则 1：不开第 N 条写路径）。写入 / toast 由调用方按返回状态决定。
+ */
+export function appendArchetypeArrayValue(
+  meta: Record<string, unknown> | undefined,
+  slot: ArchetypeArraySlot,
+  url: string,
+): ArchetypeArrayAppend {
+  const trimmed = url.trim()
+  if (!trimmed) return { status: 'empty' }
+  const current = readArchetypeArray(meta, slot.metaKey)
+  if (current.includes(trimmed)) return { status: 'duplicate' }
+  if (current.length >= slot.max) return { status: 'full' }
+  return { status: 'added', next: [...current, trimmed] }
+}
+
 /** 当前模式的标量参数（复用现有 ModelParameterControl 渲染路径）。 */
 export function archetypeModeParams(mode: ArchetypeMode): ModelParameterControl[] {
   return mode.params

@@ -102,6 +102,51 @@ try {
   assert(px(m.sendRadius) === "9999px" || parseFloat(m.sendRadius) >= 999, "send 按钮圆形(pill)", m.sendRadius);
   assert(px(m.settingsPadL) === "10px", "设置芯片左内边距 10px", m.settingsPadL);
 
+  // ── 捷径 A：拖文件到卡 → 加为参考（规范 §4 拖悬停态 + 落地写入数组）──
+  // 合成 dragover（types 含 'Files'）→ 卡虚线 outline + 覆盖层「松手添加」；几何核对覆盖层覆盖卡面且在视口内。
+  const d = await win.evaluate(async () => {
+    const anchor = document.querySelector(".generation-canvas-v2-node__composer");
+    const card = document.querySelector(".generation-canvas-v2-node__composer-card");
+    const dt = new DataTransfer();
+    dt.items.add(new File([new Uint8Array([1])], "drop.png", { type: "image/png" }));
+    anchor.dispatchEvent(new DragEvent("dragover", { dataTransfer: dt, bubbles: true, cancelable: true }));
+    await new Promise((r) => setTimeout(r, 140));
+    const overlay = document.querySelector(".generation-canvas-v2-node__composer-dropzone");
+    const cs = card ? getComputedStyle(card) : null;
+    const orect = overlay ? overlay.getBoundingClientRect() : null;
+    const crect = card ? card.getBoundingClientRect() : null;
+    return {
+      overlayPresent: Boolean(overlay),
+      overlayText: overlay ? overlay.textContent.trim() : "",
+      cardOutlineStyle: cs ? cs.outlineStyle : "?",
+      coversCard: orect && crect ? (orect.width >= crect.width - 2 && orect.height >= crect.height - 2) : false,
+      inViewport: orect ? (orect.top >= -1 && orect.bottom <= window.innerHeight + 1 && orect.left >= -1 && orect.right <= window.innerWidth + 1) : false,
+    };
+  });
+  console.log("\n── 拖悬停态(规范 §4:dashed outline + 覆盖层「松手添加」+ 不溢出) ──");
+  assert(d.overlayPresent && d.overlayText.includes("松手添加"), "拖悬停出现「松手添加」覆盖层", `${d.overlayPresent}/${d.overlayText}`);
+  assert(d.cardOutlineStyle === "dashed", "拖悬停卡虚线 outline", d.cardOutlineStyle);
+  assert(d.coversCard, "覆盖层覆盖整张卡面(几何)", `coversCard=${d.coversCard}`);
+  assert(d.inViewport, "覆盖层不溢出视口(不被裁)", `inViewport=${d.inViewport}`);
+
+  // 合成 drop（项目文件树 payload，nomi-local，无需上传）→ 参考区出现 tile + 覆盖层消失。
+  const dropRes = await win.evaluate(async () => {
+    const anchor = document.querySelector(".generation-canvas-v2-node__composer");
+    const before = anchor.querySelectorAll('button[aria-label^="移除"]').length;
+    const dt = new DataTransfer();
+    dt.setData("application/x-nomi-workspace-file", JSON.stringify({ projectId: "p", relativePath: "a/b.png", name: "b.png", kind: "image" }));
+    anchor.dispatchEvent(new DragEvent("drop", { dataTransfer: dt, bubbles: true, cancelable: true }));
+    await new Promise((r) => setTimeout(r, 220));
+    return {
+      before,
+      after: anchor.querySelectorAll('button[aria-label^="移除"]').length,
+      overlayGone: !document.querySelector(".generation-canvas-v2-node__composer-dropzone"),
+    };
+  });
+  console.log("\n── 拖入落地(捷径 A:写入数组参考 + 收起覆盖层) ──");
+  assert(dropRes.after === dropRes.before + 1, "拖入后参考区多出 1 个 tile", `${dropRes.before}→${dropRes.after}`);
+  assert(dropRes.overlayGone, "松手后覆盖层消失", `overlayGone=${dropRes.overlayGone}`);
+
   // 打开 picker 量规范 §5
   await win.locator('.generation-canvas-v2-node__composer button[aria-label="加参考"]').first().click();
   await win.waitForTimeout(500);

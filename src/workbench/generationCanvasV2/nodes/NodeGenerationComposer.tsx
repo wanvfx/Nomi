@@ -7,6 +7,7 @@ import type { GenerationCanvasNode } from '../model/generationCanvasTypes'
 import { useGenerationCanvasStore } from '../store/generationCanvasStore'
 import { canRunGenerationNode, rerunGenerationNodeAsNewNode, runGenerationNode } from '../runner/generationRunController'
 import NodeParameterControls from './NodeParameterControls'
+import { useNodeAssetDrop } from './useNodeAssetDrop'
 import { persistActiveWorkbenchProjectNow } from '../../project/workbenchProjectSession'
 import {
   getGenerationNodeExecutionKind,
@@ -86,6 +87,8 @@ export default function NodeGenerationComposer({ node, visualSize }: Props): JSX
   const insertMention = React.useCallback((url: string) => {
     if (promptEditor && !promptEditor.isDestroyed) promptEditor.commands.insertAssetMention(url)
   }, [promptEditor])
+  // 拖文件到卡 → 加为参考（捷径 A）。仅当当前模式有数组参考槽时接管拖拽。
+  const { acceptsDrop, isDragOver, isUploading, dropHandlers } = useNodeAssetDrop(node)
 
   const handleGenerate = async (event: React.MouseEvent<HTMLButtonElement>) => {
     event.stopPropagation()
@@ -109,12 +112,15 @@ export default function NodeGenerationComposer({ node, visualSize }: Props): JSX
       className={cn('generation-canvas-v2-node__composer', 'absolute left-1/2 z-[8] -translate-x-1/2')}
       style={{ width: composerLayout.width, top: `calc(100% + ${composerLayout.gap}px)` }}
       onPointerDown={(event) => event.stopPropagation()}
+      {...(acceptsDrop ? dropHandlers : {})}
     >
       <div
         className={cn(
           'generation-canvas-v2-node__composer-card',
           'flex flex-col gap-[11px] p-[12px] min-h-[150px]',
           'border border-nomi-line rounded-nomi bg-nomi-paper overflow-auto shadow-nomi-md',
+          'transition-[outline-color] duration-150',
+          isDragOver && 'outline-2 outline-dashed outline-nomi-accent outline-offset-[-2px]',
         )}
         style={{ maxHeight: composerLayout.maxHeight }}
       >
@@ -194,6 +200,18 @@ export default function NodeGenerationComposer({ node, visualSize }: Props): JSX
         })()}
       </div>
       </div>
+      {isDragOver ? (
+        <div
+          className={cn(
+            'generation-canvas-v2-node__composer-dropzone',
+            'absolute inset-0 z-[10] flex items-center justify-center rounded-nomi',
+            'bg-nomi-paper/[0.7] pointer-events-none',
+          )}
+          aria-hidden="true"
+        >
+          <span className={cn('text-caption text-nomi-ink-60')}>{isUploading ? '上传中…' : '松手添加为参考'}</span>
+        </div>
+      ) : null}
       {settingsOpen ? (
         <div className={cn('absolute left-0 right-0 top-[calc(100%+6px)] z-[9]')}>
           <NodeParameterControls node={node} section="settings" />
