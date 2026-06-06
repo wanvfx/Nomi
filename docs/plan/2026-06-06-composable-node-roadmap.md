@@ -4,6 +4,27 @@
 > 更新替换成新模式。这是个大项目，本文是 Rule 4 执行总纲 + Rule 9 架构 + Rule 14 审计性梳理。
 > 依据：Explore 全景摸底（见 §3 证据）。配套：`2026-06-06-reference-at-and-sources.md`（素材原语细节）。
 
+## 0. 完整用户旅途（从第一步往回推 —— 整个架构的收口）
+
+```
+① 接入（用户第一步）：贴「接入文档 URL」+ 填「API key」
+      系统：AI agent 读文档 → 抽参数 / 槽 / 传输契约
+            ↓
+② 识别分层（一切皆档案）：
+   认得   → 命中精修 curated 档案（Seedance/HappyHorse…）= 最好体验
+   认不出 → 用①从文档**派生**的档案 = 通用回退，但**仍是结构化模板**（文档有啥参数/槽就有啥），不裸值
+            ↓
+③ 统一使用：节点 = 档案 + 通用原语组装（ModelPicker/ModeBar/AssetReference/SettingsPopover），一套交互、一致体感
+```
+
+**用户点破的关键**：「通用」不是退化成裸值——它是「从文档派生的档案」，也是干净模板，只是没人工精修。
+只有三档、**永不裸奔**：精修档案 ＞ 文档派生档案 ＞ ~~裸值~~（不存在）。
+
+**架构含义**：**接入那一刻，任何模型都变成一份档案**。所以 flat 启发式（`parameterControlModel`）的定位从
+「渲染时兜底」改成「**接入时的派生引擎**」——onboarding 读完文档就产一份 archetype，UI 端永远只认档案。
+→ 这让 **P4 成为整条旅途的入口**（「放文档 → 出模板」这步），不是后端清理；也让 `resolveRenderedControls`
+的「档案 vs flat」UI 分叉彻底消失。
+
 ## 1. 一句话目标 + 核心洞察
 
 **目标**：生成节点 = 一层薄壳，**档案声明「要什么」（modes/slots/params），通用原语负责「怎么渲染/怎么填」**。
@@ -66,7 +87,7 @@
 - **P1 参考槽归一**：frame 单槽 + 源视频 + 数组槽 三套 → 一套 AssetReference（吃档案 slots，支持单/数组/边连）。删 NodeParameterControls 内联 104 行 + 源视频 30 行；panorama 上传也并进来。**净删大量重复**。
 - **P2 模型切换原语**：抽 `ModelPicker` + `applyModelSelection(meta, option)` 纯函数；双轨 meta（imageModel/videoModel）收单轨（modelKey/modelAlias），runtime 读取处同步。删 modelOptionsAdapter 死 API。
 - **P3 文本节点档案化**：text 建 archetype（modes=[续写/改写/重写]，slots=[选中文本]，params=文本模型参数）；删 composer 里的 TEXT_GEN_MODES bespoke，文本节点改用 ModeBar + SettingsPopover。
-- **P4 onboarding→档案桥**：自接模型落库时派生 archetype（flat 解析跑一次）；`resolveRenderedControls` 删「档案 vs flat」分叉，UI 单源。flat 启发式代码迁桥里。**最难，onboarding 模型必须零回归**。
+- **P4 onboarding→档案桥（= 旅途入口「放文档→出模板」，见 §0）**：自接模型落库时**派生 archetype**（flat 解析从「渲染兜底」改成「接入时派生引擎」，跑一次产档案）；`resolveRenderedControls` 删「档案 vs flat」分叉，UI 永远只认档案。三档永不裸奔：精修＞派生＞~~裸值~~。flat 启发式代码迁桥里。**最难，onboarding 模型必须零回归**；接入页 UI（OnboardingWizard）本身的顺滑是配套但独立的事。
 - **P5 节点壳收编**：BaseGenerationNode 白名单分支 → 「有档案就组装 composer」；panorama 档案化；巨壳净减（Rule 12 棘轮）。
 
 依赖：P0→P1（参考归一靠素材原语）；P2/P3 相对独立可并行；P4 是收口前置（P5 的「有档案就组装」依赖 P4 让所有模型都有档案）。
