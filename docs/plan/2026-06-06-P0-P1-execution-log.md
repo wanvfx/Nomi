@@ -52,5 +52,8 @@ CI 五门(filesize/lint≤98/typecheck/vitest/build)全绿 + Rule 11 自 commit/
   `assetLocalization`(递归扫 nomi-local、按 strategy 解析、去重替换,全注入可单测)+ KIE 作首个 upload-url
   实现(免费 base64 端点 → data.downloadUrl)+ 接进 `executeProfileOperation` 发送前。文件侧抽 `localAssetFile`,
   runtime 净缩 2632→2623。13 单测。**通用第一:加新 vendor=多声明一份,通用层不改。**
-  ⚠️ 真实端到端仍需用户 KIE_API_KEY + 一次真实生成核验(花额度,先问)。
+  ✅ **真实验证通过(零额度)**:`tests/ux/r1-upload-verify.mjs` 在真 app 内 safeStorage 解密用户 KIE key →
+  上传 → 拿回 `https://tempfile.redpandaai.co/...`(code 200)→ GET 回 HTTP 200 image/png。
+  本地素材 → 公网可达 URL → 真可取回,传输层对真实 KIE 跑通(上传免费)。
+  ⏳ 唯一剩项:一次**完整生成**端到端(KIE 真去 fetch 该 URL 出片)= 花额度,待用户拍。
 - [ ] **@ 内联引用**:Tiptap(规则 5 先查官方)替换 textarea,编号单源(R6)
