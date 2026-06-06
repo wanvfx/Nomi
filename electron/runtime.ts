@@ -8,6 +8,7 @@ import { absolutePathFromLocalAssetUrl, readNomiLocalAsset, postJsonForAssetUplo
 import { streamText, tool, type CoreMessage, type LanguageModelV1 } from "ai";
 import { z } from "zod";
 import { buildAiSdkModel } from "./ai/buildAiSdkModel";
+import { consumeAgentStreamWithTimeout } from "./ai/agentStreamConsumer";
 import { mergeMissingParamsIntoBody } from "./ai/onboarding/curlBlueprint";
 import { assertProjectExportRelativePath, ensureExportDirs } from "./export/exportPaths";
 import { ExportJobManager, type ExportJobEvent, type ExportJobSnapshot } from "./export/exportJobManager";
@@ -2501,6 +2502,8 @@ export async function runAgentChatV2(
   const userMessage: CoreMessage = { role: "user", content: userPrompt };
   const messages: CoreMessage[] = [...priorMessages, userMessage];
 
+  // 首字块超时 + 流式消费抽到 ai/agentStreamConsumer（规则 9/12：别喂巨壳）。abortController 同时给 streamText。
+  const abortController = new AbortController();
   const result = streamText({
     model: languageModel,
     ...(system ? { system } : {}),
@@ -2509,45 +2512,22 @@ export async function runAgentChatV2(
     tools,
     maxSteps: 5,
     toolCallStreaming: true,
+    abortSignal: abortController.signal,
     onError: ({ error }) => hooks.emit({ type: "error", message: error instanceof Error ? error.message : String(error) }),
   });
 
-  let finalText = "";
-  let finalFinish = "unknown";
-  let finalUsage: unknown;
+  const { finalText, finalFinish, finalUsage, ok } = await consumeAgentStreamWithTimeout(
+    result,
+    abortController,
+    hooks,
+    { firstChunkTimeoutMs: 90_000, label: `${vendor?.key}/${model?.modelKey}/${resolvedSkillKey}` },
+  );
 
-  for await (const chunk of result.fullStream) {
-    if (chunk.type === "text-delta") {
-      finalText += chunk.textDelta;
-      hooks.emit({ type: "content-delta", delta: chunk.textDelta });
-    } else if (chunk.type === "step-finish") {
-      hooks.emit({ type: "step-finish", finishReason: chunk.finishReason });
-    } else if (chunk.type === "finish") {
-      finalFinish = chunk.finishReason;
-      finalUsage = chunk.usage;
-    } else if (chunk.type === "error") {
-      const message = chunk.error instanceof Error ? chunk.error.message : String(chunk.error);
-      hooks.emit({ type: "error", message });
-    }
-    // tool-call / tool-result events are already emitted from inside each
-    // tool's `execute` (which is where we have access to the awaited user
-    // confirmation result). We deliberately ignore the SDK's mirror events
-    // here to avoid double-emit.
-  }
-
-  hooks.emit({ type: "finish", finishReason: finalFinish, usage: finalUsage });
-
-  // Persist this turn (user message + everything the model generated, incl.
-  // tool-call / tool-result messages) so the next turn has full context.
-  if (sessionKey) {
+  // 仅成功时落历史（失败/中断不污染下轮上下文）。
+  if (ok && sessionKey) {
     const generated = (await result.response).messages as CoreMessage[];
     agentChatV2History.set(sessionKey, capAgentHistory([...priorMessages, userMessage, ...generated]));
   }
 
-  return {
-    id: `agent-${crypto.randomUUID()}`,
-    text: finalText,
-    finishReason: finalFinish,
-    usage: finalUsage,
-  };
+  return { id: `agent-${crypto.randomUUID()}`, text: finalText, finishReason: finalFinish, usage: finalUsage };
 }
