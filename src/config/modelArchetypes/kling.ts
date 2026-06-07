@@ -16,6 +16,15 @@ const KLING_PARAMS: ModelParameterControl[] = [
   { key: "sound", label: "声效", type: "boolean", options: [], defaultValue: false },
 ];
 
+// apimart 专属 params（B 分层）：apimart Kling v3 字段名 mode(std/pro/4k) + duration(整数 3-15) +
+// aspect_ratio + audio(非 kie 的 sound)。i2v 结构与 kie 对齐（image_urls 数组槽）故共享本档案。
+const APIMART_KLING_PARAMS: ModelParameterControl[] = [
+  { key: "mode", label: "画质", type: "select", options: opt(["std", "pro", "4k"]), defaultValue: "pro" },
+  { key: "duration", label: "时长(秒)", type: "number", options: [], min: 3, max: 15, defaultValue: 5 },
+  { key: "aspect_ratio", label: "比例", type: "select", options: opt(["16:9", "9:16", "1:1"]), defaultValue: "16:9" },
+  { key: "audio", label: "声效", type: "boolean", options: [], defaultValue: false },
+];
+
 export const KLING_3_ARCHETYPE: ModelArchetype = {
   id: "kling-3.0",
   family: "kling",
@@ -35,6 +44,7 @@ export const KLING_3_ARCHETYPE: ModelArchetype = {
       transportTaskKind: "text_to_video",
       slots: [],
       params: KLING_PARAMS,
+      vendorParams: { apimart: APIMART_KLING_PARAMS },
     },
     {
       id: "i2v",
@@ -46,6 +56,7 @@ export const KLING_3_ARCHETYPE: ModelArchetype = {
       transportTaskKind: "image_to_video",
       slots: [{ kind: "image_ref", label: "首/尾帧", min: 1, max: 2, inputKey: "image_urls" }],
       params: KLING_PARAMS,
+      vendorParams: { apimart: APIMART_KLING_PARAMS },
     },
   ],
 };

@@ -32,6 +32,7 @@ import { NANO_BANANA_EDIT_MAPPING, NANO_BANANA_MODEL_SEED, NANO_BANANA_T2I_MAPPI
 import { KLING_3_I2V_MAPPING, KLING_3_MODEL_SEED, KLING_3_T2V_MAPPING } from "./kieKling";
 import { APIMART_VENDOR_SEED } from "./apimartVendor";
 import { APIMART_IMAGE_MODELS, APIMART_IMAGE_QUERY, APIMART_IMAGE_STATUS } from "./apimartImages";
+import { APIMART_VIDEO_MODELS, APIMART_VIDEO_QUERY, APIMART_VIDEO_STATUS } from "./apimartVideos";
 
 /** curated 模型/mapping 的内部类型（reconcile 两函数的输入）。 */
 type CuratedModel = { modelKey: string; labelZh: string; kind: Model["kind"]; archetypeId?: string };
@@ -83,16 +84,25 @@ const KIE_CURATED_MAPPINGS: CuratedMapping[] = [
   { id: KLING_3_I2V_MAPPING_ID, taskKind: KLING_3_I2V_MAPPING.taskKind, modelKey: KLING_3_I2V_MAPPING.modelKey, name: KLING_3_I2V_MAPPING.name, create: KLING_3_I2V_MAPPING.create, query: KLING_3_I2V_MAPPING.query },
 ];
 
-/** apimart 的 curated 模型 + mapping，从单源 APIMART_IMAGE_MODELS 派生（视频待后续 chunk 加入）。 */
-const APIMART_CURATED_MODELS: CuratedModel[] = APIMART_IMAGE_MODELS.map((m) => ({
-  modelKey: m.modelKey, labelZh: m.labelZh, kind: "image", archetypeId: m.archetypeId,
-}));
-const APIMART_CURATED_MAPPINGS: CuratedMapping[] = APIMART_IMAGE_MODELS.flatMap((m) =>
-  m.mappings.map((mp) => ({
-    id: mp.id, taskKind: mp.taskKind, modelKey: m.modelKey, name: mp.name,
-    create: mp.create, query: APIMART_IMAGE_QUERY, statusMapping: APIMART_IMAGE_STATUS,
-  })),
-);
+/** apimart 的 curated 模型 + mapping，从单源 APIMART_IMAGE_MODELS / APIMART_VIDEO_MODELS 派生。 */
+const APIMART_CURATED_MODELS: CuratedModel[] = [
+  ...APIMART_IMAGE_MODELS.map((m) => ({ modelKey: m.modelKey, labelZh: m.labelZh, kind: "image" as const, archetypeId: m.archetypeId })),
+  ...APIMART_VIDEO_MODELS.map((m) => ({ modelKey: m.modelKey, labelZh: m.labelZh, kind: "video" as const, archetypeId: m.archetypeId })),
+];
+const APIMART_CURATED_MAPPINGS: CuratedMapping[] = [
+  ...APIMART_IMAGE_MODELS.flatMap((m) =>
+    m.mappings.map((mp) => ({
+      id: mp.id, taskKind: mp.taskKind, modelKey: m.modelKey, name: mp.name,
+      create: mp.create, query: APIMART_IMAGE_QUERY, statusMapping: APIMART_IMAGE_STATUS,
+    })),
+  ),
+  ...APIMART_VIDEO_MODELS.flatMap((m) =>
+    m.mappings.map((mp) => ({
+      id: mp.id, taskKind: mp.taskKind, modelKey: m.modelKey, name: mp.name,
+      create: mp.create, query: APIMART_VIDEO_QUERY, statusMapping: APIMART_VIDEO_STATUS,
+    })),
+  ),
+];
 
 /** 供应商种子（裸 baseUrl + bearer）。存在即跳过（用户配置不覆盖）。返回是否变更。 */
 function seedVendor(vendors: Vendor[], seed: typeof KIE_VENDOR_SEED | typeof APIMART_VENDOR_SEED, now: string): boolean {

@@ -28,6 +28,7 @@ function pick(obj, path) {
 }
 
 const PROMPT = "a single red paper crane on a wooden desk, soft window light, minimal";
+const VPROMPT = "a waterfall cascading down rocks forming a small rainbow, slow cinematic push-in";
 const IMG_RESULT = ["data.result.images.0.url.0", "data.result.images.0.url", "data.result.images.0"];
 const VID_RESULT = ["data.result.videos.0.url.0", "data.result.videos.0.url", "data.result.videos.0"];
 
@@ -40,10 +41,16 @@ const CASES = {
   qwen: { label: "Qwen-Image 2.0", path: "/v1/images/generations", body: { model: "qwen-image-2.0", prompt: PROMPT, size: "1:1", resolution: "1K" }, resultPaths: IMG_RESULT },
   imagen: { label: "Imagen 4", path: "/v1/images/generations", body: { model: "imagen-4.0-apimart", prompt: PROMPT, size: "16:9" }, resultPaths: IMG_RESULT },
   zimage: { label: "Z-Image Turbo", path: "/v1/images/generations", body: { model: "z-image-turbo", prompt: PROMPT, size: "1:1", resolution: "1K" }, resultPaths: IMG_RESULT },
-  // ── 视频代表（Sora 2，4s 最短）──
-  video: { label: "Sora 2 · 文生视频(4s)", path: "/v1/videos/generations", body: { model: "sora-2", prompt: "a waterfall cascading down rocks forming a small rainbow, cinematic", duration: 4, resolution: "720p", aspect_ratio: "16:9" }, resultPaths: VID_RESULT },
+  // ── 6 个视频模型（文生视频，生产 body，逐字对齐 electron/catalog/apimartVideos.ts）──
+  video: { label: "Sora 2", path: "/v1/videos/generations", body: { model: "sora-2", prompt: VPROMPT, duration: 4, resolution: "720p", aspect_ratio: "16:9" }, resultPaths: VID_RESULT },
+  veo: { label: "Veo 3.1", path: "/v1/videos/generations", body: { model: "veo3.1-fast", prompt: VPROMPT, duration: 8, resolution: "720p", aspect_ratio: "16:9" }, resultPaths: VID_RESULT },
+  kling: { label: "可灵 v3", path: "/v1/videos/generations", body: { model: "kling-v3", prompt: VPROMPT, mode: "pro", duration: 5, aspect_ratio: "16:9", audio: false }, resultPaths: VID_RESULT },
+  seedancev: { label: "Seedance 2.0", path: "/v1/videos/generations", body: { model: "doubao-seedance-2.0", prompt: VPROMPT, size: "16:9", resolution: "720p", duration: 5, generate_audio: true }, resultPaths: VID_RESULT },
+  wan: { label: "Wan 2.7", path: "/v1/videos/generations", body: { model: "wan2.7", prompt: VPROMPT, size: "16:9", resolution: "1080P", duration: 5 }, resultPaths: VID_RESULT },
+  hailuo: { label: "Hailuo 2.3", path: "/v1/videos/generations", body: { model: "MiniMax-Hailuo-2.3", prompt: VPROMPT, resolution: "768p", duration: 6 }, resultPaths: VID_RESULT },
 };
 const IMAGE_KEYS = ["seedream", "gemini", "gpt", "qwen", "imagen", "zimage"];
+const VIDEO_KEYS = ["video", "veo", "kling", "seedancev", "wan", "hailuo"];
 
 async function run(name) {
   const c = CASES[name];
@@ -85,6 +92,6 @@ async function run(name) {
 
 const arg = process.argv[2];
 console.log(`apimart 探测 · key=${mask(key)}`);
-// 无参数 = 跑 6 个图片模型；"video" = 跑 Sora 视频；具体模型名 = 只跑那个。
-const targets = !arg ? IMAGE_KEYS : arg === "images" ? IMAGE_KEYS : CASES[arg] ? [arg] : IMAGE_KEYS;
+// 无参数 = 6 图片；"images" = 6 图片；"videos" = 6 视频；具体模型名 = 只跑那个。
+const targets = !arg ? IMAGE_KEYS : arg === "images" ? IMAGE_KEYS : arg === "videos" ? VIDEO_KEYS : CASES[arg] ? [arg] : IMAGE_KEYS;
 for (const t of targets) await run(t);
