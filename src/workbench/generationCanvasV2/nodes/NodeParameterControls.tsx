@@ -52,7 +52,6 @@ import {
   archetypeModeSourceVideoSlot,
   currentArchetypeMode,
   ensureArchetypeNodeMeta,
-  modeHasCharacterSlot,
   readArchetypeArray,
   resolveArchetypeForModel,
 } from './controls/archetypeMeta'
@@ -434,8 +433,6 @@ export default function NodeParameterControls({
   // 当前模式的数组参考槽（全能参考，meta-only）+ 源视频单槽（HappyHorse 视频编辑）。
   const arraySlots: ArchetypeArraySlot[] = archMode ? archetypeModeArraySlots(archMode) : []
   const sourceVideoSlot = archMode ? archetypeModeSourceVideoSlot(archMode) : null
-  // U2：当前模式含角色图槽且已放图 → 在 prompt 旁提示「用 character1.. 指代」。
-  const showCharacterCue = Boolean(archMode && modeHasCharacterSlot(archMode) && readArchetypeArray(meta, 'referenceImageUrls').length > 0)
   const showReferences = section === 'all' || section === 'references'
 
   // ── P1 统一参考槽：声明式 AssetSlot 列表 + 当前值 + 三类回调（单帧连边 / 数组 meta / 源视频 meta，复用上面已验证的写入逻辑）──
@@ -632,12 +629,6 @@ export default function NodeParameterControls({
           onReorder={handleReorder}
           onBrowseAll={handleBrowseAll}
         />
-      ) : null}
-
-      {showReferences && showCharacterCue ? (
-        <div className={cn('text-nomi-ink-60 text-[10.5px] leading-[1.35]')}>
-          提示：在描述里用 <span className="text-nomi-accent">character1</span>、<span className="text-nomi-accent">character2</span>… 指代上面的角色图
-        </div>
       ) : null}
 
       {showReferences && uploadError ? (

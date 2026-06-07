@@ -117,13 +117,13 @@ export function archetypeModeArraySlots(mode: ArchetypeMode): ArchetypeArraySlot
       max: slot.max,
       accept: route.accept,
       numbered,
-      // 说明只保留「编号」语义，不再重复 character1（prompt 旁的提示是唯一一处讲绑定，减少黑话重复）。
+      // 编号语义靠 tile 上的 ①②③ 徽标自明（样张 v4）；character1..N 是发送前投影，用户永不可见。
       ...(numbered ? { caption: '按放入顺序编号 ①②③' } : {}),
     }]
   })
 }
 
-/** 当前模式是否含「角色参考」槽（按序 character1..N）——用于在 prompt 框旁给提示（U2）。 */
+/** 当前模式是否含「角色参考」槽（按序 character1..N，即 @ 引用投影的目标槽）。 */
 export function modeHasCharacterSlot(mode: ArchetypeMode): boolean {
   return mode.slots.some((slot) => Boolean(slot.characterIndexed))
 }
