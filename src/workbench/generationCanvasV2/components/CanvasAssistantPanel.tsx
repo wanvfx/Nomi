@@ -1,4 +1,4 @@
-import { IconCornerDownLeft, IconPlayerStopFilled, IconSend2, IconSparkles, IconX } from '@tabler/icons-react'
+import { IconCornerDownLeft, IconPlayerStopFilled, IconSend2, IconX } from '@tabler/icons-react'
 import { NomiAILabel, NomiLoadingMark, NomiLogoMark, NomiSelect, WorkbenchButton, WorkbenchIconButton } from '../../../design'
 import React from 'react'
 import { cn } from '../../../utils/cn'
@@ -338,7 +338,9 @@ export default function CanvasAssistantPanel({
         'generation-canvas-v2-assistant',
         // flexbox 而非 grid-rows-[…minmax(0,1fr)…] 任意值——后者在本环境解析异常，
         // 把工具条行撑成 145px 留出 ~120px 空白（用户反馈"上面空这么大"的真凶）。
-        'flex flex-col w-[340px] h-full',
+        // 宽度撑满外层可拖拽的 grid 列（GenerationWorkspace 把列宽推到 assistantWidth），
+        // 之前写死 w-[340px] → 拖宽后右侧一大片空白、header 右簇被 overflow-hidden 裁断 token。
+        'flex flex-col w-full h-full',
         'max-h-none min-w-0 min-h-0 overflow-hidden',
         'border-0 rounded-none bg-nomi-paper shadow-none',
         'max-[900px]:w-[min(340px,calc(100vw-28px))]',
@@ -348,7 +350,7 @@ export default function CanvasAssistantPanel({
       data-collapsed="false"
       aria-label="生成区 AI 助手"
     >
-      {/* 样张头部：Nomi 标 + 「助手」+ 上下文胶囊（✦ 生成）+ 动作 + 收起。 */}
+      {/* 头部：Nomi 标 + 「助手」+ 动作（含 token 计数）+ 收起。 */}
       <header className={cn(
         'flex items-center justify-between gap-2 px-3 py-2',
         'border-b border-nomi-line-soft bg-nomi-paper',
@@ -357,10 +359,7 @@ export default function CanvasAssistantPanel({
           <NomiLogoMark size={18} />
           <span className={cn('text-bodySm font-semibold text-nomi-ink')}>助手</span>
         </div>
-        <div className={cn('inline-flex items-center gap-2 ml-auto shrink-0')}>
-          <span className={cn('inline-flex items-center gap-1 text-micro text-nomi-ink-40 whitespace-nowrap')}>
-            <IconSparkles size={13} stroke={1.7} />生成
-          </span>
+        <div className={cn('inline-flex items-center gap-2 ml-auto min-w-0')}>
           <WorkbenchAiHeaderActions
             className={cn('generation-canvas-v2-assistant__shared-actions', 'inline-flex items-center flex-nowrap gap-1')}
             actionClassName={cn(

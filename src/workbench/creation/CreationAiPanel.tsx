@@ -1,5 +1,5 @@
 import React from 'react'
-import { IconCornerDownLeft, IconCursorText, IconFilePlus, IconMovie, IconPencil, IconPlayerStopFilled, IconReplace, IconSend2, IconSparkles, IconX } from '@tabler/icons-react'
+import { IconCornerDownLeft, IconCursorText, IconFilePlus, IconMovie, IconPlayerStopFilled, IconReplace, IconSend2, IconSparkles, IconX } from '@tabler/icons-react'
 import { NomiLoadingMark, NomiLogoMark, NomiSelect, WorkbenchButton, WorkbenchIconButton } from '../../design'
 import { NomiMarkdown } from '../common/NomiMarkdown'
 import { cn } from '../../utils/cn'
@@ -278,15 +278,12 @@ export default function CreationAiPanel({ onCollapse }: { onCollapse?: () => voi
           '[grid-area:header] flex items-center justify-between gap-[10px] min-w-0',
         )}
       >
-        {/* 样张头部：Nomi 标 + 「助手」+ 上下文胶囊（✎ 创作）。 */}
+        {/* 头部：Nomi 标 + 「助手」+ 动作（含 token 计数）。 */}
         <div className={cn('workbench-creation-ai__title', 'inline-flex items-center gap-2 min-w-0')}>
           <NomiLogoMark size={18} />
           <span className={cn('text-bodySm font-semibold text-nomi-ink')}>助手</span>
         </div>
-        <div className={cn('inline-flex items-center gap-2 ml-auto shrink-0')}>
-          <span className={cn('inline-flex items-center gap-1 text-micro text-nomi-ink-40 whitespace-nowrap')}>
-            <IconPencil size={13} stroke={1.7} />创作
-          </span>
+        <div className={cn('inline-flex items-center gap-2 ml-auto min-w-0')}>
           <WorkbenchAiHeaderActions
             className={cn('inline-flex items-center flex-nowrap gap-1')}
             actionClassName={cn(

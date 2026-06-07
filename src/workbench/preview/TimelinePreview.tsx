@@ -276,6 +276,9 @@ export default function TimelinePreview({ activeClips, aspectRatio, fps, playhea
   const mediaStyle = {
     transform: `translate(${mediaOffset.x}px, ${mediaOffset.y}px) scale(${mediaScale})`,
   }
+  // 「适应」=contain（整画面内缩、留边）/「填充」=cover（铺满、裁边）。
+  // 之前 object-contain 写死，fitMode 改了没人消费 → 点了没效果，这里 derive 出来。
+  const objectFitClass = fitMode === 'cover' ? 'object-cover' : 'object-contain'
 
   return (
     <section ref={playerRef} className={cn(
@@ -350,7 +353,8 @@ export default function TimelinePreview({ activeClips, aspectRatio, fps, playhea
         {imageClip?.url ? (
           <img className={cn(
             'workbench-preview-player__image',
-            'absolute inset-0 z-[1] w-full h-full object-contain bg-transparent select-none will-change-transform',
+            'absolute inset-0 z-[1] w-full h-full bg-transparent select-none will-change-transform',
+            objectFitClass,
           )} src={imageClip.url} alt={imageClip.label || ''} style={mediaStyle} />
         ) : null}
         {videoUrl ? (
@@ -358,7 +362,8 @@ export default function TimelinePreview({ activeClips, aspectRatio, fps, playhea
             ref={videoRef}
             className={cn(
               'workbench-preview-player__video',
-              'absolute inset-0 z-[2] w-full h-full object-contain bg-transparent select-none will-change-transform',
+              'absolute inset-0 z-[2] w-full h-full bg-transparent select-none will-change-transform',
+              objectFitClass,
             )}
             src={videoPlaybackUrl}
             crossOrigin="use-credentials"
