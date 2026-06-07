@@ -110,6 +110,30 @@
 - Novita img2img/qwen-edit 参考图字段名与张数。
 - **接入即验证**：每条描述符落地后，按 `docs/workflow/2026-06-06-real-generation-e2e-loop.md` 跑一次真实 E2E 生成才算"接入成功"。
 
+## 8. 开源先例调研（2026-06-07，R6）+ build-vs-adopt 修正
+
+调研了 ~20 个开源项目（LiteLLM / Portkey / Vercel AI SDK / aisuite / one-api / new-api / uni-api / Dify / LobeChat / FastGPT / ComfyUI / n8n / PixelRelay / ImageRouter / Open-Generative-AI…）。
+
+**三条硬结论：**
+
+1. **没有"纯声明式描述符"的现成开源——这是真空地带。** 主流项目（LiteLLM/Portkey/AI SDK/one-api/Dify…）的供应商层**全是"每家写代码"**；最配置化的 uni-api 也只是"配置选哪段写死的 engine"。**印证：转换算法本质要代码，描述符能声明的是"槽"（端点/认证/参数映射/模型清单/轮询字段），不是转换本身。** 我们 P4「档案声明槽、通用系统填」方向对，但别幻想用 JSON 描述清任意响应解析。
+
+2. **图/视统一接入"没有可直接用的活开源库"**——这块被闭源 SaaS（Lumenfall/Runware/WaveSpeed/fal）占了；唯一对口的开源 ImageRouter 已弃坑无 license。**但有三处"模式"值得抄（不抄代码，license 不允许）：**
+   - **Dify 的 provider/model YAML schema**（`credential_form_schemas` 变量声明 + `AIModelEntity` 能力槽）= 最接近我们描述符的骨架，**抄 schema 结构**（Apache+附加，抄思想合规）。**但 Dify 把图当受限二等公民、视频踢出供应商体系丢给 Tool——这是反面教材，我们图/视必须一等公民。**
+   - **ComfyUI 的 `sync_op/poll_op` 两段式异步**（提交→taskId→轮询[进度+中断+超时]→下载 + 媒体上传/下载/校验工具层）= 异步生命周期的黄金范式（GPL，仅借模式）。
+   - **new-api 的 task 子系统**（统一状态机 `queued/in_progress/completed/failed` + 异己字段进 JSON blob + **结果 URL 统一代理端点 `/v1/videos/:id/content` 服务端补凭证**）= 生产级"per-model 结果路径不一"的抹平法（AGPL，仅借设计）。
+
+3. **★ "per-model 不手配"有成熟可抄的路：Replicate / fal 都把每个模型的 OpenAPI schema 当一等公民暴露。** 标准配方（Replicate 官网 playground 就这么干）：**拉该模型 schema → `json-schema-ref-parser`(MIT) 摊平 enum → 按 type/x-order 渲染控件/构参 → 参数原样透传 → 服务端校验**。→ **对 schema-exposing 的家，参数槽应运行时从 schema 自动 derive，不手写**（正中 CLAUDE 自检#3「随输入变的必须 derive」）。手配只在 schema 缺失 / 需归一化字段名时才要。
+
+### build-vs-adopt 修正（重要）
+
+- **别从零造网关。** 我们**当前技术栈就是 Vercel AI SDK**，而 **AI SDK v6 已经把 image + video 统一进 `experimental_generateImage / experimental_generateVideo`**（覆盖 Veo/Kling/Wan/Seedance/Grok 等，in-process、零 sidecar）。→ **视频/图片接入优先评估"升 AI SDK v6 用它的 media 接口"，而不是自造网关**。代价：每家仍是代码 provider 包（非声明式）、异步是黑盒（无进度/断点续传）、有 Undici 5 分钟超时坑。
+- **分层落地建议**：
+  - **标准家（OpenAI 兼容 images / chat-modalities）** → 我们的声明式描述符（spike 已验证）+ 现有 transport。
+  - **大异步媒体家** → 优先用 AI SDK v6 的 media 接口覆盖；它没覆盖的，按 ComfyUI poll 模式 + new-api 状态机/结果代理自己补。
+  - **Replicate/fal 等暴露 schema 的家** → 参数槽**运行时拉 schema 自动 derive**（json-schema-ref-parser），不手配每个模型。
+  - **descriptor schema** → 抄 Dify 的骨架，但图/视一等公民 + 预留异步声明槽（提交端点/轮询端点/状态字段/结果字段/进度字段，照 ComfyUI）。
+
 ## 7. 倒计时注意
 
 Imagen（2026-06-24 停）、OpenAI Sora Videos API（2026-09-24 停）——新接入别押这俩；图片押 Gemini image(generateContent)/SiliconFlow/火山，视频押 fal/Replicate/可灵/Veo/国内直连。
