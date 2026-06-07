@@ -28,14 +28,41 @@ await win.waitForLoadState("domcontentloaded");
 await win.waitForTimeout(1500);
 
 try {
+  // ── 本会话回归点 #C(库页)：项目卡无封面时缩略图区不重复项目名（名称只在卡下方一次）──
+  // 缩略图区可能含 hover 浮层的「继续创作」按钮，故不查「有无文字」，而查「项目名是否漏进缩略图」。
+  const lib = await win.evaluate(() => {
+    const cards = Array.from(document.querySelectorAll('[role="button"]'))
+      .filter((el) => el.querySelector(".aspect-video"));
+    let noCoverChecked = 0;
+    let leaked = 0;
+    for (const card of cards) {
+      const thumb = card.querySelector(".aspect-video");
+      if (thumb?.querySelector("img")) continue; // 有封面的卡不在此断言范围
+      const nameEl = card.querySelector(".truncate"); // 卡下方的项目名
+      const name = (nameEl?.textContent || "").trim();
+      if (!name) continue;
+      noCoverChecked += 1;
+      if ((thumb?.textContent || "").includes(name)) leaked += 1; // 项目名不该出现在缩略图区
+    }
+    return { noCoverChecked, leaked };
+  });
+  console.log("\n── 项目卡(#C 库页：无封面缩略图不重复名) ──");
+  assert(lib.noCoverChecked > 0, "库页存在无封面项目卡可供核对", `checked=${lib.noCoverChecked}`);
+  assert(lib.leaked === 0, "无封面卡项目名不漏进缩略图（名称只在下方一次）", `leaked=${lib.leaked}`);
+
   await win.locator('[role="button"]', { hasText: "示例：30 秒产品介绍" }).first().click();
   await win.waitForTimeout(2500);
   await win.getByRole("button", { name: "生成", exact: false }).first().click().catch(() => {});
   await win.waitForTimeout(1000);
   await win.getByRole("button", { name: "添加视频节点", exact: false }).first().click();
   await win.waitForTimeout(1500);
-  const sel = win.locator('.generation-canvas-v2-node__composer select[aria-label="模型"]').last();
-  await sel.selectOption({ label: "Seedance 2.0" }).catch(() => sel.selectOption("bytedance/seedance-2"));
+  // 模型控件已从原生 <select> 迁到 NomiSelect（Mantine Combobox：触发 button + withinPortal 下拉）。
+  // 故不再用 selectOption，改：点触发 pill → 在下拉里点目标选项（role=option）。
+  const modelTrigger = win.locator('.generation-canvas-v2-node__composer button[aria-label="模型"]').last();
+  await modelTrigger.click();
+  await win.waitForTimeout(300);
+  await win.locator('[role="option"]', { hasText: "Seedance 2.0" }).first().click()
+    .catch(async () => { await win.locator('[role="option"]').first().click().catch(() => {}); });
   await win.waitForTimeout(700);
   await win.locator('.generation-canvas-v2-node__composer [role="group"][aria-label="生成方式"] button', { hasText: "全能参考" }).first().click();
   await win.waitForTimeout(700);
@@ -52,16 +79,18 @@ try {
     const prompt = comp.querySelector(".generation-canvas-v2-node__prompt-input");
     const send = comp.querySelector('button[aria-label="生成素材"],button[aria-label="重新生成"]');
     const paramsRow = comp.querySelector('.generation-canvas-v2-node__params--parameters');
-    const modelSel = comp.querySelector('select[aria-label="模型"]');
-    const badge = Array.from(comp.querySelectorAll("span")).find((s) => s.textContent.trim() === "模板");
+    // 模型控件已迁到 NomiSelect：触发是 button[aria-label="模型"]，模板/通用徽标是其内部 span（triggerBadge）。
+    const modelChip = comp.querySelector('button[aria-label="模型"]');
+    const badge = Array.from(comp.querySelectorAll("span")).find((s) => { const t = s.textContent.trim(); return t === "模板" || t === "通用"; });
     const dividerEl = Array.from(card?.children || []).find((c) => (c.getAttribute("class") || "").includes("line-soft") && Math.round(c.getBoundingClientRect().height) <= 1);
     const g = (el, p) => el ? cs(el)[p] : "?";
     return {
       segBtnFont: g(segBtn, "fontSize"),
       labelFont: g(segLabel, "fontSize"),
       labelText: segLabel?.textContent?.trim(),
-      addW: addTile ? Math.round(addTile.getBoundingClientRect().width) : -1,
-      addH: addTile ? Math.round(addTile.getBoundingClientRect().height) : -1,
+      // 用 offsetWidth（布局 px），不用 getBoundingClientRect——后者受 xyflow 画布缩放 transform 影响（非 100% 缩放时会缩水）。
+      addW: addTile ? addTile.offsetWidth : -1,
+      addH: addTile ? addTile.offsetHeight : -1,
       addRadius: g(addTile, "borderTopLeftRadius"),
       addBorderStyle: g(addTile, "borderTopStyle"),
       promptFont: g(prompt, "fontSize"),
@@ -75,7 +104,7 @@ try {
       paramItems: paramsRow ? paramsRow.children.length : 0,
       paramRows: paramsRow ? new Set(Array.from(paramsRow.children).map((c) => Math.round(c.getBoundingClientRect().top))).size : 0,
       // 结构:模板徽标是否与 model select 同一个父(嵌在模型芯片内,而非独立夹在中间)
-      badgeInModelChip: Boolean(badge && modelSel && badge.parentElement === modelSel.parentElement),
+      badgeInModelChip: Boolean(badge && modelChip && modelChip.contains(badge)),
       dividerPresent: Boolean(dividerEl),
     };
   });
@@ -158,7 +187,8 @@ try {
     const picker = document.querySelector('[data-testid="asset-picker"]'); // 渲染在 body(逃出 composer 裁剪)
     const cs = (el) => el ? getComputedStyle(el) : null;
     const search = picker?.querySelector('input[aria-label="搜索素材名"]')?.closest("label") || picker?.querySelector('input[aria-label="搜索素材名"]')?.parentElement;
-    const item = picker?.querySelector('button[aria-label]');
+    const items = picker?.querySelectorAll('button[aria-label]:not([aria-label="上传本地文件"])') || [];
+    const item = items[0];
     const upload = Array.from(picker?.querySelectorAll("label") || []).find((l) => /上传本地文件/.test(l.textContent));
     const pr = picker ? picker.getBoundingClientRect() : null;
     return {
@@ -167,7 +197,8 @@ try {
       pickerPad: picker ? cs(picker).paddingTop : "?",
       pickerShadow: picker ? cs(picker).boxShadow : "?",
       searchH: search ? Math.round(search.getBoundingClientRect().height) : -1,
-      itemW: item ? Math.round(item.getBoundingClientRect().width) : -1,
+      itemCount: items.length,
+      itemW: item ? item.offsetWidth : -1,
       uploadH: upload ? Math.round(upload.getBoundingClientRect().height) : -1,
       // 遮挡回归:picker 是否完整在视口内(不被裁)。
       fullyVisible: pr ? (pr.top >= -1 && pr.bottom <= window.innerHeight + 1 && pr.left >= -1 && pr.right <= window.innerWidth + 1) : false,
@@ -179,12 +210,105 @@ try {
   assert(px(p.pickerRadius) === "10px", "picker 圆角 10px", p.pickerRadius);
   assert(px(p.pickerPad) === "10px", "picker padding 10px", p.pickerPad);
   assert(p.searchH === 30, "搜索框高 30", String(p.searchH));
-  assert(p.itemW === 48, "picker tile 48", String(p.itemW));
+  if (p.itemCount > 0) assert(p.itemW === 48, "picker tile 48", String(p.itemW));
+  else console.log("  ⊘ picker tile 48 — 跳过（当前项目素材池为空，无 tile 可量）");
   assert(p.uploadH === 34, "上传按钮高 34", String(p.uploadH));
 
   console.log("\n── 遮挡回归(规范 §5:picker 绝不被裁、上传按钮可见) ──");
   assert(p.fullyVisible, "picker 完整在视口内(未被 composer overflow 裁剪)", `fullyVisible=${p.fullyVisible}`);
   assert(p.uploadVisible, "「上传本地文件」按钮可见(不被裁到视口外)", `uploadVisible=${p.uploadVisible}`);
+
+  // 关掉可能还开着的 picker，避免点击被遮挡。
+  await win.keyboard.press("Escape").catch(() => {});
+  await win.waitForTimeout(300);
+
+  // ── 本会话回归点 #C(生成区)：助手默认折叠；展开后 aside 是 flex 非 grid；模型选择器显具体名 ──
+  const collapsed = await win.evaluate(() => ({
+    launcher: Boolean(document.querySelector('[aria-label="生成区 AI 启动器"]')),
+    asideMounted: Boolean(document.querySelector('[aria-label="生成区 AI 助手"]')),
+  }));
+  console.log("\n── 生成助手(#C：默认折叠 → 启动器在、面板未挂载) ──");
+  assert(collapsed.launcher && !collapsed.asideMounted, "生成助手默认折叠（启动器在、aside 未挂载）", JSON.stringify(collapsed));
+
+  await win.locator('[aria-label="生成区 AI 启动器"]').first().click().catch(() => {});
+  await win.waitForTimeout(600);
+  const asst = await win.evaluate(() => {
+    const aside = document.querySelector('[aria-label="生成区 AI 助手"]');
+    const picker = document.querySelector('[aria-label="助手模型"]');
+    return {
+      asideDisplay: aside ? getComputedStyle(aside).display : "?",
+      pickerText: picker ? (picker.textContent || "").trim() : "?",
+    };
+  });
+  console.log("\n── 生成助手展开(#C：aside flex 非 grid + 模型显具体名) ──");
+  assert(asst.asideDisplay === "flex", "助手 aside display:flex（非 grid，修「上面空一大块」的根因点）", asst.asideDisplay);
+  assert(asst.pickerText.length > 0 && !asst.pickerText.includes("自动选模型"), "模型选择器显具体模型名（非「自动选模型」）", asst.pickerText);
+
+  // ── 本会话回归点 #C(左栏)：收起后导航用 svg 图标，不再是文字「类/文」──
+  await win.locator('[aria-label="收起侧栏"]').first().click().catch(() => {});
+  await win.waitForTimeout(400);
+  const railIcons = await win.evaluate(() => {
+    const cat = document.querySelector('[aria-label="展开分类面板"]');
+    const file = document.querySelector('[aria-label="展开文件面板"]');
+    const ok = (el) => Boolean(el && el.querySelector("svg") && !/^[类文]$/.test((el.textContent || "").trim()));
+    return { catOk: ok(cat), fileOk: ok(file), catText: (cat?.textContent || "").trim(), fileText: (file?.textContent || "").trim() };
+  });
+  console.log("\n── 左栏收起(#C：导航是 svg 图标，非文字「类/文」) ──");
+  assert(railIcons.catOk, "收起栏「分类」是 svg 图标（非文字「类」）", railIcons.catText);
+  assert(railIcons.fileOk, "收起栏「文件」是 svg 图标（非文字「文」）", railIcons.fileText);
+
+  // ── 本会话回归点 #C(#A 素材库)：分段筛选 4 标签同一行不折行 + 面板 flex 列 ──
+  await win.evaluate(() => window.dispatchEvent(new CustomEvent("nomi-open-asset-library")));
+  await win.waitForTimeout(700);
+  const assetLib = await win.evaluate(() => {
+    const panel = document.querySelector('[aria-label="素材库"]');
+    const tabs = Array.from(panel?.querySelectorAll('[role="tab"]') || []);
+    const tops = new Set(tabs.map((t) => Math.round(t.getBoundingClientRect().top)));
+    const pr = panel ? panel.getBoundingClientRect() : null;
+    return {
+      panelMounted: Boolean(panel),
+      panelDisplay: panel ? getComputedStyle(panel).display : "?",
+      tabCount: tabs.length,
+      tabRows: tops.size,
+      inViewport: pr ? (pr.top >= -1 && pr.bottom <= window.innerHeight + 1 && pr.right <= window.innerWidth + 1) : false,
+    };
+  });
+  console.log("\n── 素材库面板(#A：分段筛选单行 + flex 列 + 不溢出) ──");
+  assert(assetLib.panelMounted, "素材库面板挂载（dispatch nomi-open-asset-library 打开）", JSON.stringify(assetLib));
+  assert(assetLib.panelDisplay === "flex", "素材库面板 display:flex 列布局", assetLib.panelDisplay);
+  assert(assetLib.tabCount === 4 && assetLib.tabRows === 1, "分段筛选 4 标签同一行（不折行）", `tabs=${assetLib.tabCount}/rows=${assetLib.tabRows}`);
+  assert(assetLib.inViewport, "素材库面板完整在视口内（不溢出/不被裁）", `inViewport=${assetLib.inViewport}`);
+
+  // ── 本会话回归点 #C(预览控制条)：导出MP4/安全框 单行(高28不折行) + 画幅/显示 select 值不截断(无 …) ──
+  await win.keyboard.press("Escape").catch(() => {}); // 关素材库面板
+  await win.waitForTimeout(300);
+  await win.getByRole("button", { name: "预览", exact: false }).first().click().catch(() => {});
+  await win.waitForTimeout(1200);
+  const prev = await win.evaluate(() => {
+    const bar = document.querySelector('[aria-label="预览控制"]');
+    const exportBtn = document.querySelector('[aria-label="导出 MP4"]');
+    const safeBtn = document.querySelector('[aria-label="切换安全框"]');
+    // NomiSelect 触发里的值 span（truncate）：scrollWidth>clientWidth 即被截断成 …。
+    const valueSpan = (chip) => chip?.querySelector("span.truncate") || null;
+    const aspectChip = document.querySelector('[aria-label="预览画幅"]');
+    const fitChip = document.querySelector('[aria-label="画面适配"]');
+    const truncated = (chip) => { const s = valueSpan(chip); return s ? (s.scrollWidth > s.clientWidth + 1) : false; };
+    return {
+      barPresent: Boolean(bar),
+      exportH: exportBtn ? exportBtn.offsetHeight : -1,
+      safeH: safeBtn ? safeBtn.offsetHeight : -1,
+      aspectTruncated: truncated(aspectChip),
+      fitTruncated: truncated(fitChip),
+      aspectText: valueSpan(aspectChip)?.textContent?.trim() || "",
+      fitText: valueSpan(fitChip)?.textContent?.trim() || "",
+    };
+  });
+  console.log("\n── 预览控制条(#C：导出/安全框单行高28 + 画幅/显示不截断) ──");
+  assert(prev.barPresent, "预览控制条已渲染", `barPresent=${prev.barPresent}`);
+  assert(prev.exportH === 28, "「导出 MP4」单行（高 28，不折两行）", String(prev.exportH));
+  assert(prev.safeH === 28, "「安全框」单行（高 28，不折两行）", String(prev.safeH));
+  assert(!prev.aspectTruncated, "画幅 select 值不被截断（无 …）", `${prev.aspectText}/truncated=${prev.aspectTruncated}`);
+  assert(!prev.fitTruncated, "显示 select 值不被截断（无 …）", `${prev.fitText}/truncated=${prev.fitTruncated}`);
 
   console.log(`\n设计保真：${passed} 通过，${fails.length} 不一致`);
   if (fails.length) { console.error("不一致清单:\n - " + fails.join("\n - ")); process.exitCode = 1; }
