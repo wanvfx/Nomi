@@ -1,6 +1,7 @@
 import { IconPlugConnected, IconPlus } from '@tabler/icons-react'
 import { WorkbenchIconButton } from '../../design'
 import { cn } from '../../utils/cn'
+import { useAgentUsageStore } from './agentUsageStore'
 
 export type WorkbenchAiHeaderActionsProps = {
   className?: string
@@ -15,8 +16,19 @@ export function WorkbenchAiHeaderActions({
   onModelIntegration,
   onNewConversation,
 }: WorkbenchAiHeaderActionsProps): JSX.Element {
+  // Cumulative token usage for this app session (harness #8). Hidden until the
+  // first real turn so it doesn't add noise on an empty thread.
+  const totalTokens = useAgentUsageStore((s) => s.totalTokens)
   return (
     <div className={cn('workbench-ai-header-actions inline-flex items-center flex-nowrap gap-1.5', className)}>
+      {totalTokens > 0 ? (
+        <span
+          className={cn('mr-0.5 whitespace-nowrap text-[10.5px] tabular-nums text-nomi-ink-40')}
+          title={`本会话累计 ${totalTokens.toLocaleString()} tokens`}
+        >
+          {totalTokens >= 1000 ? `${(totalTokens / 1000).toFixed(1)}k` : totalTokens} tok
+        </span>
+      ) : null}
       <WorkbenchIconButton
         className={cn('workbench-ai-header-actions__button', actionClassName)}
         label="模型接入"
