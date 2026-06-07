@@ -285,8 +285,10 @@ export default function CreationAiPanel(): JSX.Element {
             'inline-flex items-center flex-nowrap gap-[6px] ml-auto whitespace-nowrap',
           )}
           actionClassName={cn(
-            'workbench-creation-ai__header-action',
-            'inline-flex items-center justify-center shrink-0 cursor-pointer whitespace-nowrap',
+            // 对齐生成区头部图标钮：固定 26px 方钮（去掉 width:auto 的 .__header-action CSS）。
+            'min-w-[26px] w-[26px] h-[26px] inline-grid place-items-center shrink-0',
+            'p-0 border-0 rounded-nomi-sm bg-transparent text-nomi-ink-60 cursor-pointer',
+            'hover:bg-nomi-ink-05 hover:text-nomi-ink',
             'focus-visible:outline-2 focus-visible:outline-workbench-focus focus-visible:outline-offset-2',
           )}
           onModelIntegration={openWorkbenchModelIntegration}
@@ -423,40 +425,42 @@ export default function CreationAiPanel(): JSX.Element {
             options={CREATION_AI_MODES.map((mode) => ({ value: mode.id, label: mode.shortLabel }))}
             onChange={(value) => setModeId(value as CreationAiModeId)}
           />
-          <WorkbenchButton
+          <button
             className={cn(
+              // 纯 button + NomiSelect trigger 同款 chrome（WorkbenchButton 会强加自己的
+              // 圆角/字重，导致 chip 变圆角矩形而非全圆 pill，故不用它）。
               'workbench-creation-ai__storyboard-chip',
-              'shrink-0 h-6 inline-flex items-center gap-[5px] px-2',
-              'border border-nomi-line rounded-full bg-nomi-paper',
-              'text-nomi-ink-80 text-[11.5px] font-medium cursor-pointer',
-              'hover:bg-nomi-accent-soft/40 hover:text-nomi-accent hover:border-[color-mix(in_srgb,var(--nomi-accent)_36%,transparent)]',
-              'disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:bg-nomi-paper disabled:hover:text-nomi-ink-80',
+              'shrink-0 h-6 inline-flex items-center gap-1 pl-2.5 pr-2',
+              'border border-nomi-line rounded-pill bg-nomi-paper',
+              'text-caption text-nomi-ink-80 cursor-pointer',
+              'hover:border-nomi-ink-20 focus:outline-none focus-visible:border-nomi-accent',
+              'disabled:cursor-not-allowed disabled:opacity-50',
             )}
             type="button"
             title="把当前正文交给 AI 拆成镜头节点"
             disabled={sending || !(selectedText || documentText).trim()}
             onClick={() => launchStoryboardPlanning('🎬 拆镜头')}
           >
-            <IconMovie size={14} />
+            <IconMovie size={13} className="text-nomi-ink-40" />
             <span>拆镜头</span>
-          </WorkbenchButton>
-          <WorkbenchButton
+          </button>
+          <button
             className={cn(
               'workbench-creation-ai__fixation-chip',
-              'shrink-0 h-6 inline-flex items-center gap-[5px] px-2',
-              'border border-nomi-line rounded-full bg-nomi-paper',
-              'text-nomi-ink-80 text-[11.5px] font-medium cursor-pointer',
-              'hover:bg-nomi-accent-soft/40 hover:text-nomi-accent hover:border-[color-mix(in_srgb,var(--nomi-accent)_36%,transparent)]',
-              'disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:bg-nomi-paper disabled:hover:text-nomi-ink-80',
+              'shrink-0 h-6 inline-flex items-center gap-1 pl-2.5 pr-2',
+              'border border-nomi-line rounded-pill bg-nomi-paper',
+              'text-caption text-nomi-ink-80 cursor-pointer',
+              'hover:border-nomi-ink-20 focus:outline-none focus-visible:border-nomi-accent',
+              'disabled:cursor-not-allowed disabled:opacity-50',
             )}
             type="button"
             title="把剧本交给 AI，为主要角色/场景建卡并写好身份板提示词"
             disabled={sending || !(selectedText || documentText).trim()}
             onClick={() => launchFixationPlanning('🎭 立角色卡')}
           >
-            <IconSparkles size={14} />
+            <IconSparkles size={13} className="text-nomi-ink-40" />
             <span>立角色卡</span>
-          </WorkbenchButton>
+          </button>
           {sending ? (
             <WorkbenchIconButton
               className={cn(
