@@ -16,6 +16,7 @@ import { useGenerationCanvasStore } from '../store/generationCanvasStore'
 import { notifyModelOptionsRefresh, useModelOptionsState } from '../../../config/useModelOptions'
 import { useWorkbenchStore } from '../../workbenchStore'
 import { GroupFrameList } from './GroupFrame'
+import { useAutoFitOnLoad } from './useAutoFitOnLoad'
 import {
   centerNodeOffset,
   clampNumber,
@@ -754,18 +755,9 @@ export default function GenerationCanvas({ readOnly = false }: GenerationCanvasP
     })
   }, [nodes, setViewportTransform])
 
-  // 项目首次加载时（无历史视口时）自动适应视图，让用户看到全局布局。
-  // 每次 activeCategoryId 变化后重置，确保切换分类时也能触发。
-  const autoFitDoneRef = React.useRef(false)
-  React.useEffect(() => { autoFitDoneRef.current = false }, [activeCategoryId])
-  React.useEffect(() => {
-    if (autoFitDoneRef.current) return
-    if (nodes.length === 0) return
-    if (categoryViewports[activeCategoryId]) return // 有历史视口，不覆盖用户位置
-    autoFitDoneRef.current = true
-    const tid = setTimeout(fitView, 350) // 等 DOM 完成一帧渲染
-    return () => clearTimeout(tid)
-  }, [nodes.length, categoryViewports, activeCategoryId, fitView])
+  // 项目/分类首次加载时自动适应视图（含「历史视口框不住任何节点」的自愈式适应，
+  // 防止图都在视口外、用户误以为「图消失」）。逻辑抽到 useAutoFitOnLoad（防巨壳）。
+  useAutoFitOnLoad({ nodes, activeCategoryId, categoryViewports, fitView, stageRef, zoomRef, offsetRef })
 
   const getToolbarInsertionPosition = React.useCallback(() => {
     const rect = stageRef.current?.getBoundingClientRect()
