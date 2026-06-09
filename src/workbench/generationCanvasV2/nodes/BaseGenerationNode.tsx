@@ -57,6 +57,8 @@ import {
   clampNumber,
   readFiniteNumber,
   mediaNodeSize,
+  cardFixedSize,
+  resolvePreviewHeight,
 } from "./nodeSizing";
 
 export type BaseGenerationNodeProps = {
@@ -298,27 +300,21 @@ function BaseGenerationNodeImpl({
                   )
             : null;
     const hasResult = Boolean(node.result?.url);
-    // v0.7.1: 卡片模式按 spec 强制固定宽度（cards-design-v1 §4），非卡片走原逻辑
-    const CARD_FIXED_WIDTH: Record<string, number> = {
-        "character-card": 200,
-        "scene-card": 320,
-        "prop-card": 200,
-        "audio-strip": 420,
-    };
-    const CARD_FIXED_HEIGHT: Record<string, number | null> = {
-        "character-card": null, // 动态：宽/比例
-        "scene-card": null,
-        "prop-card": null,
-        "audio-strip": 80,
-    };
-    const cardFixedWidth =
-        isCardKind && renderKind ? CARD_FIXED_WIDTH[renderKind] : null;
-    const cardFixedHeight =
-        isCardKind && renderKind ? CARD_FIXED_HEIGHT[renderKind] : null;
-    const previewHeight =
-        cardFixedHeight ??
-        storedPreviewHeight ??
-        clampNumber(size.height, sizeBounds.minHeight, sizeBounds.maxHeight);
+    const { width: cardFixedWidth, height: cardFixedHeight } = cardFixedSize(
+        renderKind,
+        isCardKind,
+    );
+    const previewHeight = resolvePreviewHeight({
+        node,
+        hasResult,
+        isCardKind,
+        cardFixedWidth,
+        cardFixedHeight,
+        storedPreviewHeight,
+        sizeWidth: size.width,
+        sizeHeight: size.height,
+        bounds: sizeBounds,
+    });
     const visualSize = {
         width: cardFixedWidth ?? Math.max(sizeBounds.minWidth, size.width),
         height: previewHeight,

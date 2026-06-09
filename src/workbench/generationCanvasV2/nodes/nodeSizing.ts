@@ -1,6 +1,7 @@
 // BaseGenerationNode 的纯工具/常量：状态文案、尺寸边界、媒体尺寸推算、时间轴落点命中。
 // 从 BaseGenerationNode.tsx 抽出（纯函数 + 常量，无 React 依赖）。
 import type { GenerationCanvasNode } from "../model/generationCanvasTypes";
+import { readNodeAspectRatio } from "./aspectRatio";
 
 export const STATUS_LABEL: Record<string, string> = {
     queued: "排队中",
@@ -105,6 +106,76 @@ export function mediaNodeSize(
         height: previewHeight,
         previewHeight,
     };
+}
+
+// 卡片模式（角色/场景/道具/音轨卡）按 cards-design-v1 §4 的固定宽度；高度部分卡固定、部分动态。
+export const CARD_FIXED_WIDTH: Record<string, number> = {
+    "character-card": 200,
+    "scene-card": 320,
+    "prop-card": 200,
+    "audio-strip": 420,
+};
+export const CARD_FIXED_HEIGHT: Record<string, number | null> = {
+    "character-card": null, // 动态：宽/比例
+    "scene-card": null,
+    "prop-card": null,
+    "audio-strip": 80,
+};
+
+export function cardFixedSize(
+    renderKind: string | undefined,
+    isCardKind: boolean,
+): { width: number | null; height: number | null } {
+    if (!isCardKind || !renderKind) return { width: null, height: null };
+    return {
+        width: CARD_FIXED_WIDTH[renderKind] ?? null,
+        height: CARD_FIXED_HEIGHT[renderKind] ?? null,
+    };
+}
+
+// 节点图像区高度的统一推算。优先级：卡片固定高 > 生成后真实图片比例（stored）>
+// 未生成态按选定画面比例 derive 形状（横/竖/方）> 回退到节点自身高度。
+export function resolvePreviewHeight(opts: {
+    node: GenerationCanvasNode;
+    hasResult: boolean;
+    isCardKind: boolean;
+    cardFixedWidth: number | null;
+    cardFixedHeight: number | null;
+    storedPreviewHeight: number | null;
+    sizeWidth: number;
+    sizeHeight: number;
+    bounds: NodeSizeBounds;
+}): number {
+    const {
+        node,
+        hasResult,
+        isCardKind,
+        cardFixedWidth,
+        cardFixedHeight,
+        storedPreviewHeight,
+        sizeWidth,
+        sizeHeight,
+        bounds,
+    } = opts;
+    // 未生成 + 非卡片时按选定画面比例 derive；生成后或卡片走各自分支。
+    const aspectRatio =
+        hasResult || isCardKind ? null : readNodeAspectRatio(node);
+    const aspectHeight = aspectRatio
+        ? clampNumber(
+              Math.round(
+                  (cardFixedWidth ?? Math.max(bounds.minWidth, sizeWidth)) /
+                      aspectRatio,
+              ),
+              bounds.minHeight,
+              bounds.maxHeight,
+          )
+        : null;
+    return (
+        cardFixedHeight ??
+        storedPreviewHeight ??
+        aspectHeight ??
+        clampNumber(sizeHeight, bounds.minHeight, bounds.maxHeight)
+    );
 }
 
 export function findTimelineDropTarget(
