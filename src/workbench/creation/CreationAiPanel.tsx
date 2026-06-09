@@ -1,5 +1,6 @@
 import React from 'react'
-import { IconCornerDownLeft, IconCursorText, IconFilePlus, IconMovie, IconPaperclip, IconPlayerStopFilled, IconReplace, IconSend2, IconSparkles, IconX } from '@tabler/icons-react'
+import { createPortal } from 'react-dom'
+import { IconCornerDownLeft, IconCursorText, IconFilePlus, IconMaximize, IconMinimize, IconMovie, IconPaperclip, IconPlayerStopFilled, IconReplace, IconSend2, IconSparkles, IconX } from '@tabler/icons-react'
 import { NomiLoadingMark, NomiLogoMark, NomiSelect, WorkbenchButton, WorkbenchIconButton } from '../../design'
 import { NomiMarkdown } from '../common/NomiMarkdown'
 import { cn } from '../../utils/cn'
@@ -73,6 +74,8 @@ function readWorkbenchAiReplyText(response: unknown): string {
 
 export default function CreationAiPanel({ onCollapse }: { onCollapse?: () => void } = {}): JSX.Element {
   const [sending, setSending] = React.useState(false)
+  // 放大/全屏对话：把整块面板移到 body 级居中浮层（仿 Scene3D 全屏 portal）。
+  const [expanded, setExpanded] = React.useState(false)
   // Cancel handle for the in-flight agent turn (user "Stop").
   const cancelRef = React.useRef<(() => void) | null>(null)
   const [pendingToolCalls, setPendingToolCalls] = React.useState<PendingDocToolCall[]>([])
@@ -289,13 +292,14 @@ export default function CreationAiPanel({ onCollapse }: { onCollapse?: () => voi
     void clearWorkbenchAgentSession(workbenchSessionKey())
   }, [clearAttachments, resetConversation])
 
-  return (
+  const panelBody = (
     <aside
       className={cn(
         'workbench-creation-ai',
         'relative grid grid-rows-[44px_auto_minmax(0,1fr)_auto_auto]',
         '[grid-template-areas:"header"_"tools"_"messages"_"error"_"composer"]',
         'min-w-0 min-h-0 overflow-hidden',
+        expanded && 'h-[86vh] w-[min(760px,92vw)] rounded-nomi-lg border border-nomi-line bg-nomi-paper shadow-nomi-lg',
       )}
       aria-label="AI 创作区"
       {...dragHandlers}
@@ -335,6 +339,18 @@ export default function CreationAiPanel({ onCollapse }: { onCollapse?: () => voi
               'focus-visible:outline-2 focus-visible:outline-workbench-focus focus-visible:outline-offset-2',
             )}
             onNewConversation={handleNewConversation}
+          />
+          <WorkbenchIconButton
+            className={cn(
+              'size-6 inline-grid place-items-center shrink-0',
+              'p-0 border-0 rounded-nomi-sm bg-transparent text-nomi-ink-60 cursor-pointer',
+              'hover:bg-nomi-ink-05 hover:text-nomi-ink',
+              'focus-visible:outline-2 focus-visible:outline-workbench-focus focus-visible:outline-offset-2',
+            )}
+            label={expanded ? '缩小' : '放大对话'}
+            aria-label={expanded ? '缩小创作助手' : '放大创作助手'}
+            onClick={() => setExpanded((value) => !value)}
+            icon={expanded ? <IconMinimize size={15} /> : <IconMaximize size={15} />}
           />
           {onCollapse ? (
             <WorkbenchIconButton
@@ -585,5 +601,18 @@ export default function CreationAiPanel({ onCollapse }: { onCollapse?: () => voi
         </div>
       </footer>
     </aside>
+  )
+
+  if (!expanded || typeof document === 'undefined') return panelBody
+  return createPortal(
+    <div
+      className={cn('fixed inset-0 z-[200] grid place-items-center bg-[var(--workbench-backdrop)] p-4')}
+      onClick={(event) => {
+        if (event.target === event.currentTarget) setExpanded(false)
+      }}
+    >
+      {panelBody}
+    </div>,
+    document.body,
   )
 }
