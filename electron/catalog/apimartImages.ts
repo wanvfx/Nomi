@@ -76,7 +76,7 @@ export const APIMART_IMAGE_MODELS: ApimartImageModel[] = [
     editBody: { size: SIZE, resolution: RESOLUTION, image_urls: IMAGE_URLS },
   }),
   imageModel({
-    modelKey: "gemini-2.5-flash-image-preview", labelZh: "Nano Banana（Gemini 2.5 Flash）", archetypeId: "nano-banana",
+    modelKey: "gemini-2.5-flash-image-preview", labelZh: "Nano Banana", archetypeId: "nano-banana",
     t2iBody: { size: SIZE }, // resolution 固定 1K → 省略走默认
     editBody: { size: SIZE, image_urls: IMAGE_URLS },
   }),

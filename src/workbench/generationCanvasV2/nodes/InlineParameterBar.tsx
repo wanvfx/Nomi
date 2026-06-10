@@ -20,7 +20,7 @@ type InlineParameterBarProps = {
   modelCatalogStatus: { message: string }
   renderedControls: DynamicModelControl[]
   selectedModelOption: ModelOption | null
-  archetype: ReturnType<typeof resolveArchetypeForOption>
+  archetype: ReturnType<typeof resolveArchetypeForOption> // kept for prop compat, no longer used in render
   meta: Record<string, unknown>
   onModelChange: (value: string) => void
   onCatalogControlChange: (control: DynamicCatalogControl, value: string) => void
@@ -34,7 +34,6 @@ export default function InlineParameterBar({
   modelCatalogStatus,
   renderedControls,
   selectedModelOption,
-  archetype,
   meta,
   onModelChange,
   onCatalogControlChange,
@@ -116,17 +115,12 @@ export default function InlineParameterBar({
   }
   return (
     <div className={cn('generation-canvas-v2-node__params--parameters', 'flex flex-nowrap items-center gap-2')}>
-      {/* 模型芯片：NomiSelect——值右侧嵌「模板/通用」徽标，选项里每个模型也标注。 */}
       <NomiSelect
         ariaLabel="模型"
         placeholder="选择模型"
         triggerMaxWidth={150}
         value={selectedModelOption?.value || ''}
-        triggerBadge={selectedModelOption ? { text: archetype ? '模板' : '通用', tone: archetype ? 'accent' : 'muted' } : undefined}
-        options={modelOptions.map((option) => {
-          const hasArchetype = Boolean(resolveArchetypeForOption(option))
-          return { value: option.value, label: option.label, trailing: hasArchetype ? '模板' : '通用', trailingTone: hasArchetype ? 'accent' as const : 'muted' as const }
-        })}
+        options={modelOptions.map((option) => ({ value: option.value, label: option.label }))}
         onChange={(v) => onModelChange(v)}
       />
       {/* 该模型的标量参数：横排内联，每个带标签，全可见 */}

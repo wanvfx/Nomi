@@ -92,7 +92,6 @@ export default function TimelinePreview({ activeClips, aspectRatio, fps, playhea
   const [mediaScale, setMediaScale] = React.useState(1)
   const [mediaOffset, setMediaOffset] = React.useState({ x: 0, y: 0 })
   const [fitMode, setFitMode] = React.useState<PreviewFitMode>('contain')
-  const [safeAreaVisible, setSafeAreaVisible] = React.useState(false)
   const [exportStatus, setExportStatus] = React.useState<PreviewExportStatus>('idle')
   const [exportRatio, setExportRatio] = React.useState(0)
   const [playbackError, setPlaybackError] = React.useState('')
@@ -330,16 +329,6 @@ export default function TimelinePreview({ activeClips, aspectRatio, fps, playhea
             </div>
           ) : null}
         </div>
-        {safeAreaVisible ? (
-          <div className={cn(
-            'workbench-preview-player__safe-area',
-            'absolute inset-[8%] z-[2] border border-white/70',
-            'shadow-[0_0_0_1px_rgba(29,29,31,0.18),inset_0_0_0_1px_rgba(29,29,31,0.18)]',
-            'pointer-events-none',
-            'after:content-[""] after:absolute after:inset-[8%] after:border after:border-dashed after:border-white/70',
-            'after:shadow-[0_0_0_1px_rgba(29,29,31,0.14)]',
-          )} aria-hidden="true" />
-        ) : null}
         {playbackError ? (
           <div className={cn(
             'workbench-preview-player__media-error',
@@ -498,21 +487,6 @@ export default function TimelinePreview({ activeClips, aspectRatio, fps, playhea
         >
           {exportBusy ? <NomiLoadingMark size={15} className={cn('workbench-preview-player__spinner', 'animate-spin')} /> : <IconDownload size={15} />}
           导出 MP4
-        </WorkbenchButton>
-        <WorkbenchButton
-          className={cn(
-            'workbench-preview-player__mode',
-            'h-7 px-3 border border-transparent rounded-full whitespace-nowrap',
-            'bg-transparent text-[var(--workbench-muted)] text-[11.5px] font-semibold cursor-pointer',
-            safeAreaVisible && 'bg-[var(--workbench-accent)] text-[var(--nomi-paper)]',
-            !safeAreaVisible && 'hover:border-[var(--workbench-border-soft)] hover:bg-[var(--workbench-hover)] hover:text-[var(--workbench-ink)]',
-          )}
-          aria-label="切换安全框"
-          aria-pressed={safeAreaVisible}
-          data-active={safeAreaVisible ? 'true' : 'false'}
-          onClick={() => setSafeAreaVisible((value) => !value)}
-        >
-          安全框
         </WorkbenchButton>
       </div>
     </section>
