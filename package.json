@@ -34,6 +34,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "lab:onboard": "tsx scripts/lab-onboard.ts",
+    "eval:ops": "node ./scripts/eval-ops-report.mjs",
     "dist": "electron-builder",
     "dist:mac:dir": "electron-builder --mac dir --arm64",
     "postinstall": "node ./scripts/install-git-hooks.cjs",
