@@ -1,4 +1,5 @@
 import type { GenerationCanvasEdge, GenerationCanvasNode, GenerationNodeResult } from '../model/generationCanvasTypes'
+import type { CatalogTaskActionOptions } from './catalogTaskResolve'
 import { getGenerationNodeExecutionKind } from '../model/generationNodeKinds'
 import { generateImage } from './imageActions'
 import { resolveGenerationReferences } from './generationReferenceResolver'
@@ -8,6 +9,8 @@ import { generateVideo } from './videoActions'
 export type GenerationNodeExecutorContext = {
   nodes?: GenerationCanvasNode[]
   edges?: GenerationCanvasEdge[]
+  /** S2 进度透传:catalog 任务各阶段 → 控制器 → setNodeProgress。 */
+  onProgress?: CatalogTaskActionOptions['onProgress']
 }
 
 export type GenerationNodeExecutor = (
@@ -17,16 +20,17 @@ export type GenerationNodeExecutor = (
 
 export const generationNodeExecutor: GenerationNodeExecutor = async (node, context) => {
   const executionKind = getGenerationNodeExecutionKind(node.kind)
+  const onProgress = context?.onProgress
   if (executionKind === 'image') {
     const references = resolveGenerationReferences(node, context)
-    return generateImage(node, { references })
+    return generateImage(node, { references, ...(onProgress ? { onProgress } : {}) })
   }
   if (executionKind === 'video') {
     const references = resolveGenerationReferences(node, context)
-    return generateVideo(node, { references })
+    return generateVideo(node, { references, ...(onProgress ? { onProgress } : {}) })
   }
   if (executionKind === 'text') {
-    return generateText(node)
+    return generateText(node, onProgress ? { onProgress } : undefined)
   }
   throw new Error(`${node.kind} generation is not implemented yet`)
 }

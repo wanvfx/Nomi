@@ -3,6 +3,7 @@ import { getGenerationNodeExecutionKind } from '../model/generationNodeKinds'
 import { persistActiveWorkbenchProjectNow } from '../../project/workbenchProjectSession'
 import { useGenerationCanvasStore } from '../store/generationCanvasStore'
 import { generationNodeExecutor, type GenerationNodeExecutor } from './generationNodeExecutor'
+import { narrateProgress } from '../../observability/narrate'
 import { resolveGenerationReferences } from './generationReferenceResolver'
 import { hasArchetypeArrayReferences, resolveArchetypeForModel } from '../nodes/controls/archetypeMeta'
 
@@ -84,7 +85,7 @@ export async function runGenerationNode(
   useGenerationCanvasStore.getState().setNodeProgress(id, {
     runId: run.id,
     phase: 'queued',
-    message: '准备生成',
+    message: narrateProgress('queued'),
     percent: 0,
   })
 
@@ -100,6 +101,15 @@ export async function runGenerationNode(
         result = await executor(node, {
           nodes: state.nodes,
           edges: state.edges,
+          // S2:catalog 任务各阶段回报 → 节点进度(人话已由 narrate 翻好)。
+          onProgress: (progress) => {
+            useGenerationCanvasStore.getState().setNodeProgress(id, {
+              runId: run.id,
+              phase: progress.phase,
+              message: progress.message,
+              ...(progress.taskId ? { taskId: progress.taskId } : {}),
+            })
+          },
         })
         break
       } catch (error: unknown) {
@@ -108,9 +118,9 @@ export async function runGenerationNode(
         }
         useGenerationCanvasStore.getState().setNodeProgress(id, {
           runId: run.id,
-          phase: 'retrying-fetch',
-          message: `正在重试 (${attempt + 1}/${maxAttempts})`,
-          percent: Math.min(90, attempt * 10),
+          phase: 'retrying',
+          // 文案走 narrate 注册表(S2 纪律:展示文案不许散落字面量)。
+          message: narrateProgress('retrying', { attempt: attempt + 1, maxAttempts }),
         })
         await waitForRetry(attempt, baseDelayMs)
       }

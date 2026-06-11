@@ -619,7 +619,7 @@ function BaseGenerationNodeImpl({
                             "data-[status=error]:text-workbench-danger data-[status=error]:bg-workbench-danger-soft",
                         )}
                         data-status={status}>
-                        {STATUS_LABEL[status] ?? status}
+                        {(isGenerating && node.progress?.message) || STATUS_LABEL[status] || status}
                     </span>
                 ) : null}
                 {/* E.2C-25 副本角标（spec §6.3）：跨分类独立副本永久显示。

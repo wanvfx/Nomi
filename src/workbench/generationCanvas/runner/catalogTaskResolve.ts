@@ -11,6 +11,7 @@ import {
   type TaskResultDto,
 } from '../../api/taskApi'
 import type { GenerationCanvasNode } from '../model/generationCanvasTypes'
+import type { GenerationProgressPhase } from '../../observability/narrate'
 import {
   getGenerationNodeCatalogKind,
   getGenerationNodeExecutionKind,
@@ -35,6 +36,8 @@ export type CatalogTaskActionOptions = {
   }) => Promise<{ vendor: string; result: TaskResultDto }>
   pollIntervalMs?: number
   pollTimeoutMs?: number
+  /** S2 进度报告:catalog 任务各阶段回报(phase 经 narrate 翻成人话,治 bug② 卡 30 秒像死了)。 */
+  onProgress?: (progress: { phase: GenerationProgressPhase; message: string; taskId?: string }) => void
 }
 
 export function asTrimmedString(value: unknown): string {

@@ -9,6 +9,7 @@ import type {
   GenerationNodeResult,
 } from '../model/generationCanvasTypes'
 import type { ResolvedGenerationReferences } from './generationReferenceResolver'
+import { narrateProgress, type GenerationProgressPhase, type ProgressNarrationContext } from '../../observability/narrate'
 import { resolveArchetypeForModel } from '../../../config/modelArchetypes'
 import { buildArchetypeInputParams } from '../nodes/controls/archetypeMeta'
 import { projectPromptForSend } from '../../assets/promptMentions'
@@ -155,6 +156,12 @@ async function waitForCatalogTaskResult(
     if (Date.now() - startedAt > pollTimeoutMs) {
       throw new Error(`模型任务轮询超时: ${initialResult.id}`)
     }
+    // S2:每个轮询 tick 回报进度(人话 + 已等秒数),不再静默吞掉 status。
+    options.onProgress?.({
+      phase: 'generating',
+      message: narrateProgress('generating', { elapsedMs: Date.now() - startedAt }),
+      taskId: initialResult.id,
+    })
     await delay(pollIntervalMs)
     const response = await fetchResult({
       taskId: initialResult.id,
@@ -172,10 +179,18 @@ export async function runCatalogGenerationTask(
   node: GenerationCanvasNode,
   options: CatalogTaskActionOptions = {},
 ): Promise<GenerationNodeResult> {
+  // S2 进度报告:每个阶段说人话(narrate 注册表),治"卡 30 秒像死了"(bug② 根因之一:
+  // 此前轮询拿到 status 后随手丢弃,且无任何阶段回报)。
+  const report = (phase: GenerationProgressPhase, taskId?: string, ctx?: ProgressNarrationContext) =>
+    options.onProgress?.({ phase, message: narrateProgress(phase, ctx), ...(taskId ? { taskId } : {}) })
+  report('resolving')
   const executableNode = await resolveExecutableNodeFromCatalog(node, options)
   const { vendor, request } = buildCatalogTaskRequest(executableNode, options)
   const runTask = options.runTask || runWorkbenchTaskByVendor
+  report('requesting')
   const initialResult = await runTask(vendor, request)
+  report('waiting', initialResult.id)
   const finalResult = await waitForCatalogTaskResult(vendor, request, initialResult, options)
+  report('finalizing', initialResult.id)
   return normalizeCatalogTaskResult(finalResult, executableNode)
 }
