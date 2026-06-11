@@ -18,6 +18,9 @@ function component(name, pass, reason) {
   return { name, pass, score: pass ? 1 : 0, reason };
 }
 
+/** vendor/网络挂起类报错——是基础设施问题不是 agent 行为问题,分开计数(评审 CTO#7)。 */
+export const INFRA_ERROR_PATTERN = /无响应|超时|timeout|timed?\s?out|ECONN|ETIMEDOUT|fetch failed|HTTP 5\d\d|网络/i;
+
 /** 通用不变量(每个 case 都查)+ expect 词表逐项。返回 GradingResult。 */
 export function gradeCase(evalCase, output) {
   if (output.failureReason === "error") {
@@ -25,6 +28,15 @@ export function gradeCase(evalCase, output) {
       pass: false,
       score: 0,
       reason: `infra error: ${output.error || "unknown"}`,
+      failureReason: "error",
+      componentResults: [],
+    };
+  }
+  if (output.turn?.status === "error" && INFRA_ERROR_PATTERN.test(String(output.turn?.errorMessage || ""))) {
+    return {
+      pass: false,
+      score: 0,
+      reason: `infra error(模型端点): ${output.turn.errorMessage}`,
       failureReason: "error",
       componentResults: [],
     };
@@ -67,9 +79,14 @@ export function gradeCase(evalCase, output) {
   if (typeof expect.maxChainEdges === "number") {
     checks.push(component("maxChainEdges", edges.length <= expect.maxChainEdges, `edges=${edges.length} max=${expect.maxChainEdges}`));
   }
-  // tool-args 语义谓词(缺口#4):agent 配的模型/档案必须真实可解析
+  // tool-args 语义谓词(缺口#4):agent 配的模型/档案必须真实可解析,
+  // 且按 kind 带齐比例词表(image→size / video→aspect_ratio+duration,vendor 原词,P4)。
   const missingMeta = created.filter((n) => !n.meta?.modelKey || !n.meta?.archetype?.id);
   checks.push(component("metaModelValid", missingMeta.length === 0, missingMeta.length ? `${missingMeta.length} 个节点缺 modelKey/archetype` : "meta ok"));
+  const missingRatio = created.filter((n) =>
+    n.kind === "image" ? !n.meta?.size : n.kind === "video" ? !n.meta?.aspect_ratio || !n.meta?.duration : false,
+  );
+  checks.push(component("ratioParamsValid", missingRatio.length === 0, missingRatio.length ? `${missingRatio.length} 个节点缺比例/时长参数` : "ratio params ok"));
 
   const failed = checks.filter((c) => !c.pass);
   return {

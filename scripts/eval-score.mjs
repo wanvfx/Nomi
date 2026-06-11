@@ -5,6 +5,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { gradeCase, aggregateTrials, createdNodes } from "../evals/lib/grading.mjs";
+import { loadJudgeConfig, loadFewshots, judgeOne } from "../evals/lib/judge.mjs";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const runsRoot = path.join(repoRoot, "evals", "runs");
@@ -50,12 +51,34 @@ const outputs = fs
   .filter((l) => l.trim())
   .map((l) => JSON.parse(l));
 
+// --judge:显式开关才烧 judge 额度(评分段默认零额度);未校准(P/R<0.8)时
+// judge 判决只随报告展示,绝不计入 pass(critique-shadowing 铁律)。
+const useJudge = process.argv.includes("--judge");
+const judgeCfg = useJudge ? loadJudgeConfig() : null;
+if (useJudge && !judgeCfg) console.error("⚠ --judge 但缺 evals/judge.config.json,跳过 judge");
+const calibrationPath = path.join(repoRoot, "evals", "judge-calibration.json");
+const calibrated = fs.existsSync(calibrationPath) && JSON.parse(fs.readFileSync(calibrationPath, "utf8")).calibrated === true;
+const fewshots = judgeCfg ? loadFewshots() : [];
+
 const byCase = new Map();
 for (const output of outputs) {
   const evalCase = caseById.get(output.caseId);
   if (!evalCase) continue;
   output.events = readEventsFromArtifacts(output);
   const grade = gradeCase(evalCase, output);
+  if (judgeCfg && output.failureReason !== "error") {
+    try {
+      const verdict = await judgeOne(judgeCfg, { userMessage: evalCase.input.message, createdNodes: createdNodes(output), fewshots });
+      grade.judge = { ...verdict, countsTowardPass: calibrated };
+      if (calibrated && !verdict.pass) {
+        grade.pass = false;
+        grade.reason = grade.pass ? grade.reason : `${grade.reason}; judge: ${verdict.reason}`.replace(/^all checks passed; /, "");
+        grade.failureReason = grade.failureReason || "assert";
+      }
+    } catch (error) {
+      grade.judge = { error: error instanceof Error ? error.message : String(error) };
+    }
+  }
   if (!byCase.has(output.caseId)) byCase.set(output.caseId, []);
   byCase.get(output.caseId).push({ output, grade });
 }
@@ -71,7 +94,8 @@ caseResults.sort((a, b) => a.meanScore - b.meanScore || a.caseId.localeCompare(b
 const totalCases = caseResults.length;
 const passAtK = caseResults.filter((c) => c.passAtK).length;
 const passAllK = caseResults.filter((c) => c.passAllK).length;
-const infraErrors = outputs.filter((o) => o.failureReason === "error").length;
+// infra 从 grade 层取(端点挂起等也算),与行为失败分开呈现
+const infraErrors = caseResults.reduce((s, c) => s + c.trialsDetail.filter((t) => t.grade.failureReason === "error").length, 0);
 const tokensTotal = outputs.reduce((s, o) => s + (o.metrics?.tokens?.totalTokens || 0), 0);
 const latencyMean = outputs.length ? Math.round(outputs.reduce((s, o) => s + (o.metrics?.latencyMs || 0), 0) / outputs.length / 1000) : 0;
 
@@ -103,6 +127,7 @@ const scores = {
       score: t.grade.score,
       reason: t.grade.reason,
       failureReason: t.grade.failureReason,
+      judge: t.grade.judge ?? null,
       tokens: t.output.metrics?.tokens?.totalTokens ?? null,
       artifacts: t.output.eventsRef,
     })),
@@ -143,6 +168,9 @@ fs.writeFileSync(path.join(runDir, "report.md"), lines.join("\n"));
 // 终端 verdict(评审设计师#5:命令结束直接出结论)
 console.log(`\n━━ ${meta.dataset} @ ${meta.gitCommit} ━━`);
 console.log(`pass@${meta.trials}: ${passAtK}/${totalCases}${passAllK !== passAtK ? ` (pass^k ${passAllK}/${totalCases})` : ""} · infra 错误 ${infraErrors} · ${tokensTotal.toLocaleString()} tokens`);
-for (const c of caseResults) console.log(`  ${c.passAtK ? "✅" : "❌"} ${c.caseId} ${c.description} (${c.meanScore})`);
+for (const c of caseResults) {
+  const allInfra = c.trialsDetail.every((t) => t.grade.failureReason === "error");
+  console.log(`  ${c.passAtK ? "✅" : allInfra ? "⚠️ " : "❌"} ${c.caseId} ${c.description} (${c.meanScore})${allInfra ? " [infra,建议重跑]" : ""}`);
+}
 console.log(`\n报告: ${path.relative(process.cwd(), path.join(runDir, "report.md"))}`);
 process.exit(passAtK === totalCases && infraErrors === 0 ? 0 : 1);

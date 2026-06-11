@@ -24,6 +24,7 @@ import {
   waitForPersistedCanvas,
   readEventsLog,
 } from "../evals/lib/isoApp.mjs";
+import { INFRA_ERROR_PATTERN } from "../evals/lib/grading.mjs";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const args = process.argv.slice(2);
@@ -95,11 +96,10 @@ function trimNode(n) {
   };
 }
 
-for (const evalCase of selected) {
-  for (let trial = 1; trial <= trials; trial += 1) {
+async function runOneTrial(evalCase, trial, attempt) {
+  {
     const key = `${evalCase.id}#${trial}`;
-    if (done.has(key)) continue;
-    const isoDir = path.join(os.tmpdir(), "nomi-eval", path.basename(runDir), `${evalCase.id}-t${trial}`);
+    const isoDir = path.join(os.tmpdir(), "nomi-eval", path.basename(runDir), `${evalCase.id}-t${trial}-a${attempt}`);
     const artifactsRel = path.join("artifacts", `${evalCase.id}-t${trial}`);
     const output = {
       caseId: evalCase.id,
@@ -144,6 +144,7 @@ for (const evalCase of selected) {
         eventCount: events.length,
       };
       // 轨迹按引用归档(historyRef 引用制):整个 .nomi 拷进 run 目录
+      fs.rmSync(path.join(runDir, artifactsRel), { recursive: true, force: true });
       fs.cpSync(path.join(projectDir, ".nomi"), path.join(runDir, artifactsRel), { recursive: true });
     } catch (error) {
       output.error = error instanceof Error ? error.message : String(error);
@@ -153,6 +154,25 @@ for (const evalCase of selected) {
     } finally {
       if (app) await app.close().catch(() => {});
       fs.rmSync(isoDir, { recursive: true, force: true });
+    }
+    return output;
+  }
+}
+
+function isInfraFailure(output) {
+  if (output.failureReason === "error") return true;
+  return output.turn?.status === "error" && INFRA_ERROR_PATTERN.test(String(output.turn?.errorMessage || ""));
+}
+
+for (const evalCase of selected) {
+  for (let trial = 1; trial <= trials; trial += 1) {
+    if (done.has(`${evalCase.id}#${trial}`)) continue;
+    let output = await runOneTrial(evalCase, trial, 1);
+    // 基础设施错误(端点挂起/网络)重试一次——行为失败不重试(那是要测的东西)
+    if (isInfraFailure(output)) {
+      console.log("  ↻ infra 错误,重试一次…");
+      output = await runOneTrial(evalCase, trial, 2);
+      output.retried = true;
     }
     fs.appendFileSync(outputPath, `${JSON.stringify(output)}\n`);
     const tok = output.metrics?.tokens?.totalTokens;
