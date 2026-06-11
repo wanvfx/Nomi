@@ -269,7 +269,12 @@ function registerLocalProtocol(): void {
       const [projectId, ...relativeParts] = decodeURIComponent(url.pathname.replace(/^\/+/, "")).split("/");
       const relativePath = relativeParts.join("/");
       const filePath = resolveProjectRelativePath(projectId, relativePath);
-      return net.fetch(pathToFileURL(filePath).toString());
+      const fileResponse = await net.fetch(pathToFileURL(filePath).toString());
+      // canvas.toDataURL() 需要 CORS 头，否则 crossOrigin='anonymous' 加载的图片会污染画布
+      // 导致九宫格/裁切等操作静默失败（SecurityError 被吞掉）。
+      const corsHeaders = new Headers(fileResponse.headers);
+      corsHeaders.set("Access-Control-Allow-Origin", "*");
+      return new Response(fileResponse.body, { status: fileResponse.status, headers: corsHeaders });
     } catch (error) {
       const message = error instanceof Error ? error.message : "local asset not found";
       return new Response(message, { status: 404 });
