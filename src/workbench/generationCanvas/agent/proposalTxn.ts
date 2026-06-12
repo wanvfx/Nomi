@@ -6,6 +6,7 @@
 // Cmd+Z 永远撤不出半截态。
 import { applyCanvasToolCall } from './applyCanvasToolCall'
 import { generationCanvasTools } from './generationCanvasTools'
+import { reconcileProposal, type ReconcileResult } from './reconcile'
 import { emitCanvasGesture } from '../events/canvasEventEmitter'
 import { withCanvasGestureContext, type CanvasGestureContext } from '../events/canvasGestureContext'
 import {
@@ -21,7 +22,14 @@ export type ProposalStep = {
 }
 
 export type ProposalOutcome =
-  | { status: 'committed'; proposalId: string; results: unknown[]; clientIdToNodeId: Record<string, string> }
+  | {
+      status: 'committed'
+      proposalId: string
+      results: unknown[]
+      clientIdToNodeId: Record<string, string>
+      /** S6-3 对账(N12):执行后态 vs 批准的 effectiveArgs 逐字段比对;I4=committed 必带它。 */
+      reconciliation: ReconcileResult
+    }
   | { status: 'aborted'; proposalId: string; failedIndex: number; reason: string; compensatedNodeIds: string[] }
 
 export function mintProposalId(): string {
@@ -91,6 +99,19 @@ export async function applyProposalBatch(steps: ProposalStep[]): Promise<Proposa
     }
   }
 
+  // S6-3 对账(I4):commit 回执必带 reconciliation——执行后态 vs 批准快照逐字段比对,
+  // 偏差不静默(UI 渲染「执行与批准有 N 处出入」),正常时用户什么都看不见(M1)。
+  const snapshot = generationCanvasTools.read_canvas()
+  const reconciliation = reconcileProposal({
+    steps: steps.map((step, index) => ({
+      toolName: step.toolName,
+      effectiveArgs: step.effectiveArgs,
+      result: results[index],
+    })),
+    clientIdToNodeId,
+    nodes: snapshot.nodes,
+    edges: snapshot.edges,
+  })
   withCanvasGestureContext(ctx, () =>
     emitCanvasGesture([
       {
@@ -99,9 +120,14 @@ export async function applyProposalBatch(steps: ProposalStep[]): Promise<Proposa
           proposalId,
           steps: steps.map((step) => ({ toolCallId: step.toolCallId, toolName: step.toolName })),
           ...(Object.keys(clientIdToNodeId).length ? { clientIdToNodeId } : {}),
+          reconciliation: {
+            ok: reconciliation.ok,
+            // payload ≤4KB 纪律:偏差列表截前 20 条(全量进 outcome 给 UI)。
+            deviations: reconciliation.deviations.slice(0, 20),
+          },
         },
       },
     ]),
   )
-  return { status: 'committed', proposalId, results, clientIdToNodeId }
+  return { status: 'committed', proposalId, results, clientIdToNodeId, reconciliation }
 }

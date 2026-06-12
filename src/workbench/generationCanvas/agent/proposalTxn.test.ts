@@ -59,6 +59,9 @@ describe('applyProposalBatch — S6-2 提议事务状态机', () => {
     expect(committed).toBeTruthy()
     expect(committed!.payload.proposalId).toBe(outcome.proposalId)
     expect((committed!.payload.clientIdToNodeId as Record<string, string>).c1).toBe(state.nodes[0].id)
+    // I4:committed 必带对账结果(S6-3)。
+    expect((committed!.payload.reconciliation as { ok: boolean }).ok).toBe(true)
+    if (outcome.status === 'committed') expect(outcome.reconciliation.ok).toBe(true)
   })
 
   it('事务期间画布事件统一携 source:agent + proposalId + 共享 txnId(I1 数据前提)', async () => {

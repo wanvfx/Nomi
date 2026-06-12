@@ -30,8 +30,8 @@
 |---|---|---|---|
 | **S6-0** | override 蒸发修复：`effectiveArgs`+`overridesDelta` 穿 confirm→IPC→`proposal.approved` payload（types.ts:38 注释兑现）。对账的「米」。 | 无 | typecheck+test；事件落盘带 effectiveArgs 真机验 |
 | **S6-1** | `GateIntent`/`GateDecision`/`evaluateGate` 类型+纯函数（policy→invariant→ask 三步）；收编 `CanvasAssistantPanel:228` 散落 if（**同 commit 删**）；`gate.denied` 发射落地。 | 无 | 单测覆盖 allow/deny/ask；删 if 后行为不回归 |
-| **S6-2** | `reconcile()` 纯函数（逐 clientId 比对+派生字段白名单）+ `txn.committed{reconciliation}`/`aborted` 事件 + property test「任意批准重放→reconciliation ok」进 CI + 四不变量 I1-I4。对账 UI（偏差时「N 处出入」+per-field diff）。 | 有（对账卡，复用现卡式） | property test 绿；注入偏差显 diff |
-| **S6-3** | `applyBatch` 原子：中途失败补偿回滚（aborted 路径，零半截）；proposalId 贯穿（铸于 proposed，批量共一个）。 | 无 | R13「批量中途失败零半截」；I3 rejected/aborted 投影逐字节相等 |
+| **S6-2** | `applyBatch` 原子（施工时与 S6-3 对调——reconcile 依赖 txn.committed 先存在）：中途失败补偿回滚（aborted 路径，零半截）；proposalId 贯穿；txn.committed/aborted 事件；手势上下文（source:agent+共享 txnId）；整笔=一个 Cmd+Z 步。 | 无 | I3 注入失败投影逐字节相等（单测锁）；abort 后 Cmd+Z 不复活半截 ✅ |
+| **S6-3** | `reconcile()` 纯函数（逐 clientId 比对+派生字段白名单）+ `txn.committed{reconciliation}`（I4）+ property test「任意批准重放→reconciliation ok」进 CI。对账 UI（偏差时「N 处出入」+per-field diff+一键整笔撤销；正常零可见 M1）。 | 有（偏差卡，复用现卡式） | property test 绿；注入偏差显 diff |
 | **S6-4** | 锁：`node.locked` 字段+`canvas.node.locked/unlocked` 事件（source 恒 user）+reducer case；gate 集成（入边 deny/出边 allow，构建时 deny）；**锁 UI 过 R8**（徽标+只读态+一键解锁，基于获批样张 v3）。 | 有（锁徽标/toggle） | R13 锁旅程；几何实测不遮挡；design-fidelity 断言 |
 | **S6-5** | 整笔撤销（按 proposalId，补偿事件进 Cmd+Z 栈，入口三约束）+ 最小轨迹视图（计划卡查看步骤，读 nomi:events:read，每步走 narrate）。 | 有（撤销入口+轨迹视图） | R13 J1 扩展旅程；撤销弹确认列明丢失修改 |
 | **S6b** | T1 `run_generation_batch` 工具（受理语义，S6 后 0.5d） | 无 | 确认前零网络调用；approved nodeIds≡requested |

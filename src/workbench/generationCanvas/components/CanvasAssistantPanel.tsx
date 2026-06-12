@@ -25,6 +25,8 @@ import {
   type FixationPlanningRequest,
 } from '../agent/fixationLauncher'
 import AgentPlanCard, { summarizeAgentPlan } from './AgentPlanCard'
+import ReconcileDeviationCard from './ReconcileDeviationCard'
+import type { ReconcileDeviation } from '../agent/reconcile'
 import { useGenerationCanvasStore } from '../store/generationCanvasStore'
 import { AiReplyActionButton } from '../../ai/AiReplyActionButton'
 import { handleAiComposerKeyDown } from '../../ai/aiComposerKeyboard'
@@ -103,6 +105,8 @@ export default function CanvasAssistantPanel({
   const cancelRef = React.useRef<(() => void) | null>(null)
   const [mode, setMode] = React.useState<'agent' | 'chat' | 'refine'>('agent')
   const [pendingToolCalls, setPendingToolCalls] = React.useState<PendingToolCall[]>([])
+  // S6-3 对账偏差(N12):committed 但执行 ≠ 批准时弹卡;对账一致时恒 null(M1 零可见)。
+  const [deviationReport, setDeviationReport] = React.useState<ReconcileDeviation[] | null>(null)
   const threadBottomRef = React.useRef<HTMLDivElement | null>(null)
 
   // toolCallId → pending call 查找表(approveCalls 事务批要按序取多个 call,函数式 setState 取不到)。
@@ -178,7 +182,7 @@ export default function CanvasAssistantPanel({
   React.useEffect(() => {
     if (collapsed) return
     threadBottomRef.current?.scrollIntoView({ block: 'end' })
-  }, [messages, pendingToolCalls, collapsed])
+  }, [messages, pendingToolCalls, deviationReport, collapsed])
 
   const appendMessage = React.useCallback((message: { role: 'assistant' | 'user' | 'tool'; content: string; attachments?: ComposerAttachment[] }) => {
     setMessages((current) => [...current, { id: createMessageId(), ...message }])
@@ -248,6 +252,8 @@ export default function CanvasAssistantPanel({
         )
         if (outcome.status === 'committed') {
           toolActionCount += steps.length
+          // S6-3 对账(N12):执行 ≠ 批准 → 弹偏差卡(per-field diff+一键整笔撤销);一致则零可见。
+          if (!outcome.reconciliation.ok) setDeviationReport(outcome.reconciliation.deviations)
           for (let index = 0; index < steps.length; index += 1) {
             const step = steps[index]
             await step.transport({
@@ -399,6 +405,7 @@ export default function CanvasAssistantPanel({
   const handleNewConversation = React.useCallback(() => {
     pendingByIdRef.current.clear()
     setPendingToolCalls([])
+    setDeviationReport(null)
     clearAttachments()
     resetConversation()
     // Wipe the shared backend memory so both areas start a fresh thread.
@@ -561,6 +568,17 @@ export default function CanvasAssistantPanel({
             </React.Fragment>
           ))
         )}
+        {deviationReport ? (
+          <ReconcileDeviationCard
+            deviations={deviationReport}
+            onUndoAll={() => {
+              // S6-2 后整笔提议=一个 undo barrier:一次 undo 即整批回退。
+              useGenerationCanvasStore.getState().undo()
+              setDeviationReport(null)
+            }}
+            onDismiss={() => setDeviationReport(null)}
+          />
+        ) : null}
         {pendingToolCalls.length > 0 ? (() => {
           // Aggregate consecutive create_canvas_nodes + connect_canvas_edges
           // pairs into a single storyboard plan card; everything else falls

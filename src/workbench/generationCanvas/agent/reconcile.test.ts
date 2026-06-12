@@ -1,0 +1,134 @@
+import { describe, expect, it } from 'vitest'
+import { reconcileProposal } from './reconcile'
+
+const nodes = [
+  { id: 'real-1', kind: 'image', title: '镜头 1', prompt: 'sunrise', meta: { modelKey: 'm1', aspect_ratio: '16:9' } },
+  { id: 'real-2', kind: 'video', title: '镜头 2', prompt: 'sunset' },
+]
+const edges = [{ source: 'real-1', target: 'real-2' }]
+const clientIdToNodeId = { c1: 'real-1', c2: 'real-2' }
+
+describe('reconcileProposal — S6-3 对账纯函数(N12)', () => {
+  it('执行与批准一致 → ok,零偏差', () => {
+    const result = reconcileProposal({
+      steps: [
+        {
+          toolName: 'create_canvas_nodes',
+          effectiveArgs: {
+            nodes: [
+              { clientId: 'c1', kind: 'image', title: '镜头 1', prompt: 'sunrise', modelKey: 'm1', params: { aspect_ratio: '16:9' } },
+              { clientId: 'c2', kind: 'video', title: '镜头 2', prompt: 'sunset' },
+            ],
+          },
+          result: null,
+        },
+        {
+          toolName: 'connect_canvas_edges',
+          effectiveArgs: { edges: [{ sourceClientId: 'c1', targetClientId: 'c2' }] },
+          result: null,
+        },
+      ],
+      clientIdToNodeId,
+      nodes,
+      edges,
+    })
+    expect(result).toEqual({ ok: true, deviations: [] })
+  })
+
+  it('prompt 被改 → 偏差带 expected/actual', () => {
+    const result = reconcileProposal({
+      steps: [
+        {
+          toolName: 'create_canvas_nodes',
+          effectiveArgs: { nodes: [{ clientId: 'c1', kind: 'image', title: '镜头 1', prompt: '用户批准的版本' }] },
+          result: null,
+        },
+      ],
+      clientIdToNodeId,
+      nodes,
+      edges,
+    })
+    expect(result.ok).toBe(false)
+    expect(result.deviations).toEqual([
+      { where: '镜头 1', field: '提示词', expected: '用户批准的版本', actual: 'sunrise' },
+    ])
+  })
+
+  it('批准的 modelKey 被校验丢弃(回退自动选)→ 必须可见,不在白名单', () => {
+    const result = reconcileProposal({
+      steps: [
+        {
+          toolName: 'create_canvas_nodes',
+          effectiveArgs: { nodes: [{ clientId: 'c2', kind: 'video', title: '镜头 2', prompt: 'sunset', modelKey: 'ghost-model' }] },
+          result: null,
+        },
+      ],
+      clientIdToNodeId,
+      nodes,
+      edges,
+    })
+    expect(result.ok).toBe(false)
+    expect(result.deviations[0]).toMatchObject({ where: '镜头 2', field: '模型', expected: 'ghost-model' })
+  })
+
+  it('position/categoryId/空标题兜底在派生白名单内 → 不算偏差', () => {
+    const result = reconcileProposal({
+      steps: [
+        {
+          toolName: 'create_canvas_nodes',
+          effectiveArgs: {
+            // 批准时带了 position,执行被网格 derive 覆盖;title 为空被兜底「镜头 1」——都不报。
+            nodes: [{ clientId: 'c1', kind: 'image', title: '', prompt: 'sunrise', position: { x: 9999, y: 9999 } }],
+          },
+          result: null,
+        },
+      ],
+      clientIdToNodeId,
+      nodes,
+      edges,
+    })
+    expect(result.ok).toBe(true)
+  })
+
+  it('批准的边没连上 → 偏差', () => {
+    const result = reconcileProposal({
+      steps: [
+        {
+          toolName: 'connect_canvas_edges',
+          effectiveArgs: { edges: [{ sourceClientId: 'c2', targetClientId: 'c1' }] },
+          result: null,
+        },
+      ],
+      clientIdToNodeId,
+      nodes,
+      edges, // 只有 real-1→real-2,反向不存在
+    })
+    expect(result.ok).toBe(false)
+    expect(result.deviations[0].field).toBe('引用边')
+  })
+
+  it('set_node_prompt / delete 的后态核对', () => {
+    const ok = reconcileProposal({
+      steps: [
+        { toolName: 'set_node_prompt', effectiveArgs: { nodeId: 'real-1', prompt: 'sunrise' }, result: null },
+        { toolName: 'delete_canvas_nodes', effectiveArgs: { nodeIds: ['gone-1'] }, result: null },
+      ],
+      clientIdToNodeId,
+      nodes,
+      edges,
+    })
+    expect(ok.ok).toBe(true)
+
+    const bad = reconcileProposal({
+      steps: [
+        { toolName: 'set_node_prompt', effectiveArgs: { nodeId: 'real-1', prompt: '没写进去的' }, result: null },
+        { toolName: 'delete_canvas_nodes', effectiveArgs: { nodeIds: ['real-2'] }, result: null },
+      ],
+      clientIdToNodeId,
+      nodes,
+      edges,
+    })
+    expect(bad.ok).toBe(false)
+    expect(bad.deviations).toHaveLength(2)
+  })
+})
