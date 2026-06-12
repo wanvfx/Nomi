@@ -77,6 +77,14 @@ export async function openGenerationAiPanel(win) {
   await input.first().waitFor({ state: "visible", timeout: 5000 });
 }
 
+/** 指定本次评测用的助手模型(写 localStorage 偏好,与用户在面板里手选等价)。 */
+export async function setAssistantModelPref(win, pref) {
+  await win.evaluate((value) => {
+    localStorage.setItem("nomi.assistantModel", JSON.stringify(value));
+    window.dispatchEvent(new CustomEvent("nomi:assistant-model-changed"));
+  }, pref);
+}
+
 export async function readAssistantModelLabel(win) {
   try {
     return (await win.locator('[aria-label="助手模型"]').first().textContent({ timeout: 2000 }))?.trim() || "";

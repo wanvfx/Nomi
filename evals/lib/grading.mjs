@@ -19,7 +19,19 @@ function component(name, pass, reason) {
 }
 
 /** vendor/网络挂起类报错——是基础设施问题不是 agent 行为问题,分开计数(评审 CTO#7)。 */
-export const INFRA_ERROR_PATTERN = /无响应|超时|timeout|timed?\s?out|ECONN|ETIMEDOUT|fetch failed|HTTP 5\d\d|网络/i;
+export const INFRA_ERROR_PATTERN = /无响应|超时|timeout|timed?\s?out|ECONN|ETIMEDOUT|fetch failed|HTTP 5\d\d|网络|Too Many Requests|429|rate.?limit/i;
+
+/** 模型空流:turn "ok" 但零文本/零工具/零 token(端点降级形态之一,与行为失败分开)。 */
+export function isEmptyModelStream(output) {
+  if (output.turn?.status !== "ok") return false;
+  const events = output.events || [];
+  const proposed = events.some((e) => e.type === "agent.tool.proposed");
+  if (proposed) return false;
+  const finished = [...events].reverse().find((e) => e.type === "agent.turn.finished");
+  const textLen = String(finished?.payload?.finalTextHead || "").length;
+  const tokens = Number(finished?.payload?.usage?.totalTokens) || 0;
+  return textLen === 0 && tokens === 0;
+}
 
 /** 通用不变量(每个 case 都查)+ expect 词表逐项。返回 GradingResult。 */
 export function gradeCase(evalCase, output) {
@@ -37,6 +49,17 @@ export function gradeCase(evalCase, output) {
       pass: false,
       score: 0,
       reason: `infra error(模型端点): ${output.turn.errorMessage}`,
+      failureReason: "error",
+      componentResults: [],
+    };
+  }
+  // 空流:turn 名义上 ok 但模型零产出(无文本/无 usage/无任何工具提议)——端点降级的另一形态
+  // (2026-06-12 实测 vendor 事故:同一端点旧代码报 90s 无响应,新代码收到空流"正常"收尾)。
+  if (isEmptyModelStream(output)) {
+    return {
+      pass: false,
+      score: 0,
+      reason: "infra error(模型空流): turn ok 但零文本/零工具调用/零 usage——端点疑似降级",
       failureReason: "error",
       componentResults: [],
     };

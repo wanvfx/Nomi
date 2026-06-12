@@ -19,6 +19,7 @@ import {
   createBlankProject,
   openGenerationAiPanel,
   readAssistantModelLabel,
+  setAssistantModelPref,
   sendAgentMessage,
   approveUntilTurnEnds,
   waitForPersistedCanvas,
@@ -40,6 +41,14 @@ const casesIdx = args.indexOf("--cases");
 const onlyCases = casesIdx >= 0 ? new Set(String(args[casesIdx + 1] || "").split(",").filter(Boolean)) : null;
 const resumeIdx = args.indexOf("--resume");
 const resumeDir = resumeIdx >= 0 ? path.resolve(args[resumeIdx + 1]) : null;
+// --model vendorKey/modelKey:本次 run 指定助手模型(被测端点降级时切替补;缺省=用户面板默认)
+const modelIdx = args.indexOf("--model");
+const modelPref = (() => {
+  if (modelIdx < 0) return null;
+  const raw = String(args[modelIdx + 1] || "");
+  const [vendorKey, modelKey] = raw.includes("/") ? raw.split("/", 2) : ["", raw];
+  return modelKey ? { vendorKey, modelKey } : null;
+})();
 
 const HARD_CAP = 60; // 评审后端#7:单次 run 的 case×trial 硬上限,防失控烧额度
 
@@ -127,6 +136,7 @@ async function runOneTrial(evalCase, trial, attempt) {
       const baselineRecord = await waitForPersistedCanvas(win, projectDir, { settleMs: 500, timeoutMs: 8000 });
       output.baselineNodeIds = (baselineRecord?.payload?.generationCanvas?.nodes || []).map((n) => n.id);
       await openGenerationAiPanel(win);
+      if (modelPref) await setAssistantModelPref(win, modelPref);
       output.assistantModel = await readAssistantModelLabel(win);
       await sendAgentMessage(win, evalCase.input.message);
       output.turn = await approveUntilTurnEnds(win, projectDir, { log: (m) => console.log(m) });
@@ -143,6 +153,12 @@ async function runOneTrial(evalCase, trial, attempt) {
         tokens: finished?.payload?.usage ?? null,
         eventCount: events.length,
       };
+      // 空流标记(端点降级形态):turn "ok" 但零文本/零工具/零 token → 当 infra 重试
+      const proposed = events.some((e) => e.type === "agent.tool.proposed");
+      const textLen = String(finished?.payload?.finalTextHead || "").length;
+      if (output.turn?.finished && !proposed && textLen === 0 && !(Number(finished?.payload?.usage?.totalTokens) > 0)) {
+        output.emptyModelStream = true;
+      }
       // 轨迹按引用归档(historyRef 引用制):整个 .nomi 拷进 run 目录
       fs.rmSync(path.join(runDir, artifactsRel), { recursive: true, force: true });
       fs.cpSync(path.join(projectDir, ".nomi"), path.join(runDir, artifactsRel), { recursive: true });
@@ -161,6 +177,7 @@ async function runOneTrial(evalCase, trial, attempt) {
 
 function isInfraFailure(output) {
   if (output.failureReason === "error") return true;
+  if (output.emptyModelStream) return true;
   return output.turn?.status === "error" && INFRA_ERROR_PATTERN.test(String(output.turn?.errorMessage || ""));
 }
 
