@@ -67,7 +67,8 @@ export const createCanvasNodeActions: CanvasSliceCreator<CanvasNodeActions> = (s
       bumpPersistRevision(state)
     })
     // 专用事件(非 node.updated):锁是审计要点(谁锁的/何时锁的),日志里必须一眼可查。
-    emitCanvasGesture([{ type: locked ? 'canvas.node.locked' : 'canvas.node.unlocked', payload: { nodeId } }])
+    // title 随事件携带:S9 记忆提炼器增量扫描拿不到旧事件里的标题,事件自含可读。
+    emitCanvasGesture([{ type: locked ? 'canvas.node.locked' : 'canvas.node.unlocked', payload: { nodeId, title: existing.title } }])
   },
   moveNode: (nodeId, position, options) => {
     // 守卫上移到 set 外(影子日志要与真实变更同真值;语义与原内嵌守卫等价)

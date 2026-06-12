@@ -28,6 +28,7 @@ import {
 import AgentPlanCard, { summarizeAgentPlan } from './AgentPlanCard'
 import ReconcileDeviationCard from './ReconcileDeviationCard'
 import CommittedProposalCard from './CommittedProposalCard'
+import { MemoryFold } from './MemoryFold'
 import { clearCommittedProposal, runProposalUndo, setCommittedProposal, useCommittedProposal } from '../agent/proposalUndo'
 import { toastAction } from '../../../ui/toastAction'
 import type { ReconcileDeviation } from '../agent/reconcile'
@@ -117,6 +118,8 @@ export default function CanvasAssistantPanel({
   const [deviationReport, setDeviationReport] = React.useState<ReconcileDeviation[] | null>(null)
   // S6-5:最近一笔已 commit 提议(整笔撤销/查看步骤入口;约束①存活到下一笔,③切项目清场)。
   const committedProposal = useCommittedProposal()
+  // S9:每轮对话结束后递增,触发记忆卡重取(本轮新事件可能提炼出新事实)。
+  const [memoryRefreshKey, setMemoryRefreshKey] = React.useState(0)
   const threadBottomRef = React.useRef<HTMLDivElement | null>(null)
 
   // toolCallId → pending call 查找表(approveCalls 事务批要按序取多个 call,函数式 setState 取不到)。
@@ -378,6 +381,7 @@ export default function CanvasAssistantPanel({
         setBusy(false)
         cancelRef.current = null
         approveCallsRef.current = null
+        setMemoryRefreshKey((key) => key + 1) // S9:本轮事件可能提炼出新记忆
       }
     })()
   }, [appendMessage, attachments, busy, clearAttachments, mode, selectedNodes, setDraft, setMessages, snapshot, updateMessage])
@@ -529,7 +533,8 @@ export default function CanvasAssistantPanel({
           />
         </div>
       </header>
-      <AssistantToolsFold tools={['读画布', '建节点', '设提示词', '连边', '删节点']} />
+      <AssistantToolsFold tools={['读画布', '建节点', '设提示词', '连边', '删节点', '批量生成']} />
+      <MemoryFold refreshKey={memoryRefreshKey} />
       <div className={cn('flex flex-1 flex-col gap-3 min-h-0 overflow-auto p-4')}>
         {messages.length === 0 && pendingToolCalls.length === 0 ? (
           <div className={cn(

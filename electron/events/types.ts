@@ -47,7 +47,13 @@ export type AgentEventType =
 /** context 域 —— 投影:对话内"已不再记得最早 N 轮"提示 + C1 触发器观测。 */
 export type ContextEventType = "context.capped"; // { sessionKey, droppedCount, keptCount }
 
-/** canvas / vendor / review / memory / undo 域在 S4/S5/S6/S9 落地;类型占位见总方案 §1.1。 */
+/** memory 域(S9) —— 投影:记忆卡「AI 记得 N 条」+ 纠正审计。 */
+export type MemoryEventType =
+  | "memory.fact.added" //     { fact: MemoryFact } —— 提炼器规则命中(source:system)或用户手动(source:user)
+  | "memory.fact.corrected" // { factId, text, origin } —— 用户改文本=纠正(origin:user,自动提炼永不静默覆盖)
+  | "memory.fact.removed"; //  { factId } —— 用户删除(墓碑:删除点之前的旧事件不再重提炼它)
+
+/** canvas / vendor / review / undo 域在 S4/S5/S6 落地;类型占位见总方案 §1.1。 */
 
 /** 截断信息:被截断字段统一替换为该形状,sidecarRef 指向全文文件(events/sidecar/<seq>-<field>.json)。 */
 export type TruncatedPayloadField = {

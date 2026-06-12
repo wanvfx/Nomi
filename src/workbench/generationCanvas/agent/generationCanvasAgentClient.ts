@@ -7,6 +7,7 @@ import { applyProposalBatch } from './proposalTxn'
 import { evaluateGate } from './gate'
 import { buildLockGateContext } from './lockGateContext'
 import { listAvailableModelsForAgent, formatAvailableModelsForPrompt } from './availableModels'
+import { fetchProjectMemoryFacts, formatMemoryForPrompt } from './projectMemoryClient'
 
 export type { ToolCallEvent } from '../../ai/workbenchAgentRunner'
 
@@ -142,6 +143,13 @@ export async function sendGenerationCanvasAgentMessage(
     if (modelsBlock) prompt = `${basePrompt}\n\n${modelsBlock}`
   } catch {
     // 静默退回 basePrompt
+  }
+  // S9：注入项目记忆段（≤1.5k token 预算内裁剪;无记忆/取数失败零注入零阻断）。
+  try {
+    const memoryBlock = formatMemoryForPrompt(await fetchProjectMemoryFacts())
+    if (memoryBlock) prompt = `${prompt}\n\n${memoryBlock}`
+  } catch {
+    // 静默退回
   }
 
   const response = await runWorkbenchAgent({

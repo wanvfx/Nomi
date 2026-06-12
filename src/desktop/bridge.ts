@@ -118,6 +118,12 @@ export type DesktopBridge = {
     append: (projectId: string, events: unknown[]) => Promise<{ ok: boolean; count: number; lastSeq: number }>
     read: (projectId: string, fromSeq: number) => Promise<{ ok: boolean; events: unknown[] }>
   }
+  /** S9 项目记忆卡:get=增量提炼+读;update=pin/纠正(text→origin:user);remove=删+墓碑。 */
+  memory?: {
+    get: (projectId: string) => Promise<{ ok: boolean; facts: unknown[] }>
+    update: (projectId: string, factId: string, patch: { text?: string; pinned?: boolean }) => Promise<{ ok: boolean; facts: unknown[] }>
+    remove: (projectId: string, factId: string) => Promise<{ ok: boolean; facts: unknown[] }>
+  }
   /** S4-2b 技术自检结果广播(主进程异步旁路 → 节点 ⚠ 投影)。 */
   review?: {
     onEvent: (callback: (payload: unknown) => void) => () => void
