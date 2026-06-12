@@ -2,7 +2,7 @@ import { createGenerationNode, removeNodes, upsertNode } from '../model/graphOps
 import type { GenerationCanvasNode } from '../model/generationCanvasTypes'
 import { CLIPBOARD_OFFSET, createClipboardNodeId, createNodeId } from './canvasIds'
 import { bumpPersistRevision, isCategoryId, shouldPersistCanvasMutation } from './canvasGuards'
-import { getHistoryFlags, pushUndoSnapshot } from './canvasHistory'
+import { getHistoryFlags, pushUndoSnapshot } from '../events/canvasUndoJournal'
 import { emitCanvasGesture } from '../events/canvasEventEmitter'
 import type { CanvasNodeActions, CanvasSliceCreator } from './canvasStoreTypes'
 

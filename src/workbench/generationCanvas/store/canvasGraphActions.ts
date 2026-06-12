@@ -3,7 +3,7 @@ import { isImageLikeGenerationNodeKind } from '../model/generationNodeKinds'
 import type { GenerationCanvasEdge, NodeGroup } from '../model/generationCanvasTypes'
 import { createGroupId } from './canvasIds'
 import { bumpPersistRevision, isCategoryId, shouldPersistCanvasMutation } from './canvasGuards'
-import { getHistoryFlags, pushUndoSnapshot } from './canvasHistory'
+import { getHistoryFlags, pushUndoSnapshot } from '../events/canvasUndoJournal'
 import { emitCanvasGesture } from '../events/canvasEventEmitter'
 import type { CanvasGraphActions, CanvasSliceCreator } from './canvasStoreTypes'
 

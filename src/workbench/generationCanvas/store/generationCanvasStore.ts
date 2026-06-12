@@ -4,12 +4,12 @@ import { subscribeWithSelector } from 'zustand/middleware'
 import { removeNodes } from '../model/graphOps'
 import { bumpPersistRevision } from './canvasGuards'
 import {
-  clearHistory,
   getHistoryFlags,
   popRedo,
   popUndo,
   pushUndoSnapshot,
-} from './canvasHistory'
+  seedUndoJournalBase,
+} from '../events/canvasUndoJournal'
 import {
   buildSelectedClipboard,
   clearClipboard,
@@ -25,7 +25,7 @@ import { createCanvasNodeActions } from './canvasNodeActions'
 import { createCanvasGraphActions } from './canvasGraphActions'
 import { createCanvasRunActions } from './canvasRunActions'
 
-export { __resetGenerationCanvasHistoryForTests } from './canvasHistory'
+export { __resetCanvasUndoJournalForTests as __resetGenerationCanvasHistoryForTests } from '../events/canvasUndoJournal'
 
 export const useGenerationCanvasStore = create<GenerationCanvasState>()(subscribeWithSelector(immer((set, get, store) => ({
   isReady: false,
@@ -114,8 +114,8 @@ export const useGenerationCanvasStore = create<GenerationCanvasState>()(subscrib
     ])
   },
   undo: () => {
-    const currentState = get()
-    const previous = popUndo(currentState)
+    // S5-b-2 翻正:撤销 = 会话日志前缀重放(canvasHistory 状态栈已删)
+    const previous = popUndo()
     if (!previous) return
     set((state) => {
       state.nodes = previous.nodes
@@ -132,8 +132,7 @@ export const useGenerationCanvasStore = create<GenerationCanvasState>()(subscrib
     emitCanvasGesture([{ type: 'canvas.snapshot.restored', payload: { snapshot: { nodes: previous.nodes, edges: previous.edges, groups: previous.groups } } }])
   },
   redo: () => {
-    const currentState = get()
-    const next = popRedo(currentState)
+    const next = popRedo()
     if (!next) return
     set((state) => {
       state.nodes = next.nodes
@@ -168,7 +167,8 @@ export const useGenerationCanvasStore = create<GenerationCanvasState>()(subscrib
   },
   restoreSnapshot: (snapshot) => {
     const normalized = normalizeStoreSnapshot(snapshot)
-    clearHistory()
+    // S5-b-2:journal 起点 = 恢复出的画布(undo 最远只回放到这帧,不会塌到空白)
+    seedUndoJournalBase({ nodes: normalized.nodes, edges: normalized.edges, groups: normalized.groups })
     clearClipboard()
     set({
       isReady: true,

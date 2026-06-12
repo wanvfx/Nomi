@@ -4,6 +4,7 @@
 // 纪律(总方案 §4.4):payload 在入口深拷贝成 plain JSON(禁 immer draft 引用)并 freeze;
 // 50ms/20 条先到先 flush;bridge 缺失(测试/旧 preload)或 IO 失败一律静默——绝不影响画布。
 import { getDesktopBridge } from '../../../desktop/bridge'
+import { appendToUndoJournal } from './canvasUndoJournal'
 
 export type CanvasShadowEvent = {
   id: string
@@ -86,6 +87,8 @@ export function emitCanvasGesture(
       payload: JSON.parse(JSON.stringify(event.payload)) as Record<string, unknown>,
     }),
   )
+  // S5-b-2:同步喂会话撤销日志(undo=前缀重放的数据源;必须同步,撤销紧跟操作时不能丢)
+  appendToUndoJournal(out)
   testSink?.(out)
   buffer.push(...out)
   if (buffer.length >= FLUSH_COUNT) flushNow()
