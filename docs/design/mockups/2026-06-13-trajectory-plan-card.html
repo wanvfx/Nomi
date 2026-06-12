@@ -77,7 +77,7 @@
     }
     .layer-head .ic { display: inline-grid; place-items: center; width: 16px; height: 16px; color: var(--nomi-ink-40); }
     .layer-head .count { color: var(--nomi-ink-40); font-weight: 500; }
-    .layer-head .fold { margin-left: auto; color: var(--nomi-ink-30); font-size: 10px; }
+    .layer-head .head-chips { margin-left: auto; display: inline-flex; gap: 4px; }
 
     .node-row {
       display: flex; flex-direction: column; gap: 6px;
@@ -187,89 +187,77 @@
   <main id="screen-a" class="screen active">
     <div class="assistant-col">
       <div class="plan-card">
-        <div>
-          <div class="plan-kicker">轨迹计划 · 待确认</div>
-          <div class="plan-summary">咖啡晨间短片：2 个角色 + 1 个场景定妆，3 镜头连续动作</div>
-          <div class="plan-counts">2 参考 · 3 关键帧 · 3 视频 · 8 条边 · <span style="color: var(--nomi-accent)">蓝底 = AI 配的待你看</span></div>
-        </div>
+        <div class="plan-summary">2 个角色 + 1 个场景定妆，3 镜头连续动作</div>
 
         <section class="layer">
-          <div class="layer-head"><span class="ic">◑</span>参考 <span class="count">×2</span><span class="fold">收起 ▾</span></div>
+          <div class="layer-head"><span class="ic">◑</span>参考 <span class="count">×2</span><span class="head-chips"><span class="model-chip">Seedream 4.5 <span class="v">▾</span></span></span></div>
           <div class="node-row">
-            <div class="head"><span class="title">角色：男主</span></div>
+            <div class="head"><span class="title">角色：男主</span><span class="refs"><span class="model-chip">1:1 <span class="v">▾</span></span></span></div>
             <div class="prompt">三十岁男性，灰色家居服，短发微乱，晨光柔和质感…</div>
-            <div class="chips"><span class="model-chip">Seedream 4.5 <span class="v">▾</span></span><span class="model-chip">1:1 <span class="v">▾</span></span></div>
           </div>
           <div class="node-row">
-            <div class="head"><span class="title">场景：清晨厨房</span></div>
+            <div class="head"><span class="title">场景：清晨厨房</span><span class="refs"><span class="model-chip">16:9 <span class="v">▾</span></span></span></div>
             <div class="prompt">现代极简厨房，晨光斜照料理台，金属咖啡机靠窗…</div>
-            <div class="chips"><span class="model-chip">Seedream 4.5 <span class="v">▾</span></span><span class="model-chip">16:9 <span class="v">▾</span></span></div>
           </div>
         </section>
 
         <section class="layer">
-          <div class="layer-head"><span class="ic">▦</span>关键帧 <span class="count">×3</span><span class="fold">收起 ▾</span></div>
+          <div class="layer-head"><span class="ic">▦</span>关键帧 <span class="count">×3</span><span class="head-chips"><span class="model-chip">Seedream 4.5 <span class="v">▾</span></span><span class="model-chip">16:9 <span class="v">▾</span></span><span class="model-chip">2K <span class="v">▾</span></span></span></div>
           <div class="node-row">
             <div class="head"><span class="title">镜头 1 · 咖啡机特写</span><span class="refs"><span class="ref-chip">场景</span></span></div>
             <div class="prompt">咖啡机研磨特写，咖啡粉如细沙落下，微距质感…</div>
-            <div class="chips"><span class="model-chip">Seedream 4.5 <span class="v">▾</span></span><span class="model-chip">16:9 <span class="v">▾</span></span><span class="model-chip">2K <span class="v">▾</span></span></div>
           </div>
           <div class="node-row">
             <div class="head"><span class="title">镜头 2 · 萃取入杯</span><span class="refs"><span class="ref-chip">场景</span></span></div>
             <div class="prompt">琥珀色咖啡注入玻璃杯，蒸汽升腾，油脂金环…</div>
-            <div class="chips"><span class="model-chip">Seedream 4.5 <span class="v">▾</span></span><span class="model-chip">16:9 <span class="v">▾</span></span><span class="model-chip">2K <span class="v">▾</span></span></div>
           </div>
           <div class="node-row">
             <div class="head"><span class="title">镜头 3 · 阳台晨光</span><span class="refs"><span class="ref-chip">男主</span><span class="ref-chip">场景</span></span></div>
             <div class="prompt">男主端杯走向阳台，城市晨光，背影中景…</div>
-            <div class="chips"><span class="model-chip">Seedream 4.5 <span class="v">▾</span></span><span class="model-chip">16:9 <span class="v">▾</span></span><span class="model-chip">2K <span class="v">▾</span></span></div>
           </div>
         </section>
 
         <section class="layer">
-          <div class="layer-head"><span class="ic">▶</span>视频 <span class="count">×3</span><span class="fold">收起 ▾</span></div>
+          <div class="layer-head"><span class="ic">▶</span>视频 <span class="count">×3</span><span class="head-chips"><span class="model-chip">Seedance 2.0 <span class="v">▾</span></span><span class="model-chip">16:9 <span class="v">▾</span></span></span></div>
           <div class="node-row">
-            <div class="head"><span class="title">镜头 1 视频 · 5s</span><span class="refs"><span class="ref-chip">首帧=关键帧1</span></span></div>
+            <div class="head"><span class="title">镜头 1 视频 · 5s</span></div>
             <div class="prompt">缓慢推近，研磨声渐强，咖啡粉落下的微距动态…</div>
-            <div class="chips"><span class="model-chip">Seedance 2.0 <span class="v">▾</span></span><span class="model-chip">16:9 <span class="v">▾</span></span></div>
           </div>
           <div class="node-row">
-            <div class="head"><span class="title">镜头 2 视频 · 5s</span><span class="refs"><span class="ref-chip">首帧=关键帧2</span></span></div>
+            <div class="head"><span class="title">镜头 2 视频 · 5s</span></div>
             <div class="prompt">固定机位，蒸汽与液体流动，光影缓变…</div>
-            <div class="chips"><span class="model-chip">Seedance 2.0 <span class="v">▾</span></span><span class="model-chip">16:9 <span class="v">▾</span></span></div>
           </div>
           <div class="node-row">
-            <div class="head"><span class="title">镜头 3 视频 · 6s</span><span class="refs"><span class="ref-chip">首帧=关键帧3</span></span></div>
+            <div class="head"><span class="title">镜头 3 视频 · 6s</span></div>
             <div class="prompt">跟随男主走向阳台，镜头缓摇至城市天际线…</div>
-            <div class="chips"><span class="model-chip">Seedance 2.0 <span class="v">▾</span></span><span class="model-chip">16:9 <span class="v">▾</span></span></div>
           </div>
         </section>
 
         <section class="layer">
-          <div class="layer-head"><span class="ic">⇢</span>尾帧接力 <span class="count">×2 · 可选</span></div>
+          <div class="layer-head"><span class="ic">⇢</span>尾帧接力 <span class="count">可选</span></div>
           <div class="relay-row">
             <input type="checkbox" checked aria-label="启用 镜头1→镜头2 尾帧接力" />
             <div>
-              <div class="t">镜头 1 视频 → 镜头 2 视频</div>
-              <div class="d">用镜头 1 的尾帧当镜头 2 的首帧，同场景动作顺接</div>
+              <div class="t">镜头 1 → 镜头 2</div>
+              <div class="d">尾帧接首帧，动作顺接</div>
             </div>
           </div>
           <div class="relay-row" data-off="true">
             <input type="checkbox" aria-label="启用 镜头2→镜头3 尾帧接力" />
             <div>
-              <div class="t">镜头 2 视频 → 镜头 3 视频</div>
-              <div class="d">机位变化大（特写→中景），已取消，两镜独立生成</div>
+              <div class="t">镜头 2 → 镜头 3</div>
+              <div class="d">机位变化大，独立生成</div>
             </div>
           </div>
         </section>
 
         <div class="plan-footer">
           <button class="btn">全部拒绝</button>
-          <button class="btn primary">确认全部（8 节点 · 7 边）</button>
+          <button class="btn primary">确认全部</button>
         </div>
       </div>
     </div>
-    <p class="note">A：沿用现有计划卡血缘（kicker/summary/counts/蓝底 chip/底部双钮）。新增：① 四个分组（参考/关键帧/视频/尾帧接力），组头 = 图标 + 计数 + 折叠；② 节点行右上「引用 chip」显示它吃哪些参考（中性灰，区别于蓝底可改 chip）；③ 尾帧接力组每条边一行勾选框——取消即从计划中移除该边（确认按钮的边数实时联动 8→7）；行内一句话讲清这条边干什么、为什么建议/取消。点击节点行展开 prompt 编辑（现有能力，样张不重复画）。</p>
+    <p class="note">A（极简版，按用户反馈砍重复）：头部只留一行计划摘要——kicker/计数行/「蓝底=AI 配的」解释全删（计数已在组头、蓝底可点自明）。模型/参数 chip 上提到组头（全组一致时），行内只留差异参数与引用 chip——关键帧行因此只剩 标题+引用+提示词一行。视频行的「首帧=关键帧N」同构关系 chip 删（默认结构不复述）。尾帧接力行文案压成动宾短语。确认按钮纯「确认全部」，不带计数。点击节点行/组头 chip 展开编辑（现有能力）。</p>
   </main>
 
   <!-- ===== B ===== -->
