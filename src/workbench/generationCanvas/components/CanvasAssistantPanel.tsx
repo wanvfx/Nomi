@@ -10,6 +10,7 @@ import { workbenchSessionKey } from '../../ai/workbenchAgentRunner'
 import { clearWorkbenchAgentSession } from '../../../api/desktopClient'
 import { generationCanvasTools } from '../agent/generationCanvasTools'
 import { applyCanvasToolCall } from '../agent/applyCanvasToolCall'
+import { evaluateGate } from '../agent/gate'
 import {
   buildStoryboardPlanningMessage,
   STORYBOARD_PLANNER_SKILL,
@@ -222,20 +223,27 @@ export default function CanvasAssistantPanel({
           },
           onToolCall: (event: ToolCallEvent) => {
             toolEmittedCount += 1
-            // Read-only tools auto-execute without user interaction. Wrap in
-            // try/catch so a read failure can't strand the agent loop waiting
-            // for a confirm that never comes.
-            if (event.toolName === 'read_canvas_state') {
-              try {
-                const snap = generationCanvasTools.read_canvas()
-                void event.confirm({ ok: true, result: snap })
-              } catch (error: unknown) {
-                void event.confirm({ ok: false, message: error instanceof Error ? error.message : String(error) })
-              }
+            // 统一求值流(§6.1):一道门替代散落 if。allow=只读直通 / deny=校验拒绝 / ask=等点头。
+            const decision = evaluateGate({ kind: 'tool-call', toolName: event.toolName, args: event.args })
+            if (decision.outcome === 'deny') {
+              // gate 拒绝(非用户拒):带 denied 标记 → 主进程记 gate.denied,人话回喂 LLM。
+              void event.confirm({ ok: false, message: decision.reason, denied: true })
               return
             }
-            // Destructive / state-changing tools wait for explicit user
-            // approval through the pending tool-call card.
+            if (decision.outcome === 'allow') {
+              // 只读直通:经单一真相源 applyCanvasToolCall 执行(它已处理 read_canvas_state);
+              // silent=不记 proposal.approved(纯噪声);try/catch 防读失败把 loop 卡在永不到来的确认。
+              void (async () => {
+                try {
+                  const result = await applyCanvasToolCall(event.toolName, event.args)
+                  await event.confirm({ ok: true, result, silent: true })
+                } catch (error: unknown) {
+                  await event.confirm({ ok: false, message: error instanceof Error ? error.message : String(error) })
+                }
+              })()
+              return
+            }
+            // ask:写/破坏性操作排队,等用户经 pending 卡显式点头。
             pendingToolCallsRef.current.enqueue({
               toolCallId: event.toolCallId,
               toolName: event.toolName,

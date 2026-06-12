@@ -38,7 +38,7 @@ export type AgentEventType =
   | "agent.proposal.approved" // { toolCallId, effectiveArgs?, overridesDelta? } —— S6-0 起携对账快照+偏好增量
   | "agent.proposal.rejected" // { toolCallId, message }
   | "agent.turn.error" //     { sessionId, message } —— 投影:人话错误卡
-  | "agent.gate.denied"; //   { intent, reason(人话) }
+  | "agent.gate.denied"; //   { toolCallId, reason(人话) } —— intent 经 causeId→tool.proposed 还原
 
 /** context 域 —— 投影:对话内"已不再记得最早 N 轮"提示 + C1 触发器观测。 */
 export type ContextEventType = "context.capped"; // { sessionKey, droppedCount, keptCount }

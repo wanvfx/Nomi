@@ -2,7 +2,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { beginTurnTrace, traceChatEvent, traceToolDecision } from "./agentChatTrace";
+import { beginTurnTrace, traceChatEvent, traceGateDenied, traceToolDecision } from "./agentChatTrace";
 import {
   readEvents,
   resetEventLogStateForTests,
@@ -72,5 +72,20 @@ describe("agentChatTrace — S6-0 对账的米", () => {
     const rejected = readEvents("p1").find((e) => e.type === "agent.proposal.rejected");
     expect(rejected!.payload.message).toBe("用户拒绝");
     expect("effectiveArgs" in rejected!.payload).toBe(false);
+  });
+
+  it("S6-1 gate.denied:reason 人话落盘,causeId 回指 proposed(intent 可反走还原)", () => {
+    beginTurnTrace(SESSION, { sessionKey: SESSION_KEY, skillKey: "canvas", prompt: "动作" });
+    traceChatEvent(SESSION, { type: "tool-call", toolCallId: "tc-4", toolName: "rm_rf", args: {} });
+    traceGateDenied(SESSION, "tc-4", "不支持的操作「rm_rf」");
+
+    const events = readEvents("p1");
+    const proposed = events.find((e) => e.type === "agent.tool.proposed");
+    const denied = events.find((e) => e.type === "agent.gate.denied");
+    expect(denied!.source).toBe("system");
+    expect(denied!.payload.reason).toBe("不支持的操作「rm_rf」");
+    expect(denied!.causeId).toBe(proposed!.id);
+    // gate.denied 不是 proposal.rejected(两类语义分开)。
+    expect(events.some((e) => e.type === "agent.proposal.rejected")).toBe(false);
   });
 });

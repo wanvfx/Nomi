@@ -135,6 +135,19 @@ export function traceToolDecision(
   });
 }
 
+/** gate 拒绝旁路(S6-1):锁/校验判定 deny 时记账。reason 是人话(回喂 LLM 可自我修正,
+ *  N14 素材);intent 经 causeId→tool.proposed 反走可还原(toolName+完整 args)。 */
+export function traceGateDenied(sessionId: string, toolCallId: string, reason: string): void {
+  const trace = turns.get(sessionId);
+  if (!trace) return;
+  append(trace, {
+    source: "system",
+    type: "agent.gate.denied",
+    ...(trace.proposedIds.has(toolCallId) ? { causeId: trace.proposedIds.get(toolCallId) } : {}),
+    payload: { toolCallId, reason },
+  });
+}
+
 /** context.capped:截断真的发生时记账(C1 触发器观测 + 对话内提示的数据源)。 */
 export function traceContextCapped(sessionKey: string, droppedCount: number, keptCount: number): void {
   const projectId = projectIdFromSessionKey(sessionKey);

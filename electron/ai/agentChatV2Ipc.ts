@@ -1,7 +1,7 @@
 import { ipcMain, webContents as electronWebContents } from "electron";
 import type { WebContents } from "electron";
 import { clearAgentChatV2History, hasAgentChatV2History, runAgentChatV2 } from "./agentChatV2";
-import { beginTurnTrace, traceChatEvent, traceToolDecision } from "../events/agentChatTrace";
+import { beginTurnTrace, traceChatEvent, traceGateDenied, traceToolDecision } from "../events/agentChatTrace";
 
 // ---------------------------------------------------------------------------
 // Agent chat V2 — real streaming + tool-call confirmation
@@ -81,9 +81,10 @@ export function registerAgentChatV2Ipc(): void {
     sessionId: string;
     toolCallId: string;
     // S6-0:ok 分支携 effectiveArgs/overridesDelta —— 进 proposal.approved 供对账,result.resolve 不取它。
+    // S6-1:ok.silent=只读放行不记 approved;false.denied=gate 拒绝走 gate.denied。
     decision:
-      | { ok: true; result?: unknown; effectiveArgs?: Record<string, unknown>; overridesDelta?: Record<string, unknown> }
-      | { ok: false; message?: string };
+      | { ok: true; result?: unknown; effectiveArgs?: Record<string, unknown>; overridesDelta?: Record<string, unknown>; silent?: boolean }
+      | { ok: false; message?: string; denied?: boolean };
   }) => {
     const session = agentChatV2Sessions.get(payload.sessionId);
     if (!session) return { ok: false, error: "session not found" };
@@ -91,15 +92,21 @@ export function registerAgentChatV2Ipc(): void {
     if (!pending) return { ok: false, error: "tool call not pending" };
     session.pendingConfirmations.delete(payload.toolCallId);
     if (payload.decision && payload.decision.ok === true) {
-      traceToolDecision(payload.sessionId, payload.toolCallId, {
-        ok: true,
-        effectiveArgs: payload.decision.effectiveArgs,
-        overridesDelta: payload.decision.overridesDelta,
-      });
+      // 只读 allow 不入日志(§6.1 纯噪声);写操作批准才记对账快照。
+      if (!payload.decision.silent) {
+        traceToolDecision(payload.sessionId, payload.toolCallId, {
+          ok: true,
+          effectiveArgs: payload.decision.effectiveArgs,
+          overridesDelta: payload.decision.overridesDelta,
+        });
+      }
       pending.resolve({ ok: true, result: payload.decision.result ?? null });
     } else {
       const message = (payload.decision && (payload.decision as { message?: string }).message) || "rejected by user";
-      traceToolDecision(payload.sessionId, payload.toolCallId, { ok: false, message });
+      const denied = Boolean(payload.decision && (payload.decision as { denied?: boolean }).denied);
+      // gate 拒绝(锁/校验)≠ 用户拒绝:前者入 gate.denied(人话 reason 回喂 LLM),后者入 proposal.rejected。
+      if (denied) traceGateDenied(payload.sessionId, payload.toolCallId, message);
+      else traceToolDecision(payload.sessionId, payload.toolCallId, { ok: false, message });
       pending.resolve({ ok: false, message });
     }
     return { ok: true };
