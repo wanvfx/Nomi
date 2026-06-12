@@ -25,6 +25,7 @@ import { toast } from "../ui/toast";
 import { setDesktopActiveProjectId } from "../desktop/activeProject";
 import { getDesktopBridge } from "../desktop/bridge";
 import { listWorkbenchModelCatalogModels } from "./api/modelCatalogApi";
+import { useHasTextModel } from "./library/useHasTextModel";
 import { buildStudioUrl } from "../utils/appRoutes";
 import { openWorkspaceFromLibrary } from "./library/openWorkspaceFlow";
 
@@ -83,6 +84,11 @@ export default function NomiStudioApp(): JSX.Element {
         React.useState(true);
     const [modelCatalogOpened, setModelCatalogOpened] = React.useState(false);
     const [assetLibraryOpened, setAssetLibraryOpened] = React.useState(false);
+    const { hasTextModel, refresh: refreshModelStatus } = useHasTextModel();
+    // 模型接入面板关闭后重查（用户可能刚接完模型 → 状态条/弱入口要立即翻面）
+    React.useEffect(() => {
+        if (!modelCatalogOpened) refreshModelStatus();
+    }, [modelCatalogOpened, refreshModelStatus]);
     const hydratingProjectRef = React.useRef(false);
     const activeProjectIdRef = React.useRef<string | null>(null);
     const initialHydrationAttemptedRef = React.useRef(false);
@@ -481,6 +487,7 @@ export default function NomiStudioApp(): JSX.Element {
                     onRevealProjectFolder={revealProjectFolder}
                     onTryExample={(example) => void tryExample(example)}
                     onOpenModelCatalog={() => setModelCatalogOpened(true)}
+                    hasTextModel={hasTextModel}
                 />
                 {/* 模型接入面板也要在首页可用：全新安装零模型时，「30 秒体验」会派发
                     nomi-open-model-catalog 引导接入；之前此面板只挂在 studio 视图 →

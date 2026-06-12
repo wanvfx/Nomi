@@ -120,6 +120,74 @@ export function WorkbenchIconButton({
   )
 }
 
+export type ActionCardProps = ButtonHTMLAttributes<HTMLButtonElement> & {
+  icon: ReactNode
+  title: string
+  description: string
+  variant?: 'primary' | 'default'
+}
+
+/**
+ * 起始页主入口动作卡片（设计系统 §3.2）。
+ * 比按钮大一个量级（280×88），用尺寸/形态/位置三重区隔承载页面级主操作；
+ * 一页至多一张 primary。低频操作不要用它（用 WorkbenchButton）。
+ */
+export function ActionCard({
+  icon,
+  title,
+  description,
+  variant = 'default',
+  className,
+  type = 'button',
+  ...props
+}: ActionCardProps): JSX.Element {
+  const isPrimary = variant === 'primary'
+  return (
+    <button
+      {...props}
+      type={type}
+      data-variant={variant}
+      className={cn(
+        'tc-action-card',
+        'flex items-center gap-3 w-[280px] h-[88px] px-5 text-left cursor-pointer font-inherit',
+        'rounded-nomi border shadow-nomi-sm',
+        'transition-[background,border-color,box-shadow,transform] duration-150 ease-out',
+        'hover:-translate-y-0.5 hover:shadow-nomi-md active:translate-y-0 active:shadow-nomi-sm',
+        'disabled:opacity-50 disabled:cursor-not-allowed',
+        isPrimary
+          ? 'border-nomi-ink bg-nomi-ink text-nomi-paper hover:bg-nomi-accent hover:border-nomi-accent'
+          : 'border-nomi-line bg-nomi-paper text-nomi-ink hover:border-nomi-ink-20',
+        className,
+      )}
+    >
+      <span
+        aria-hidden="true"
+        className={cn(
+          'shrink-0 inline-grid place-items-center size-10 rounded-full',
+          isPrimary
+            ? 'bg-[color-mix(in_oklch,var(--nomi-paper)_14%,transparent)] text-nomi-paper'
+            : 'bg-nomi-ink-05 text-nomi-ink-80',
+        )}
+      >
+        {icon}
+      </span>
+      <span className="flex-1 min-w-0">
+        <span className="block text-body font-semibold truncate">{title}</span>
+        <span
+          className={cn(
+            'block mt-0.5 text-caption truncate',
+            isPrimary
+              ? 'text-[color-mix(in_oklch,var(--nomi-paper)_72%,transparent)]'
+              : 'text-nomi-ink-60',
+          )}
+        >
+          {description}
+        </span>
+      </span>
+    </button>
+  )
+}
+
 export type WorkbenchButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   children?: ReactNode
 }

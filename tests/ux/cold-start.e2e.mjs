@@ -66,17 +66,23 @@ try {
   });
   console.log(`\n── 冷启动初始状态 ──\n  文本模型数=${initial.textModels}，项目卡数=${initial.projectCards}`);
 
-  // CS1：首页有没有「模型接入」入口（新用户能自己找到去配模型的地方）？
+  // CS1（v3 起始页）：冷启动 = 空库 + 零模型 → 弱入口按规则隐藏（单一入口互斥），
+  // 模型入口 = 主 CTA「30 秒体验」自动带入；页面用提示行透明告知这件事。
   const entryProbe = await win.evaluate(() => {
-    const all = Array.from(document.querySelectorAll("button, a, [role=button]"));
-    const hit = all.find((el) => /模型接入|接入模型|连接模型|配置模型|模型目录|添加模型/.test(el.textContent || ""));
-    return { hasEntry: Boolean(hit), entryText: hit?.textContent?.trim().slice(0, 30) || "" };
+    const heroCta = document.querySelector("[data-try-now-hero-cta]");
+    const modelHint = document.querySelector("[data-model-hint]");
+    return {
+      hasEntry: Boolean(heroCta),
+      hintShown: Boolean(modelHint),
+      hintText: modelHint?.textContent?.trim().slice(0, 40) || "",
+    };
   });
-  console.log("\n── CS1：首页模型接入入口 ──");
-  check("首页可见「模型接入」入口（新用户能自助接入）", entryProbe.hasEntry, `entry="${entryProbe.entryText}"`);
+  console.log("\n── CS1：首页模型路径入口 ──");
+  check("首页可见「30 秒体验」主 CTA（模型接入由它带入）", entryProbe.hasEntry);
+  check("零模型时提示行透明告知「会先带你接入」", entryProbe.hintShown, `hint="${entryProbe.hintText}"`);
 
-  // CS2：点「30 秒体验」第一个示例 → 会不会第一步就死（零文本模型）？
-  const tryBtn = win.locator('[data-try-now-example-id]').first();
+  // CS2：点「30 秒体验」→ 会不会第一步就死（零文本模型）？
+  const tryBtn = win.locator("[data-try-now-hero-cta]").first();
   const hasTry = await tryBtn.count();
   if (hasTry > 0) {
     await tryBtn.click().catch(() => {});
@@ -95,8 +101,8 @@ try {
     check("「30 秒体验」零模型时打开模型接入面板（不死路）", after.onboardingOpen,
       `inStudio=${after.inStudio} / toast=${after.toastShown} / onboarding=${after.onboardingOpen}`);
   } else {
-    findings.push("首页找不到「30 秒体验」示例按钮（data-try-now-example-id）");
-    console.log("  ✗ 首页找不到「30 秒体验」示例按钮");
+    findings.push("首页找不到「30 秒体验」主 CTA（data-try-now-hero-cta）");
+    console.log("  ✗ 首页找不到「30 秒体验」主 CTA");
   }
 
   console.log(`\n冷启动 J3：${passed} 项达标，${findings.length} 项断路/缺口`);
