@@ -1,5 +1,6 @@
 import React from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+import { NomiLoadingMark } from "../design";
 import ProjectLibraryPage from "./library/ProjectLibraryPage";
 import { ToastHost } from "../ui/toast";
 import { FilePreviewPanel } from "./explorer/FilePreviewPanel";
@@ -59,9 +60,12 @@ const BatchPlanOverlay = React.lazy(() =>
 function GenerationCanvasLoading(): JSX.Element {
     return (
         <div
-            className={cn("w-full h-full bg-workbench-bg")}
+            className={cn("w-full h-full bg-workbench-bg grid place-items-center")}
             aria-label='生成画布加载中'
-        />
+        >
+            {/* pending 规范 #1:懒加载占位不再空白,给可见品牌 spinner */}
+            <NomiLoadingMark size={28} label='生成画布加载中' />
+        </div>
     );
 }
 

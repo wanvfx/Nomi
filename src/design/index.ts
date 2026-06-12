@@ -3,8 +3,8 @@ export type { PanelCardProps, InlinePanelProps } from './surfaces'
 export { ActionCard, DesignButton, IconActionButton, WorkbenchButton, WorkbenchIconButton } from './actions'
 export type { ActionCardProps, DesignButtonProps, IconActionButtonProps, WorkbenchButtonProps, WorkbenchIconButtonProps } from './actions'
 export { DesignBadge, StatusBadge } from './status'
-export type { DesignAlertProps, DesignBadgeProps, DesignProgressProps, StatusBadgeProps } from './status'
-export { DesignAlert, DesignProgress } from './status'
+export type { DesignAlertProps, DesignBadgeProps, DesignProgressProps, StatusBadgeProps, NomiSkeletonProps } from './status'
+export { DesignAlert, DesignProgress, NomiSkeleton } from './status'
 export {
   DesignCheckbox,
   DesignFileInput,

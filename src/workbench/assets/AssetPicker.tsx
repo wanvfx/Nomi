@@ -1,5 +1,6 @@
 import React from 'react'
 import { IconSearch, IconUpload } from '@tabler/icons-react'
+import { NomiLoadingMark } from '../../design'
 import { cn } from '../../utils/cn'
 import { AssetThumb } from './AssetTile'
 import { useAssetPool } from './useAssetPool'
@@ -44,7 +45,7 @@ function PickerItem({ asset, onPick, dimmed }: { asset: AssetRef; onPick: (asset
 
 export default function AssetPicker({ projectId, accept, onPick, onUpload, onBrowseAll, atLimitKinds, uploading, className }: AssetPickerProps): JSX.Element {
   const isDimmed = (kind: AssetKind) => Boolean(atLimitKinds?.includes(kind))
-  const { assets } = useAssetPool(projectId)
+  const { assets, loading } = useAssetPool(projectId)
   const [query, setQuery] = React.useState('')
 
   const filtered = React.useMemo(() => filterAssets(assets, { query, accept }), [assets, query, accept])
@@ -105,14 +106,22 @@ export default function AssetPicker({ projectId, accept, onPick, onUpload, onBro
         </div>
       ) : null}
 
-      {!canvasAssets.length && !projectAssets.length ? (
+      {/* pending 规范 #3:素材异步加载期给 skeleton,不再直接显示空态文字「还没有素材」 */}
+      {loading && !canvasAssets.length && !projectAssets.length ? (
+        <div className={cn('grid grid-cols-[repeat(5,48px)] gap-[6px] py-[6px]')} aria-label="素材加载中">
+          {Array.from({ length: 5 }).map((_, index) => (
+            <div key={index} className={cn('size-12 rounded-nomi-sm bg-nomi-ink-10 animate-pulse motion-reduce:animate-none')} />
+          ))}
+        </div>
+      ) : !canvasAssets.length && !projectAssets.length ? (
         <div className={cn('text-nomi-ink-40 text-micro text-center py-[6px]')}>
           {query ? '没有匹配的素材' : '还没有素材,上传或拖入开始'}
         </div>
       ) : null}
 
       <label className={cn('relative flex items-center justify-center gap-[6px] h-[34px] rounded-nomi-sm border border-dashed border-nomi-ink-20 bg-nomi-paper text-nomi-ink-60 text-xs cursor-pointer hover:border-nomi-accent hover:text-nomi-accent')}>
-        <IconUpload size={15} stroke={2} />
+        {/* pending 规范 #1:上传中统一品牌转圈(对齐 AttachmentRail),不再纯文字 */}
+        {uploading ? <NomiLoadingMark size={15} label="上传中" /> : <IconUpload size={15} stroke={2} />}
         {uploading ? '上传中…' : '上传本地文件'}
         <input
           type="file"

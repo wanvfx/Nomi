@@ -3,7 +3,7 @@
 import React from 'react'
 import { listWorkbenchModelCatalogModels, type ModelCatalogModelDto } from '../api/modelCatalogApi'
 import { getAssistantModelPref, setAssistantModelPref } from './assistantModelPref'
-import { NomiSelect } from '../../design'
+import { NomiSelect, NomiSkeleton } from '../../design'
 
 // 与后端 chooseTextModel 一致的"像通用对话模型"判定：vision/preview 等不可靠发 tool_use 的降权，
 // 选默认时排到最后。让默认就是一个具体的、能用的模型（而不是看不懂的「自动选模型」）。
@@ -18,6 +18,7 @@ function pickDefaultModel(models: ModelCatalogModelDto[]): ModelCatalogModelDto 
 
 export default function AssistantModelPicker({ className }: { className?: string } = {}): JSX.Element | null {
   const [models, setModels] = React.useState<ModelCatalogModelDto[]>([])
+  const [loaded, setLoaded] = React.useState(false)
   const [modelKey, setModelKey] = React.useState<string>(() => getAssistantModelPref()?.modelKey || '')
 
   React.useEffect(() => {
@@ -26,6 +27,7 @@ export default function AssistantModelPicker({ className }: { className?: string
       .then((rows) => {
         if (!alive) return
         setModels(rows)
+        setLoaded(true)
         // 无偏好时不再显示「自动选模型」：直接落一个具体默认模型（智能挑、能用），并显示其名。
         if (!getAssistantModelPref()?.modelKey && rows.length > 0) {
           const def = pickDefaultModel(rows)
@@ -35,13 +37,17 @@ export default function AssistantModelPicker({ className }: { className?: string
           }
         }
       })
-      .catch(() => { if (alive) setModels([]) })
+      .catch(() => { if (alive) { setModels([]); setLoaded(true) } })
     const sync = () => setModelKey(getAssistantModelPref()?.modelKey || '')
     window.addEventListener('nomi:assistant-model-changed', sync)
     return () => { alive = false; window.removeEventListener('nomi:assistant-model-changed', sync) }
   }, [])
 
-  // 没有可选 text 模型时不渲染（无意义）。
+  // pending 规范 #3:加载中给占位骨架,不再凭空消失(return null 让选择器闪现)。
+  if (!loaded) {
+    return <NomiSkeleton className={`h-7 w-[120px] ${className ?? ''}`} />
+  }
+  // 加载完确实没有可选 text 模型 → 不渲染(无意义)。
   if (models.length === 0) return null
 
   const handleChange = (next: string) => {

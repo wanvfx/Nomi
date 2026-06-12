@@ -190,12 +190,16 @@ export function ActionCard({
 
 export type WorkbenchButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   children?: ReactNode
+  /** pending 规范 #2:点击触发 async 时置 true → 品牌 N 转圈占位 + 自动禁用 + aria-busy。 */
+  loading?: boolean
 }
 
 export function WorkbenchButton({
   children,
   className,
   type = 'button',
+  loading = false,
+  disabled,
   ...props
 }: WorkbenchButtonProps): JSX.Element {
   const rootClassName = cn(
@@ -218,7 +222,10 @@ export function WorkbenchButton({
       {...props}
       className={rootClassName}
       type={type}
+      disabled={disabled || loading}
+      aria-busy={loading || undefined}
     >
+      {loading ? <NomiLoadingMark size={14} /> : null}
       {children}
     </button>
   )

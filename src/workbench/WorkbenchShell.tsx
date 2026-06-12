@@ -1,6 +1,7 @@
 import React from "react";
 import "./workbench.css";
 import "./workbench-ai.css";
+import { NomiLoadingMark } from "../design";
 import NomiAppBar from "../ui/app-shell/NomiAppBar";
 import {
     isWorkspaceMode,
@@ -55,10 +56,13 @@ function WorkspaceLoading({ label }: { label: string }): JSX.Element {
         <div
             className={cn(
                 "workbench-shell__loading",
-                "w-full h-full bg-workbench-bg",
+                "w-full h-full bg-workbench-bg grid place-items-center",
             )}
             aria-label={`${label}加载中`}
-        />
+        >
+            {/* pending 规范 #1:懒加载占位不再是空白色块,给可见品牌 spinner */}
+            <NomiLoadingMark size={28} label={`${label}加载中`} />
+        </div>
     );
 }
 

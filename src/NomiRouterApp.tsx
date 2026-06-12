@@ -1,5 +1,6 @@
 import React from 'react'
 import { HashRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom'
+import { NomiLoadingMark } from './design'
 import { buildStudioUrl } from './utils/appRoutes'
 import { getAppRoutePath } from './utils/routes'
 
@@ -16,7 +17,8 @@ function RouteLoading(): JSX.Element {
       className="grid h-screen w-screen place-items-center bg-nomi-bg text-nomi-ink font-nomi-sans"
       aria-label="Nomi 加载中"
     >
-      <div className="h-6 w-6 rounded-full border border-nomi-line border-t-nomi-accent animate-spin" />
+      {/* pending 规范 #1:统一品牌 spinner,杀自写 CSS 圆环 */}
+      <NomiLoadingMark size={28} label="Nomi 加载中" />
     </div>
   )
 }
