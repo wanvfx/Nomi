@@ -157,7 +157,7 @@ function PlanNodeRow({
  * 参考/关键帧/视频 分组渲染 + 尾帧接力勾选行（取消即从批准里剔除该边）；
  * 单层计划保持原编号平铺。一次「确认全部」原子批准。
  */
-export default function AgentPlanCard({ plan, approveCalls, rejectCall, flat = false }: AgentPlanCardProps): JSX.Element {
+function AgentPlanCard({ plan, approveCalls, rejectCall, flat = false }: AgentPlanCardProps): JSX.Element {
   const [editedPrompts, setEditedPrompts] = React.useState<Record<string, string>>(() => {
     const initial: Record<string, string> = {}
     plan.nodes.forEach((node) => { initial[node.clientId] = node.prompt })
@@ -354,3 +354,7 @@ export default function AgentPlanCard({ plan, approveCalls, rejectCall, flat = f
     </div>
   )
 }
+
+// React.memo:流式吐字会每帧重渲染 AssistantTimeline,但本卡(8 节点行 + textarea)只随 plan/
+// 回调变。props 全稳定(plan 经 useMemo、approveCalls/rejectCall 经 useCallback)→ 流式期间零重渲染。
+export default React.memo(AgentPlanCard)

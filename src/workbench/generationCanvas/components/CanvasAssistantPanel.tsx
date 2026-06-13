@@ -18,12 +18,6 @@ import type { GenerationCanvasNode } from '../model/generationCanvasTypes'
 import { evaluateGate } from '../agent/gate'
 import { buildLockGateContext } from '../agent/lockGateContext'
 import {
-  buildStoryboardPlanningMessage,
-  STORYBOARD_PLANNER_SKILL,
-  STORYBOARD_PLANNING_EVENT,
-  type StoryboardPlanningRequest,
-} from '../agent/storyboardLauncher'
-import {
   buildFixationPlanningMessage,
   FIXATION_PLANNER_SKILL,
   FIXATION_PLANNING_EVENT,
@@ -115,6 +109,13 @@ export default function CanvasAssistantPanel({
   const approveCalls = React.useCallback((requests: ApproveCallRequest[]) => {
     void approveCallsRef.current?.(requests)
   }, [])
+
+  // 稳定引用:传给 AssistantTimeline→AgentPlanCard,使 React.memo(AgentPlanCard) 在流式吐字
+  // 每帧重渲染时不被新函数引用打穿(原内联箭头每帧新建会让 memo 失效)。
+  const rejectPending = React.useCallback(
+    (toolCallId: string) => resolvePending(toolCallId, { ok: false, message: 'rejected by user' }),
+    [resolvePending],
+  )
 
   // Exposed for the V2 agent client (wired in B6) so the panel can render
   // pending tool calls and forward the user's confirmation back to the IPC
@@ -333,6 +334,15 @@ export default function CanvasAssistantPanel({
         }
       }
       try {
+        // 流式批渲染:token 高频到达时合并成「每帧最多一次」updateMessage,避免每个字都重渲染
+        // 整条时间线(含计划卡 8 个节点行/textarea)——这是「吐字时很卡顿」的根因。最终文本在
+        // await 返回后另写一次,这里先 cancel 掉挂起的帧回调,防它用旧文本覆盖。
+        let streamingText = ''
+        let streamRaf: number | null = null
+        const flushStreaming = () => {
+          streamRaf = null
+          updateMessage(assistantMessageId, streamingText || '处理中...')
+        }
         const result = await sendGenerationCanvasAgentMessage({
           message: text || '请看这些附件',
           ...(attachmentPayload.length ? { attachments: attachmentPayload } : {}),
@@ -341,7 +351,8 @@ export default function CanvasAssistantPanel({
           mode,
           skill: options.skill,
           onContent: (_delta, streamedText) => {
-            updateMessage(assistantMessageId, streamedText || '处理中...')
+            streamingText = streamedText || '处理中...'
+            if (streamRaf === null) streamRaf = requestAnimationFrame(flushStreaming)
           },
           onCancelReady: (cancel) => {
             cancelRef.current = cancel
@@ -379,6 +390,8 @@ export default function CanvasAssistantPanel({
           },
         })
 
+        // 流结束:取消挂起的帧刷新,最终文本权威写入(防 rAF 用旧 streamingText 覆盖)。
+        if (streamRaf !== null) cancelAnimationFrame(streamRaf)
         const finalText = result.response.text?.trim() || ''
         if (toolActionCount > 0) {
           // 方案三:工具执行结果由时间线的「已确认✓ / 已应用」步骤表达,
@@ -428,26 +441,8 @@ export default function CanvasAssistantPanel({
     submitAgentMessage(draft.trim())
   }
 
-  // Listen for "Story → Storyboard" requests dispatched from the creation
-  // editor (C2) or the project library "Try Now" hero (C6). The panel
-  // expands, drops the user's story into the chat thread, and runs the
-  // storyboard-planner skill which will trigger create_canvas_nodes +
-  // connect_canvas_edges tool calls.
-  React.useEffect(() => {
-    const handler = (event: Event) => {
-      const detail = (event as CustomEvent<StoryboardPlanningRequest>).detail
-      const storyText = detail?.storyText?.trim() || ''
-      if (!storyText) return
-      setCollapsed(false)
-      const message = buildStoryboardPlanningMessage(storyText)
-      submitAgentMessage(message, {
-        skill: STORYBOARD_PLANNER_SKILL,
-        displayMessage: `🎬 拆镜头\n\n${storyText}`,
-      })
-    }
-    window.addEventListener(STORYBOARD_PLANNING_EVENT, handler as EventListener)
-    return () => window.removeEventListener(STORYBOARD_PLANNING_EVENT, handler as EventListener)
-  }, [setCollapsed, submitAgentMessage])
+  // 注：分镜规划的触发已收口到创作区 runStoryboardPlanner（流程 A：就地跑、不弹来生成区）。
+  // 原 STORYBOARD_PLANNING_EVENT 事件桥已随之删除（P1 不留死路径）。定妆仍走事件桥（见下）。
 
   // Tier2 定妆/定景：创作区「💄 定妆」触发 → 跑 fixation planner skill，按剧本建角色/场景卡 +
   // 注入身份板提示词（与 storyboard 同构）。
@@ -579,7 +574,7 @@ export default function CanvasAssistantPanel({
         onSuggestion={submitAgentMessage}
         pendingToolCalls={pendingToolCalls}
         approveCalls={approveCalls}
-        rejectPending={(toolCallId) => resolvePending(toolCallId, { ok: false, message: 'rejected by user' })}
+        rejectPending={rejectPending}
         committedProposal={committedProposal}
         deviationReport={deviationReport}
         onDeviationUndo={() => {

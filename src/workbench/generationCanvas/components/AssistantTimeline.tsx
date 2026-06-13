@@ -90,7 +90,9 @@ const EMPTY_SUGGESTIONS = ['列 3 个镜头铺到画布', '给选中的镜头写
 
 export default function AssistantTimeline(props: AssistantTimelineProps): JSX.Element {
   const { messages, staleBoundaryId, pendingToolCalls } = props
-  const plan = summarizeAgentPlan(pendingToolCalls)
+  // memo:流式吐字会每帧重渲染本组件,但计划只随 pendingToolCalls 变——不 memo 则每帧重算 +
+  // 产出新 plan 引用,连带 React.memo(AgentPlanCard) 失效、8 节点计划卡每帧重画(卡顿放大)。
+  const plan = React.useMemo(() => summarizeAgentPlan(pendingToolCalls), [pendingToolCalls])
   const planCallIds = new Set([plan?.createCallId, plan?.connectCallId].filter(Boolean) as string[])
   const remaining = plan ? pendingToolCalls.filter((call) => !planCallIds.has(call.toolCallId)) : pendingToolCalls
 
