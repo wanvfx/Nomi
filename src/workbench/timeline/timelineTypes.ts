@@ -24,12 +24,25 @@ export type TimelineTrack = {
   clips: TimelineClip[]
 }
 
+// 文字叠加层：字幕 / 标题卡。独立于生成节点（无 sourceNodeId/url），是后期叠加的一等公民。
+export type TimelineTextStyle = 'caption' | 'title'
+
+export type TimelineTextClip = {
+  id: string
+  text: string
+  style: TimelineTextStyle
+  startFrame: number
+  endFrame: number
+}
+
 export type TimelineState = {
   version: 1
   fps: 30
   scale: number
   playheadFrame: number
   tracks: TimelineTrack[]
+  // 文字轨（字幕/标题卡）。独立层，不挂 tracks[]（它没有媒体 clip 心智）。
+  textClips: TimelineTextClip[]
 }
 
 // v0.7.1: 视频轨改名"媒体轨"（承载 video / audio clip）
