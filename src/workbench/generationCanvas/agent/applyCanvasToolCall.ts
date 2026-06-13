@@ -1,4 +1,5 @@
-import type { GenerationCanvasEdgeMode, GenerationNodeKind } from '../model/generationCanvasTypes'
+import type { BuiltinCanvasCategoryId, GenerationCanvasEdgeMode, GenerationNodeKind } from '../model/generationCanvasTypes'
+import { CATEGORY_IDS } from '../model/generationCanvasTypes'
 import { getDefaultCategoryForNodeKind, getGenerationNodeDefaultTitle } from '../model/generationNodeKinds'
 import { generationCanvasTools, type CreateGenerationNodeToolInput } from './generationCanvasTools'
 import { listAvailableModelsForAgent, type AgentModelEntry } from './availableModels'
@@ -113,6 +114,13 @@ export async function applyCanvasToolCall(toolName: string, args: unknown, gestu
       return (typeof node.kind === 'string' ? node.kind : 'image') as GenerationNodeKind
     })
     const layout = layoutPlannedNodes(plannedKinds, generationCanvasTools.read_canvas().nodes)
+    // 整批强制分类（分镜方案落画布用，用户拍板 A）：角色/场景/镜头落进同一分类，参考边
+    // 同屏可见可连。仅程序化调用方（storyboardPlanToCreateNodesArgs）会设；agent 直接建卡
+    // 不带 → 走 kind 默认。只认白名单分类，挡住脏值把节点丢进不存在的分类而消失。
+    const groupCategoryId =
+      typeof record.groupCategoryId === 'string' && (CATEGORY_IDS as readonly string[]).includes(record.groupCategoryId)
+        ? (record.groupCategoryId as BuiltinCanvasCategoryId)
+        : null
     const inputs: CreateGenerationNodeToolInput[] = incoming.map((raw, index) => {
       const node = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {}
       const kind = plannedKinds[index]
@@ -129,9 +137,10 @@ export async function applyCanvasToolCall(toolName: string, args: unknown, gestu
             }
       return {
         kind,
-        // 按 kind 归类：镜头(image/video…)→分镜，角色→cast，场景→scene。让待生成卡拿到
-        // 「镜头 N」编号、角色/场景不被误归分镜（schema 不收 LLM 的 categoryId，纯渲染层 derive）。
-        categoryId: getDefaultCategoryForNodeKind(kind),
+        // groupCategoryId 在则整批落同一分类（分镜方案：角色/场景/镜头落在一起）；否则按 kind
+        // 归类（镜头→分镜、角色→cast、场景→scene）。character/scene kind 不参与 shotIndex，
+        // 故落进 shots 也不抢「镜头 N」编号（见 model/shotNumbering.ts）。
+        categoryId: groupCategoryId ?? getDefaultCategoryForNodeKind(kind),
         title:
           typeof node.title === 'string' && node.title.trim()
             ? node.title.trim()

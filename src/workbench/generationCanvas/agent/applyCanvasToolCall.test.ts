@@ -66,6 +66,30 @@ describe('applyCanvasToolCall clientId 翻译', () => {
     expect(state.edges.some((e) => /^a\d$/.test(e.source) || /^a\d$/.test(e.target))).toBe(false)
   })
 
+  it('无 groupCategoryId：按 kind 归类（角色→cast）——agent 直接建卡不受影响', async () => {
+    const created = (await applyCanvasToolCall('create_canvas_nodes', {
+      nodes: [{ clientId: 'c1', kind: 'character', title: '男主', prompt: 'p' }],
+    })) as { clientIdToNodeId: Record<string, string> }
+    const node = useGenerationCanvasStore.getState().nodes.find((n) => n.id === created.clientIdToNodeId.c1)
+    expect(node?.categoryId).toBe('cast')
+  })
+
+  it('带 groupCategoryId=shots：整批落分镜（角色/场景与镜头同处，用户拍板 A）', async () => {
+    const created = (await applyCanvasToolCall('create_canvas_nodes', {
+      groupCategoryId: 'shots',
+      nodes: [
+        { clientId: 'g1', kind: 'character', title: '男主', prompt: 'p' },
+        { clientId: 'g2', kind: 'scene', title: '天台', prompt: 'p' },
+        { clientId: 'g3', kind: 'video', title: '镜头 1', prompt: 'p' },
+      ],
+    })) as { clientIdToNodeId: Record<string, string> }
+    const state = useGenerationCanvasStore.getState()
+    const cat = (id: string) => state.nodes.find((n) => n.id === id)?.categoryId
+    expect(cat(created.clientIdToNodeId.g1)).toBe('shots')
+    expect(cat(created.clientIdToNodeId.g2)).toBe('shots')
+    expect(cat(created.clientIdToNodeId.g3)).toBe('shots')
+  })
+
   it('非法 mode 按通用参考处理（不抛、不静默改语义）', async () => {
     const created = (await applyCanvasToolCall('create_canvas_nodes', {
       nodes: [

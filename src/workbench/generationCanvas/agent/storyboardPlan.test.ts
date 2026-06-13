@@ -26,6 +26,10 @@ describe('storyboardPlanToCreateNodesArgs', () => {
     ]) // a-style(文本锚)不在
   })
 
+  it('整批落「分镜」分类（用户拍板 A：角色/场景/镜头落在一起，参考边同屏可连）', () => {
+    expect(storyboardPlanToCreateNodesArgs(PLAN).groupCategoryId).toBe('shots')
+  })
+
   it('镜头乱序吐出 → 按 shot.index 排序后建节点（审计 A5：钉死数组序=镜序）', () => {
     const shuffled: StoryboardPlan = {
       ...PLAN,

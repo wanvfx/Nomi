@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import type { GenerationCanvasEdgeMode } from '../model/generationCanvasTypes'
+import type { BuiltinCanvasCategoryId, GenerationCanvasEdgeMode } from '../model/generationCanvasTypes'
 
 /**
  * 「分镜方案」中间表示（IR）—— 剧本→方案文档→确认→落画布 主链路的中枢。
@@ -109,6 +109,13 @@ export type PlanCreateNodesArgs = {
   summary: string
   nodes: PlanCreatedNode[]
   edges: PlanCreatedEdge[]
+  /**
+   * 整批强制落进同一分类（用户拍板：一个分镜方案的角色/场景/镜头落在一起）。
+   * 不设则按 kind 各归各类（cast/scene/shots）——agent 直接建卡仍走 kind 默认。
+   * 设 'shots'：角色/场景与镜头同处「分镜」视图，参考边同屏可见可连、谁没生成一眼看到，
+   * 且不破坏编号（character/scene kind 不参与 shotIndex，见 model/shotNumbering.ts）。
+   */
+  groupCategoryId?: BuiltinCanvasCategoryId
 }
 
 export type StoryboardPlanToArgsOptions = {
@@ -207,5 +214,6 @@ export function storyboardPlanToCreateNodesArgs(
     }
   }
 
-  return { summary: plan.title.trim() || '分镜方案', nodes, edges }
+  // 整批落「分镜」分类：角色/场景与镜头同处一个视图，参考边同屏可见可连（用户拍板 A）。
+  return { summary: plan.title.trim() || '分镜方案', nodes, edges, groupCategoryId: 'shots' }
 }
