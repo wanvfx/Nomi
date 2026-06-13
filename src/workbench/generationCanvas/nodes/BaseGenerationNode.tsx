@@ -21,7 +21,7 @@ import { useNodeImageEditing } from "./useNodeImageEditing";
 import { useNodeDragResize } from "./useNodeDragResize";
 import { useHasFrameSourceEdge, useShotIndex } from "../hooks/useNodeRelationships";
 import { lazyWithChunkBoundary } from "../../../ui/chunkBoundary";
-import { PendingGenerationPlaceholder, Scene3DEditorLoading } from "./render/CardCommon";
+import { GeneratingOverlay, PendingGenerationPlaceholder, Scene3DEditorLoading } from "./render/CardCommon";
 import { cn } from "../../../utils/cn";
 import { NomiImage } from "../../../design/media";
 import { persistNodeImageFile } from "../adapters/persistNodeImage";
@@ -613,8 +613,7 @@ function BaseGenerationNodeImpl({
                 ) : null}
                 <TechnicalReviewBadge meta={node.meta} />
                 <NodeLockBadge nodeId={node.id} locked={node.locked} selected={selected} />
-                {/* E.2C-25 副本角标（spec §6.3）：跨分类独立副本永久显示。经 E.2C-16 migration 后
-            derivedFrom 仅承载跨分类独立副本语义;同分类重生成链路在 regeneratedFrom,不进此角标。 */}
+                {/* E.2C-25 副本角标（spec §6.3）：跨分类独立副本永久显示。derivedFrom 仅承载跨分类独立副本语义(经 E.2C-16 migration);同分类重生成在 regeneratedFrom,不进此角标。 */}
                 {node.derivedFrom ? (
                     <button
                         type='button'
@@ -825,6 +824,7 @@ function BaseGenerationNodeImpl({
                 ) : null}
             </div>
 
+            {isGenerating ? <GeneratingOverlay /> : null}
             {canSendToTimeline && node.kind !== "scene3d" ? (
                 <div
                     role='button'

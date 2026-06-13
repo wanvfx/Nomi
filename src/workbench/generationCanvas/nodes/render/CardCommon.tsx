@@ -9,6 +9,7 @@
  */
 import React from 'react'
 import { cn } from '../../../../utils/cn'
+import { NomiLoadingMark } from '../../../../design'
 
 export const STRIPED_BG_CLASS =
   'bg-[repeating-linear-gradient(45deg,var(--nomi-ink-05)_0_23px,var(--nomi-ink-20)_23px_24px)]'
@@ -111,6 +112,26 @@ export function PendingGenerationPlaceholder({
         </span>
       ) : null}
       <span className="mt-auto text-micro text-nomi-ink-40">等待生成</span>
+    </div>
+  )
+}
+
+/**
+ * 生成中（queued/running）的统一品牌转圈遮罩（pending 规范 #1）。
+ * 挂在节点根容器、对分镜/卡片/文本所有节点类型一致生效；z-[1] 盖住正文但低于
+ * header 的状态文字徽标（z-[2]，仍显「生成中」），pointer-events-none 不挡交互。
+ */
+export function GeneratingOverlay(): JSX.Element {
+  return (
+    <div
+      className={cn(
+        'generation-canvas-v2-node__generating-overlay',
+        'absolute inset-0 z-[1] grid place-items-center rounded-nomi',
+        'bg-nomi-paper/[0.55] backdrop-blur-[2px] pointer-events-none',
+      )}
+      aria-hidden="true"
+    >
+      <NomiLoadingMark size={32} label="生成中" />
     </div>
   )
 }
