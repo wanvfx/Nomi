@@ -2,12 +2,17 @@
   position: absolute;
   inset: 0;
   overflow: hidden;
-  cursor: grab;
+  /* Figma 标准：空白左键拖=框选，故默认光标；平移走空格/中键/右键/双指 */
+  cursor: default;
   user-select: none;
   background:
     radial-gradient(circle, var(--nomi-ink-20) 1px, transparent 1.2px),
     var(--nomi-bg);
   background-size: 24px 24px;
+}
+
+.generation-canvas-v2__stage[data-space-pan] {
+  cursor: grab;
 }
 
 .generation-canvas-v2__stage[data-panning] {
