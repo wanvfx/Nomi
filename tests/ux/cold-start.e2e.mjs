@@ -81,6 +81,22 @@ try {
   check("首页可见「30 秒体验」主 CTA（模型接入由它带入）", entryProbe.hasEntry);
   check("零模型时提示行透明告知「会先带你接入」", entryProbe.hintShown, `hint="${entryProbe.hintText}"`);
 
+  // CS3：首屏视觉回归——锁住「text-h1 死 token 把标题塌成 13px」这类隐藏覆盖（computed-style 断言，
+  // 不是 DOM 存在性）。同时确认改进版的免费标 + 分镜预览条都真渲染出来了。
+  const heroVisual = await win.evaluate(() => {
+    const title = document.querySelector("[data-hero-title]");
+    const titleSize = title ? parseFloat(getComputedStyle(title).fontSize) : 0;
+    return {
+      titleSize,
+      freeBadge: Boolean(document.querySelector("[data-free-badge]")),
+      previewCards: document.querySelectorAll('[aria-label="开始使用"] .aspect-video').length,
+    };
+  });
+  console.log("\n── CS3：首屏视觉（标题字号/免费标/分镜预览条）──");
+  check("hero 大标题字号 ≥ 20px（防 text-h1 死 token 塌成正文号）", heroVisual.titleSize >= 20, `computed=${heroVisual.titleSize}px`);
+  check("「免费 · 无需绑卡」标签渲染（打消怕收费）", heroVisual.freeBadge);
+  check("「文字 → 分镜 → 成品」预览条渲染（≥3 个画框）", heroVisual.previewCards >= 3, `aspect-video=${heroVisual.previewCards}`);
+
   // CS2：点「30 秒体验」→ 会不会第一步就死（零文本模型）？
   const tryBtn = win.locator("[data-try-now-hero-cta]").first();
   const hasTry = await tryBtn.count();
