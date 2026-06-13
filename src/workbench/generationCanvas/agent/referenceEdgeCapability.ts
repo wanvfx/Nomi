@@ -1,0 +1,110 @@
+// 参考边能力校验(T8 根治轨迹盲连)。纯函数,可单测。
+//
+// 根因:connect_nodes 过去只校验「两端节点存在」,不查目标模型支不支持这条参考——
+// 让 agent 凭故事结构盲连,连出两类静默无效边(连上了、落库了,生成期却被丢弃):
+//   ① 文本/镜头笔记节点 → 图片节点:文本不产可参考资产(生成 prompt 只取 node.prompt,
+//      不拼上游;resolver 只认源节点的 result URL),这条边在参考维度纯噪音。
+//   ② character_ref → 不声明任何图片参考槽的纯文生模型(如 imagen-4):到 archetype
+//      input-builder 进不去(buildArchetypeInputParams 只发当前模式声明的槽键),静默丢弃。
+//
+// 唯一真相源 = 模型 archetype 的参考槽声明(src/config/modelArchetypes,supplier-agnostic)。
+// 这里把「边语义(mode)+源资产类型」对照「目标模型 archetype 任意模式声明的参考槽」校验,
+// 只放行模型真能消费的边;放不行的进 skipped + reason,诚实回报给 LLM(它据此改模型/模式或删边)。
+//
+// 跨「所有模式」union 校验(非当前模式):拒的是「这个模型根本不吃这类参考」的硬错(用户两例),
+// 不拒「模型支持但当前选错模式」的软错(那个由 availableModels 喂能力给 agent + 用户在计划卡
+// 改模式兜)——避免误伤可恢复的模式选择问题。目标未声明档案(未知/未设模型)一律放行(P4 通用回退)。
+import type { GenerationCanvasEdgeMode, GenerationCanvasNode } from '../model/generationCanvasTypes'
+import { getGenerationNodeDefinition, getGenerationNodeExecutionKind } from '../model/generationNodeKinds'
+import type { ArchetypeReferenceSlotKind, ModelArchetype } from '../../../config/modelArchetypes'
+import { getArchetypeById, resolveArchetypeForModel } from '../../../config/modelArchetypes'
+
+/** 源节点产出的可参考资产类型;text/shot/output 等无产出 → null(不能作参考源)。 */
+export type ReferenceAssetKind = 'image' | 'video'
+
+export type EdgeSkipReason = 'dangling' | 'source_not_referenceable' | 'unsupported_reference'
+
+export type EdgeCapabilityResult = { ok: true } | { ok: false; reason: EdgeSkipReason }
+
+/**
+ * 源节点能给出哪种可参考资产。按节点 kind 的执行语义 derive(与 resolver 取参考的口径一致):
+ * 可执行视频→video、可执行图片→image、非执行但 providesImageReference(asset/panorama/scene3d…)→image。
+ * 文本/镜头/输出等(无 execution+不提供图参考)→ null:它们没有可被下游当参考的产物。
+ */
+export function referenceAssetKindForNode(node: GenerationCanvasNode): ReferenceAssetKind | null {
+  const exec = getGenerationNodeExecutionKind(node.kind)
+  if (exec === 'video') return 'video'
+  if (exec === 'image') return 'image'
+  return getGenerationNodeDefinition(node.kind).providesImageReference ? 'image' : null
+}
+
+/** 每种参考槽能被哪种源资产喂。first_frame 收视频=尾帧接力(resolver 抽帧),故收 image+video。 */
+const SLOT_ACCEPTS: Record<ArchetypeReferenceSlotKind, readonly ReferenceAssetKind[]> = {
+  first_frame: ['image', 'video'],
+  last_frame: ['image'],
+  image_ref: ['image'],
+  video_ref: ['video'],
+  source_video: ['video'],
+  audio_ref: [], // 当前无音频源节点种类;音频参考只能手动上传到槽,不经画布边
+}
+
+/** 边语义 → 它要落到目标模型的哪些参考槽(任一满足即可)。通用 reference 接受任意槽。 */
+const EDGE_MODE_SLOTS: Record<GenerationCanvasEdgeMode, readonly ArchetypeReferenceSlotKind[]> = {
+  reference: ['image_ref', 'video_ref', 'first_frame', 'last_frame', 'source_video', 'audio_ref'],
+  first_frame: ['first_frame'],
+  last_frame: ['last_frame'],
+  style_ref: ['image_ref'],
+  character_ref: ['image_ref'],
+  composition_ref: ['image_ref'],
+}
+
+/** 从节点 meta 解析模型档案:优先 meta.archetype.id(命名空间),回退 meta.modelKey 身份匹配。无 → null。 */
+function archetypeForNode(node: GenerationCanvasNode): ModelArchetype | null {
+  const meta = node.meta
+  if (!meta || typeof meta !== 'object') return null
+  const record = meta as Record<string, unknown>
+  const arch = record.archetype
+  const archId = arch && typeof arch === 'object' ? (arch as Record<string, unknown>).id : undefined
+  if (typeof archId === 'string' && archId) {
+    const byId = getArchetypeById(archId)
+    if (byId) return byId
+  }
+  const modelKey = record.modelKey
+  if (typeof modelKey === 'string' && modelKey) {
+    const modelVendor = record.modelVendor
+    return resolveArchetypeForModel({
+      modelKey,
+      vendorKey: typeof modelVendor === 'string' ? modelVendor : null,
+      meta,
+    })
+  }
+  return null
+}
+
+/** 目标模型跨所有模式声明过的参考槽种类(union);无档案 → null(放行,不校验)。 */
+function targetSlotKinds(node: GenerationCanvasNode): Set<ArchetypeReferenceSlotKind> | null {
+  const archetype = archetypeForNode(node)
+  if (!archetype) return null
+  const set = new Set<ArchetypeReferenceSlotKind>()
+  for (const mode of archetype.modes) for (const slot of mode.slots) set.add(slot.kind)
+  return set
+}
+
+/**
+ * 这条参考边目标模型到底吃不吃。源无可参考资产(文本) → source_not_referenceable;
+ * 目标声明了档案但任何模式都没有能消费「该 mode + 该源资产」的槽 → unsupported_reference;
+ * 其余(含目标无档案)→ ok。
+ */
+export function validateReferenceEdge(
+  source: GenerationCanvasNode,
+  target: GenerationCanvasNode,
+  mode: GenerationCanvasEdgeMode | undefined,
+): EdgeCapabilityResult {
+  const asset = referenceAssetKindForNode(source)
+  if (!asset) return { ok: false, reason: 'source_not_referenceable' }
+  const slotKinds = targetSlotKinds(target)
+  if (!slotKinds) return { ok: true }
+  const required = EDGE_MODE_SLOTS[mode ?? 'reference']
+  const satisfiable = required.some((slot) => slotKinds.has(slot) && SLOT_ACCEPTS[slot].includes(asset))
+  return satisfiable ? { ok: true } : { ok: false, reason: 'unsupported_reference' }
+}

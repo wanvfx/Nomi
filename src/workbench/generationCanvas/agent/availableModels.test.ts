@@ -24,6 +24,17 @@ describe("buildAgentModelEntries", () => {
     // seedance 默认模式有 aspect_ratio 参数（计划卡比例 chip 的来源）
     const allParamKeys = e.modes.flatMap((m) => m.params.map((p) => p.key));
     expect(allParamKeys).toContain("aspect_ratio");
+    // T8：每个 mode 带参考槽（agent 据此只连模型真支持的边）。seedance omni 有 image_ref 角色参考。
+    const omni = e.modes.find((m) => m.slots.some((s) => s.kind === "image_ref"));
+    expect(omni).toBeTruthy();
+    expect(omni?.slots.find((s) => s.kind === "image_ref")?.characterIndexed).toBe(true);
+  });
+
+  it("纯文生模型的模式 slots 为空（不接参考边）", () => {
+    const entries = buildAgentModelEntries([
+      opt({ value: "imagen-4", label: "Imagen 4", meta: { archetypeId: "imagen-4" } }),
+    ]);
+    expect(entries[0].modes.every((m) => m.slots.length === 0)).toBe(true);
   });
 
   it("无档案的模型被跳过", () => {
@@ -59,5 +70,14 @@ describe("formatAvailableModelsForPrompt", () => {
     expect(text).toContain("modelKey=seedance-2");
     expect(text).toContain("aspect_ratio[");
     expect(text).toContain("9:16");
+    // T8：提示词里带每个模式的参考槽，让 agent 按模型真实能力连边
+    expect(text).toContain("参考槽:");
+  });
+
+  it("纯文生模型在提示词里标注「不接参考边」", () => {
+    const entries = buildAgentModelEntries([
+      opt({ value: "imagen-4", label: "Imagen 4", meta: { archetypeId: "imagen-4" } }),
+    ]);
+    expect(formatAvailableModelsForPrompt(entries)).toContain("纯文生,不接参考边");
   });
 });
