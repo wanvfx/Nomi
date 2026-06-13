@@ -77,7 +77,7 @@ describe("canvasTools schemas", () => {
   });
 
   describe("canvasToolNames", () => {
-    it("enumerates all 6 tools", () => {
+    it("enumerates all 7 tools", () => {
       expect(canvasToolNames).toEqual([
         "read_canvas_state",
         "create_canvas_nodes",
@@ -85,6 +85,7 @@ describe("canvasTools schemas", () => {
         "set_node_prompt",
         "delete_canvas_nodes",
         "run_generation_batch", // S6b 受理语义
+        "arrange_storyboard_to_timeline", // 按剧本镜序排片到时间轴
       ]);
     });
 

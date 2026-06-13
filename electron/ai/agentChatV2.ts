@@ -308,6 +308,13 @@ function buildCanvasToolsForV2(hooks: AgentChatV2Hooks) {
         nodeIds: z.array(z.string().min(1)).min(1).max(24),
       }),
     ),
+    arrange_storyboard_to_timeline: makeTool(
+      "arrange_storyboard_to_timeline",
+      "Arrange the storyboard's generated shot videos onto the timeline media track in script order (ordering decided by stored shot numbers, not by you). Ungenerated shots fall back to their keyframe image; clips are appended to the end. Omit nodeIds for the whole storyboard.",
+      z.object({
+        nodeIds: z.array(z.string().min(1)).max(48).optional(),
+      }),
+    ),
     // Silence unused-import warning for canvasNodeKindSchema by re-exporting
     // it through the tool registry shape (it's enforced via plannedNodeSchema).
     _kindSchema: canvasNodeKindSchema,

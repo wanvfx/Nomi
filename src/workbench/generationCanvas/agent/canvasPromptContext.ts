@@ -22,12 +22,16 @@ export function formatCanvasForAgent(snapshot: SnapshotLike, selectedNodes: read
   const lines = snapshot.nodes.map((node) => {
     const flags = [
       node.locked ? '已锁定' : null,
-      node.result ? '已出图' : null,
+      // 区分已出视频 / 已出图——排片(arrange_storyboard_to_timeline)按视频优先、缺则关键帧占位。
+      node.result?.type === 'video' ? '已出视频' : node.result ? '已出图' : null,
       node.status && node.status !== 'idle' && node.status !== 'success' ? node.status : null,
     ].filter(Boolean)
     const promptHead = head(node.prompt || '')
     return [
-      `- ${node.id} | ${node.kind} | ${node.title}`,
+      `- ${node.id} | ${node.kind}`,
+      // 镜号(shotIndex)= 剧本时序的真相,排片即按它排;让 Agent 决策/复报能引用「镜 N」。
+      typeof node.shotIndex === 'number' ? ` | 镜${node.shotIndex}` : '',
+      ` | ${node.title}`,
       flags.length ? ` | ${flags.join(',')}` : '',
       promptHead ? ` | prompt: ${promptHead}` : '',
     ].join('')

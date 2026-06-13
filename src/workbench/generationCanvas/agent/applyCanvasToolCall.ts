@@ -8,6 +8,7 @@ import { layoutPlannedNodes } from './trajectoryLayout'
 import { formatCanvasForAgent } from './canvasPromptContext'
 import { buildDependencyWaves } from '../runner/dependencyWaves'
 import { runPlanWithToasts } from '../components/batchPlanPreview'
+import { arrangeStoryboardToTimeline } from './sendStoryboardToTimeline'
 
 // 批量创建节点的布局由渲染层 derive，而不是信任 LLM 发来的像素坐标。
 // 实现住在 trajectoryLayout（分层 + 避让 + 网格回退，步距由节点尺寸推导）。
@@ -203,6 +204,25 @@ export async function applyCanvasToolCall(toolName: string, args: unknown, gestu
       acceptedNodeIds: accepted,
       waves: plan.waves.length,
       blocked: plan.blocked.map((item) => ({ nodeId: item.nodeId, detail: item.detail })),
+    }
+  }
+
+  if (toolName === 'arrange_storyboard_to_timeline') {
+    // 排序/选片全在纯函数(planStoryboardTimeline)里——LLM 只触发,顺序按 shotIndex 镜序确定。
+    // 不走 inCtx 手势上下文(那是画布事件域);时间轴变更是 workbenchStore 的事。
+    const rawIds = Array.isArray(record.nodeIds)
+      ? record.nodeIds.map((id) => resolveNodeId(String(id || '').trim())).filter(Boolean)
+      : undefined
+    const result = arrangeStoryboardToTimeline(rawIds && rawIds.length ? { nodeIds: rawIds } : {})
+    if (!result.ok && result.total === 0) {
+      throw new Error('没有可排片的镜头:画布上还没有生成好的视频或可占位的关键帧')
+    }
+    return {
+      arranged: result.sent.length,
+      total: result.total,
+      // 回报每镜落点(role: video/placeholder/still),供 LLM 向用户复述"镜N用视频/用关键帧占位"。
+      placed: result.sent.map((item) => ({ nodeId: item.nodeId, role: item.role, startFrame: item.startFrame })),
+      ...(result.skipped.length ? { skipped: result.skipped } : {}),
     }
   }
 

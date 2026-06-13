@@ -4,9 +4,7 @@ import {
   buildStoryboardPlanningMessage,
   STORYBOARD_PLANNER_SKILL,
 } from './generationCanvas/agent/storyboardLauncher'
-import { orderNodesByEdges } from './generationCanvas/agent/sendStoryboardToTimeline'
 import { buildStoryDocument, TRY_NOW_EXAMPLES } from './library/tryNowExamples'
-import type { GenerationCanvasEdge } from './generationCanvas/model/generationCanvasTypes'
 
 describe('Phase C storyboard happy path', () => {
   describe('summarizeAgentPlan', () => {
@@ -205,36 +203,6 @@ describe('Phase C storyboard happy path', () => {
         key: 'workbench.storyboard.planner',
         name: '故事板规划师',
       })
-    })
-  })
-
-  describe('orderNodesByEdges', () => {
-    function edge(source: string, target: string): GenerationCanvasEdge {
-      return { id: `${source}-${target}`, source, target }
-    }
-
-    it('returns the selection as-is when only one node is selected', () => {
-      expect(orderNodesByEdges(['a'], [])).toEqual(['a'])
-    })
-
-    it('topologically orders a simple linear chain regardless of selection order', () => {
-      const edges = [edge('a', 'b'), edge('b', 'c'), edge('c', 'd')]
-      expect(orderNodesByEdges(['c', 'a', 'd', 'b'], edges)).toEqual(['a', 'b', 'c', 'd'])
-    })
-
-    it('falls back to the input order when the subgraph has multiple sources', () => {
-      const edges = [edge('a', 'c'), edge('b', 'c')]
-      expect(orderNodesByEdges(['a', 'b', 'c'], edges)).toEqual(['a', 'b', 'c'])
-    })
-
-    it('falls back to the input order when the chain has a branch', () => {
-      const edges = [edge('a', 'b'), edge('a', 'c')]
-      expect(orderNodesByEdges(['a', 'b', 'c'], edges)).toEqual(['a', 'b', 'c'])
-    })
-
-    it('ignores edges that point outside the selection', () => {
-      const edges = [edge('a', 'b'), edge('b', 'c'), edge('c', 'z')]
-      expect(orderNodesByEdges(['a', 'b', 'c'], edges)).toEqual(['a', 'b', 'c'])
     })
   })
 

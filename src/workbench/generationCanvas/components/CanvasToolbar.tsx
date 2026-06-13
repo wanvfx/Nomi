@@ -172,8 +172,8 @@ export default function CanvasToolbar({ getInsertionPosition, categoryId }: Canv
       </WorkbenchButton>
       <WorkbenchButton
         className={cn('w-8 h-8 min-h-8 p-0 border-0 rounded-nomi-sm cursor-pointer disabled:cursor-not-allowed disabled:opacity-[0.42]')}
-        aria-label="把选中节点按时序发送到时间轴"
-        title="发送到时间轴（按时序连边排序）"
+        aria-label="把选中节点按剧本镜序发送到时间轴"
+        title="发送到时间轴（按剧本镜序排序）"
         data-storyboard-send-to-timeline="true"
         disabled={selectedNodeIds.length < 2}
         onClick={() => {

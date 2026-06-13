@@ -70,6 +70,7 @@ export const canvasToolNames = [
   "set_node_prompt",
   "delete_canvas_nodes",
   "run_generation_batch",
+  "arrange_storyboard_to_timeline",
 ] as const;
 export type CanvasToolName = (typeof canvasToolNames)[number];
 
@@ -125,6 +126,22 @@ export const canvasTools = {
       "Start real generation for a batch of existing canvas nodes (costs credits — the user must confirm). Provide real node ids from read_canvas_state, or clientIds from this turn's create_canvas_nodes. Nodes are scheduled in dependency waves (references generate first). Returns an acceptance receipt; generation progress is shown to the user on the canvas, not returned to you.",
     parameters: z.object({
       nodeIds: z.array(z.string().min(1)).min(1).max(24),
+    }),
+  }),
+  // 把已生成的镜头视频按剧本时序排进时间轴媒体轨道,用户即可去预览区播放/导出成片。
+  // 顺序由系统按镜号(shotIndex,拆镜头时定的剧本序)确定性排定——你不需要、也不应该自己
+  // 推断顺序;缺视频的镜头自动用其关键帧图占位。追加到时间轴末尾。
+  arrange_storyboard_to_timeline: tool({
+    description:
+      "Arrange the storyboard's generated shot videos onto the timeline's media track in SCRIPT ORDER, so the user can preview and export a finished film. Ordering is decided deterministically by each shot's stored shot number (from when the script was split) — you do NOT infer the order yourself. Shots whose video isn't generated yet fall back to their keyframe image as a placeholder; shots with neither are skipped and reported. Clips are appended after whatever is already on the timeline. Omit nodeIds to arrange the whole storyboard; pass nodeIds to arrange only those shots. Use this when the videos are generated and the user wants to lay them out / preview / export the cut.",
+    parameters: z.object({
+      nodeIds: z
+        .array(z.string().min(1))
+        .max(48)
+        .optional()
+        .describe(
+          "Optional subset of shot node ids to arrange. Omit to arrange the entire storyboard in script order.",
+        ),
     }),
   }),
 } as const;

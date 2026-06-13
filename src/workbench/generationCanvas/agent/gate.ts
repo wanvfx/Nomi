@@ -34,6 +34,9 @@ const TOOL_META: Record<string, ToolMeta> = {
   delete_canvas_nodes: { writes: true, destructive: true },
   // S6b 受理语义:不写画布投影,但花真钱——costy 必问,确认前零网络调用。
   run_generation_batch: { writes: false, costy: true },
+  // 写时间轴(非画布投影,不花钱):非破坏、可撤销,但有可见副作用——按写操作走确认门(ask)。
+  // 锁不变量只管画布节点,evaluateLock 对此工具名返回 null,自然放行到 ask。
+  arrange_storyboard_to_timeline: { writes: true },
 }
 
 /**
