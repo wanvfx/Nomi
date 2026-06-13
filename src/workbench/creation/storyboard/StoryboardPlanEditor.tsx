@@ -4,6 +4,7 @@ import { cn } from '../../../utils/cn'
 import { alertDialog, confirmDialog } from '../../../design'
 import { useWorkbenchStore } from '../../workbenchStore'
 import { applyCanvasToolCall } from '../../generationCanvas/agent/applyCanvasToolCall'
+import { resolveStoryboardVideoDefault } from '../../generationCanvas/agent/availableModels'
 import { storyboardPlanToCreateNodesArgs } from '../../generationCanvas/agent/storyboardPlan'
 import {
   addAnchor,
@@ -70,8 +71,14 @@ export default function StoryboardPlanEditor(): JSX.Element | null {
     if (issues.length > 0 || landing) return
     setLanding(true)
     try {
-      // S4 待办：在此注入默认视频模型（Seedance 2.0）+ 时长钳；当前留空让用户在画布上选模型。
-      const args = storyboardPlanToCreateNodesArgs(plan)
+      // S4：注入默认视频模型（偏好 Seedance、选有 image_ref 槽的模式，参考才喂得进）+ 时长钳到模型上限。
+      // 解析失败/无可用视频模型 → 全空，视频节点不带模型，用户在画布上自己选（不阻断落画布）。
+      const videoDefault = await resolveStoryboardVideoDefault()
+      const args = storyboardPlanToCreateNodesArgs(plan, {
+        ...(videoDefault.modelKey ? { defaultVideoModelKey: videoDefault.modelKey } : {}),
+        ...(videoDefault.modeId ? { defaultVideoModeId: videoDefault.modeId } : {}),
+        ...(videoDefault.maxDurationSec ? { maxDurationSec: videoDefault.maxDurationSec } : {}),
+      })
       await applyCanvasToolCall('create_canvas_nodes', args)
       setStoryboardPlan(null)
       setWorkspaceMode('generation')

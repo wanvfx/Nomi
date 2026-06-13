@@ -100,6 +100,42 @@ export async function listAvailableModelsForAgent(): Promise<AgentModelEntry[]> 
   return buildAgentModelEntries([...imageOptions, ...videoOptions]);
 }
 
+/** 从一个模式的 duration 参数取最大时长（number 型取 max；select 型取选项最大值）。无则 undefined。 */
+function maxDurationFromMode(mode: AgentModelMode): number | undefined {
+  const dur = mode.params.find((param) => param.key === 'duration')
+  if (!dur) return undefined
+  if (typeof dur.max === 'number') return dur.max
+  const nums = (dur.options ?? []).map((opt) => Number(opt.value)).filter((n) => Number.isFinite(n))
+  return nums.length ? Math.max(...nums) : undefined
+}
+
+/**
+ * 分镜方案落画布时给视频镜头选的默认模型 + 模式 + 时长上限（S4）。
+ * 通用解析（不硬编码某 vendor，P4）：偏好名字含 seedance 的视频模型，否则取第一个可用视频模型；
+ * 模式选**声明了 image_ref 槽的那个**——角色/场景参考边（character_ref/style_ref→image_ref）
+ * 才连得上、喂得进（Seedance 即「全能参考」omni 模式）；无则回退默认模式。无可用视频模型 → 全空。
+ */
+export async function resolveStoryboardVideoDefault(): Promise<{ modelKey?: string; modeId?: string; maxDurationSec?: number }> {
+  let entries: AgentModelEntry[] = []
+  try {
+    entries = await listAvailableModelsForAgent()
+  } catch {
+    return {}
+  }
+  const videos = entries.filter((entry) => entry.kind === 'video')
+  if (videos.length === 0) return {}
+  const prefer =
+    videos.find((entry) => /seedance/i.test(`${entry.modelKey} ${entry.modelAlias ?? ''} ${entry.label}`)) ?? videos[0]
+  const refMode =
+    prefer.modes.find((mode) => mode.slots.some((slot) => slot.kind === 'image_ref')) ??
+    prefer.modes.find((mode) => mode.modeId === prefer.defaultModeId) ??
+    prefer.modes[0]
+  return {
+    modelKey: prefer.modelKey,
+    ...(refMode ? { modeId: refMode.modeId, maxDurationSec: maxDurationFromMode(refMode) } : {}),
+  }
+}
+
 /** 把可选模型清单格式化成注入 agent 系统提示词的紧凑文本。空清单返回 ''（不注入）。 */
 export function formatAvailableModelsForPrompt(entries: readonly AgentModelEntry[]): string {
   if (entries.length === 0) return "";

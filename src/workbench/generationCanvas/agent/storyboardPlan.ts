@@ -95,6 +95,7 @@ export type PlanCreatedNode = {
   title: string
   prompt: string
   modelKey?: string
+  modeId?: string
   params?: Record<string, string | number | boolean>
 }
 
@@ -111,8 +112,12 @@ export type PlanCreateNodesArgs = {
 }
 
 export type StoryboardPlanToArgsOptions = {
-  /** 视频镜头默认模型（对话拍板 Seedance 2.0）；调用方传入，不在此硬编码目录。 */
+  /** 视频镜头默认模型（偏好 Seedance 2.0，通用解析）；调用方传入，不在此硬编码目录。 */
   defaultVideoModelKey?: string
+  /** 默认模型的模式 id（选有 image_ref 槽的，参考才喂得进）；调用方传入。 */
+  defaultVideoModeId?: string
+  /** 镜头时长上限（所选默认模型支持的最大时长）；超过则钳到此值（落地不超模型上限）。 */
+  maxDurationSec?: number
 }
 
 const VISUAL_KINDS: ReadonlySet<PlanAnchorKind> = new Set(['character', 'scene', 'prop'])
@@ -178,13 +183,19 @@ export function storyboardPlanToCreateNodesArgs(
   // 镜头 → 视频节点 + 引用的视觉锚连参考边。
   for (const shot of plan.shots) {
     const id = shotClientId(shot)
+    // 时长钳到所选模型上限（S4「时长不超模型上限」铁律的落地点；无上限信息则原样）。
+    const duration =
+      options.maxDurationSec && options.maxDurationSec > 0
+        ? Math.min(shot.durationSec, options.maxDurationSec)
+        : shot.durationSec
     nodes.push({
       clientId: id,
       kind: 'video',
       title: `镜头 ${shot.index}`,
       prompt: buildShotPrompt(shot, anchorById),
       ...(options.defaultVideoModelKey ? { modelKey: options.defaultVideoModelKey } : {}),
-      ...(shot.durationSec > 0 ? { params: { duration: shot.durationSec } } : {}),
+      ...(options.defaultVideoModeId ? { modeId: options.defaultVideoModeId } : {}),
+      ...(duration > 0 ? { params: { duration } } : {}),
     })
     for (const anchorId of shot.anchorIds) {
       const anchor = anchorById.get(anchorId)

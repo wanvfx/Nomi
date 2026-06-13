@@ -26,12 +26,19 @@ describe('storyboardPlanToCreateNodesArgs', () => {
     ]) // a-style(文本锚)不在
   })
 
-  it('镜头 → 视频节点，时长入 params，默认模型可注入', () => {
-    const { nodes } = storyboardPlanToCreateNodesArgs(PLAN, { defaultVideoModelKey: 'seedance-2' })
+  it('镜头 → 视频节点，时长入 params，默认模型 + 模式可注入', () => {
+    const { nodes } = storyboardPlanToCreateNodesArgs(PLAN, { defaultVideoModelKey: 'seedance-2', defaultVideoModeId: 'omni' })
     const shotNodes = nodes.filter((n) => n.clientId.startsWith('shot-'))
     expect(shotNodes).toHaveLength(2)
-    expect(shotNodes[0]).toMatchObject({ clientId: 'shot-1', kind: 'video', title: '镜头 1', modelKey: 'seedance-2', params: { duration: 5 } })
+    expect(shotNodes[0]).toMatchObject({ clientId: 'shot-1', kind: 'video', title: '镜头 1', modelKey: 'seedance-2', modeId: 'omni', params: { duration: 5 } })
     expect(shotNodes[1].params).toEqual({ duration: 8 })
+  })
+
+  it('maxDurationSec 钳镜头时长到模型上限（S4：落地不超模型上限）', () => {
+    const { nodes } = storyboardPlanToCreateNodesArgs(PLAN, { maxDurationSec: 6 })
+    const shotNodes = nodes.filter((n) => n.clientId.startsWith('shot-'))
+    expect(shotNodes[0].params).toEqual({ duration: 5 }) // 5 ≤ 6 不变
+    expect(shotNodes[1].params).toEqual({ duration: 6 }) // 8 → 钳到 6
   })
 
   it('文本锚描述拼进引用它的镜头 prompt（不建边）', () => {
