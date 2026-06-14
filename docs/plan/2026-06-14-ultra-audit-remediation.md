@@ -13,13 +13,13 @@
 
 ### 相 1 · harness 主权/可观测（最高优先）
 - [x] **P0-1** EventLog 解析器回归（commit 4ad516e，已推送）。
-- [ ] **P0-7** 多步提议 abort 不跑补偿（I3 破）：abort 分支倒序应用 `compensation[]`（与 runProposalUndo 同一执行体），property test 补 abort + set_prompt + delete 用例。
+- [x] **P0-7** 多步提议 abort 跑完整补偿（commit 0fcd1fd）：抽 applyCompensationOps 与 undo 同源，abort 倒序应用并截掉失败步假补偿；补 abort+set_prompt+delete 回归。
 - [ ] **P1** clientId 全局 Map 切项目不重置 → 跨项目误连/误删：切项目/新会话时 clear registry。
-- [ ] **P1** gate 锁漏 `arrange_storyboard_to_timeline`：锁判定改"写工具未声明=进锁判定"，补该 case。
+- [~] **gate 锁 `arrange_storyboard_to_timeline`**：经核实**非 bug**——锁语义只禁「改节点」(prompt/删/重生成/入边)，排片是「用节点产物」(等同出边,设计明确放行)且仍走 ask 门。按 receiving-code-review 纪律不盲改。结构性「新写工具默认不进锁判定」的隐患另行评估。
 - [ ] **P2** redactDeep 黑名单→白名单加固；seq 单段全损恢复兜底；seedAgentChatV2History 注入 tool 操作摘要。
 
 ### 相 2 · 持久化/数据治理
-- [ ] **P0-2** 真删盘：`deleteProject` workspace 分支改 `fs.rmSync`（root 边界校验保留）。
+- [x] **P0-2** 真删盘（commit 1ebda46）：新增 deleteWorkspaceProject——native 真删、外部文件夹只解绑（双重边界防误删用户目录）；UI 文案/ toast 按 source 如实区分。
 - [ ] **P0-3** 草稿态延迟落盘 + 空壳 GC（退出/启动回收零编辑空项目）。
 - [ ] **P0-4 + 存量收敛**：一次性迁移——示例按 name 去重留最新 + 回填 seedKey；删空壳未命名。带 dry-run 日志。
 - [ ] **P1** discoverLegacyProjects 移出 list 热路径（只首次/手动同步）。
@@ -35,7 +35,7 @@
 - [ ] 文本三真相源（片段 ID 绑定）+「方案 vs 源文本」并排——**架构级，需 R7 + 独立 plan + 用户拍板 UX 方向**，本轮不强行。
 
 ### 相 4 · 画布/连边/节点控件
-- [ ] **P1** 手动连线能力校验收口到 `connectNodes` 总闸（复用 referenceEdgeCapability）。
+- [x] **P1** 手动连线能力校验收口（commit d881cc2）：validateReferenceEdge 进 store.connectToNode 总闸,失败 toast 反馈;补手动路径回归。
 - [ ] **P1** 跨分类边可见性与生效性同源 / reassignNodeCategory 同步处理边。
 - [ ] **P2/P3** 节点尺寸单一 getNodeSize（回退走 registry）；wheel 横轴命中 + 去热路径 getComputedStyle；弹层翻转/clamp 共用原语；usageCount 改结构化引用。
 
