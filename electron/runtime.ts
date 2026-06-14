@@ -211,6 +211,11 @@ function uniqueAssetPath(projectId: string, fileName: string, bucket: "generated
 function writeAsset(projectId: string, bytes: Buffer, fileName: string, contentType: string, meta: JsonRecord): unknown {
   const { absolutePath, relativePath } = uniqueAssetPath(projectId, fileName, assetBucketFromMeta(meta));
   fs.writeFileSync(absolutePath, bytes);
+  // sidecar: originalUrl 落盘，供后续生成直接取公网 URL（不需 vendor 上传 API）。
+  const sidecarOriginalUrl = typeof meta.originalUrl === "string" && /^https?:\/\//i.test(meta.originalUrl) ? meta.originalUrl : null;
+  if (sidecarOriginalUrl) {
+    try { fs.writeFileSync(`${absolutePath}.meta`, JSON.stringify({ originalUrl: sidecarOriginalUrl })); } catch { /* non-fatal */ }
+  }
   const url = localAssetUrl(projectId, relativePath);
   const t = nowIso();
   return {

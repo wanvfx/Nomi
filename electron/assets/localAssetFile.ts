@@ -30,7 +30,9 @@ export function absolutePathFromLocalAssetUrl(url: unknown, projectId: string): 
   }
 }
 
-/** R1：把 nomi-local URL(自带 projectId)读成字节 + contentType + 文件名,供 assetLocalization 上传/内联。 */
+/** R1：把 nomi-local URL(自带 projectId)读成字节 + contentType + 文件名,供 assetLocalization 上传/内联。
+ *  同时读 sidecar `.meta` 文件里的 originalUrl（生成素材落盘时写入），
+ *  供 assetLocalization 优先直接使用公网 URL 而无需转 base64 或调供应商上传 API。 */
 export function readNomiLocalAsset(url: string): LocalAsset | null {
   const prefix = "nomi-local://asset/";
   if (typeof url !== "string" || !url.startsWith(prefix)) return null;
@@ -48,10 +50,18 @@ export function readNomiLocalAsset(url: string): LocalAsset | null {
   const absolutePath = absolutePathFromLocalAssetUrl(url, projectId);
   if (!absolutePath) return null;
   try {
+    let originalUrl: string | undefined;
+    try {
+      const sidecar = JSON.parse(fs.readFileSync(`${absolutePath}.meta`, "utf8")) as Record<string, unknown>;
+      if (typeof sidecar.originalUrl === "string" && /^https?:\/\//i.test(sidecar.originalUrl)) {
+        originalUrl = sidecar.originalUrl;
+      }
+    } catch { /* sidecar 不存在或格式异常，忽略 */ }
     return {
       bytes: fs.readFileSync(absolutePath),
       contentType: contentTypeFromPath(absolutePath),
       fileName: relativePath.split("/").pop() || "asset",
+      originalUrl,
     };
   } catch {
     return null;

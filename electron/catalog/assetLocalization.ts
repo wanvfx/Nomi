@@ -7,7 +7,7 @@ import type { AssetIngestion } from "./types";
 
 const NOMI_LOCAL_PREFIX = "nomi-local://";
 
-export type LocalAsset = { bytes: Buffer; contentType: string; fileName: string };
+export type LocalAsset = { bytes: Buffer; contentType: string; fileName: string; originalUrl?: string };
 export type LocalAssetReader = (url: string) => LocalAsset | null;
 export type HttpPostJson = (url: string, headers: Record<string, string>, body: unknown) => Promise<unknown>;
 
@@ -55,6 +55,8 @@ export async function resolveLocalAsset(
   }
   const asset = read(localUrl);
   if (!asset) throw new Error(`本地素材读取失败：${localUrl}`);
+  // sidecar originalUrl 优先：公网 URL 所有 vendor 直接使用，不转 base64、不需供应商上传 API。
+  if (asset.originalUrl) return asset.originalUrl;
   const base64 = asset.bytes.toString("base64");
   const dataUrl = `data:${asset.contentType};base64,${base64}`;
 
