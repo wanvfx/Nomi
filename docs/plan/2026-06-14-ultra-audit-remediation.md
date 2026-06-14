@@ -9,6 +9,22 @@
 - **删除语义** → 真删盘（`fs.rmSync`，UI 名副其实）。
 - **导出引擎** → ffmpeg filtergraph 为唯一主路径、WebM 仅无 ffmpeg 降级；预览取景(fitMode/缩放/平移)写入 TimelineState 让导出 1:1 遵守。
 
+## 执行进度快照（2026-06-14 晚）
+**已完成并推送（~10 commit，单测 1128→1239，全程 TDD+五门）**：
+- 单项 P0/P1：P0-1 EventLog 解析器(4ad516e)、P0-7 abort 补偿(0fcd1fd)、P0-2 真删盘(1ebda46)、手动连边校验(d881cc2)。
+- Batch1（3 agent 并行+主 loop 验证合并）：runtime(7dca2b3)、scene3d(4c5e2ea)、timeline-export(a9eec7e)。
+- Batch2：canvas-geometry(61cbe94)、persistence-backend(2a96e6c)。
+- B1（主 loop 接手）：redact/seq/seed(fa4dd79)。
+- 巨壳瘦身：runtime 743→728、Scene3DFullscreen 3860→3827。
+- 复核非 bug：gate 锁 arrange_storyboard_to_timeline。
+
+**⚠️ 当前 main 状态**：并行会话提交 runtime.ts 至 732 行未同步 filesize 基线(728)→ `check:filesize` 红，待并行会话/用户处理（本任务未碰 runtime.ts 以免冲突）。
+
+**剩余（按原因分类，未自动完成）**：
+- 不可逆·需 dry-run 拍板：P0-3 GC+草稿态、P0-4 存量 88 收敛。
+- 耦合 seam·趁并行静默做：P0-6 storyboardPlan 持久化、流式 turn 控制器、clientId 切项目重置。
+- 架构·需 R7/真机验证：P0-5 导出引擎统一、P0-8 声明式 archetype、Scene3D 全拆、跨分类边可见性、弹层 clamp 原语、文本三真相源。
+
 ## 相位与状态
 
 ### 相 1 · harness 主权/可观测（最高优先）
