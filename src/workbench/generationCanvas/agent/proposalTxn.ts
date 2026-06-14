@@ -5,6 +5,7 @@
 // 撤销粒度:整笔提议打一个 barrier(批准是一次用户意志,§6.2);abort 时拔掉事务内 barrier,
 // Cmd+Z 永远撤不出半截态。
 import { applyCanvasToolCall, resolveCanvasToolNodeId } from './applyCanvasToolCall'
+import { applyCompensationOps } from './proposalUndo'
 import { generationCanvasTools } from './generationCanvasTools'
 import { reconcileProposal, type ReconcileResult } from './reconcile'
 import { emitCanvasGesture } from '../events/canvasEventEmitter'
@@ -76,6 +77,9 @@ export async function applyProposalBatch(steps: ProposalStep[]): Promise<Proposa
 
   for (let index = 0; index < steps.length; index += 1) {
     const step = steps[index]
+    // 本步开始前的补偿水位:set_node_prompt/delete 的补偿在 apply 前抢先 push,
+    // 若本步 apply 抛错则该补偿是假的(操作没真发生)→ 回滚时截到此水位,只回滚已完成步骤。
+    const compensationMark = compensation.length
     try {
       const before = generationCanvasTools.read_canvas()
       if (step.toolName === 'set_node_prompt') {
@@ -125,10 +129,15 @@ export async function applyProposalBatch(steps: ProposalStep[]): Promise<Proposa
       results.push(result)
     } catch (error: unknown) {
       const reason = error instanceof Error && error.message ? error.message : String(error)
-      // 补偿回滚:删掉本事务已建节点(连带其边),画布回到提议前投影(I3)。
-      const compensatedNodeIds = createdNodeIds.length
-        ? withCanvasGestureContext(ctx, () => generationCanvasTools.delete_nodes(createdNodeIds))
-        : []
+      // 截掉失败步抢先 push 的假补偿,只保留已完成步骤的补偿。
+      compensation.length = compensationMark
+      // 补偿回滚:倒序应用全部已完成步骤的补偿(删新建节点 + 还原改过的 prompt + 恢复删掉的节点 +
+      // 断开新连的边),画布逐字节回到提议前投影(I3)。与「整笔撤销」共用 applyCompensationOps(P1)。
+      const existedBefore = new Set(generationCanvasTools.read_canvas().nodes.map((node) => node.id))
+      if (compensation.length) withCanvasGestureContext(ctx, () => applyCompensationOps(compensation))
+      // compensatedNodeIds = 本事务新建且确被删掉的节点(事件回执沿用此语义)。
+      const stillExists = new Set(generationCanvasTools.read_canvas().nodes.map((node) => node.id))
+      const compensatedNodeIds = createdNodeIds.filter((id) => existedBefore.has(id) && !stillExists.has(id))
       // 拔掉指向事务中段的 barrier(含事务自己那个)——净零事件留在 journal 无害(前缀重放
       // 容忍),但 Cmd+Z 不许停在半截态上。
       dropUndoBarriersAfter(journalStart)

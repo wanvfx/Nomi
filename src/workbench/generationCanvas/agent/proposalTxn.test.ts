@@ -111,6 +111,39 @@ describe('applyProposalBatch — S6-2 提议事务状态机', () => {
     expect(captured.some((event) => event.type === 'agent.txn.committed')).toBe(false)
   })
 
+  it('中途失败 → 已成功的 set_node_prompt 必须回滚(I3 不只删新建节点)', async () => {
+    useGenerationCanvasStore.getState().addNode({ kind: 'image', title: '用户节点', prompt: '原始提示词' })
+    const nodeId = useGenerationCanvasStore.getState().nodes[0].id
+    const before = projection()
+
+    const outcome = await applyProposalBatch([
+      { toolCallId: 'tc-edit', toolName: 'set_node_prompt', effectiveArgs: { nodeId, prompt: 'AI 改的提示词' } },
+      { toolCallId: 'tc-fail', toolName: 'set_node_prompt', effectiveArgs: { nodeId: 'ghost-404', prompt: 'x' } },
+    ])
+
+    expect(outcome.status).toBe('aborted')
+    // 关键(P0-7):第 0 步成功改了既有节点 prompt,abort 必须用 restore-prompt 还原——
+    // 旧 abort 只删 createdNodeIds,这个改写被永久留下(I3 破)。
+    expect(useGenerationCanvasStore.getState().nodes[0].prompt).toBe('原始提示词')
+    expect(projection()).toEqual(before)
+  })
+
+  it('中途失败 → 已成功的 delete_canvas_nodes 必须恢复(I3 restore-graph 不能攒了不用)', async () => {
+    useGenerationCanvasStore.getState().addNode({ kind: 'image', title: '会被AI删', prompt: 'keep-me' })
+    const nodeId = useGenerationCanvasStore.getState().nodes[0].id
+    const before = projection()
+
+    const outcome = await applyProposalBatch([
+      { toolCallId: 'tc-del', toolName: 'delete_canvas_nodes', effectiveArgs: { nodeIds: [nodeId] } },
+      { toolCallId: 'tc-fail', toolName: 'set_node_prompt', effectiveArgs: { nodeId: 'ghost-404', prompt: 'x' } },
+    ])
+
+    expect(outcome.status).toBe('aborted')
+    // 关键(P0-7):AI 删了用户节点、事务又失败,abort 必须把节点恢复回来。
+    expect(useGenerationCanvasStore.getState().nodes).toHaveLength(1)
+    expect(projection()).toEqual(before)
+  })
+
   it('aborted 后 Cmd+Z 不会复活半截态(事务内 barrier 已拔)', async () => {
     useGenerationCanvasStore.getState().addNode({ kind: 'image', title: '用户自己的', prompt: 'mine' })
     const before = projection()

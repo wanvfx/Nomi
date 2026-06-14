@@ -99,6 +99,33 @@ export function detectLostUserEdits(record: CommittedProposalRecord): string[] {
 }
 
 /**
+ * 倒序应用补偿计划;对已消失目标全部容忍 no-op(用户先删了某个 AI 节点不会让回滚失败)。
+ * **整笔撤销(runProposalUndo)与事务 abort 回滚共用此唯一执行体**(I3 同源,守 P1 不留第二份)。
+ * 调用方负责包好 gesture context 与 barrier。
+ */
+export function applyCompensationOps(compensation: CompensationOp[]): void {
+  for (const op of [...compensation].reverse()) {
+    if (op.kind === 'delete-nodes') {
+      const existing = new Set(useGenerationCanvasStore.getState().nodes.map((node) => node.id))
+      op.nodeIds.filter((id) => existing.has(id)).forEach((id) => useGenerationCanvasStore.getState().deleteNode(id))
+    } else if (op.kind === 'disconnect-edges') {
+      for (const pair of op.pairs) {
+        const edge = useGenerationCanvasStore
+          .getState()
+          .edges.find((candidate) => candidate.source === pair.source && candidate.target === pair.target)
+        if (edge) useGenerationCanvasStore.getState().disconnectEdge(edge.id)
+      }
+    } else if (op.kind === 'restore-prompt') {
+      useGenerationCanvasStore.getState().updateNodePrompt(op.nodeId, op.prompt)
+    } else if (op.kind === 'restore-graph') {
+      useGenerationCanvasStore
+        .getState()
+        .restoreGraph(op.nodes as GenerationCanvasNode[], op.edges as GenerationCanvasEdge[])
+    }
+  }
+}
+
+/**
  * 执行整笔撤销:补偿计划倒序应用。对已消失目标全部容忍 no-op(用户先删了某个 AI 节点
  * 不会让撤销失败)。一个 barrier:撤销「撤销」= Cmd+Z。
  */
@@ -111,25 +138,7 @@ export function runProposalUndo(record: CommittedProposalRecord): void {
   }
   pushUndoSnapshot()
   withCanvasGestureContext(ctx, () => {
-    for (const op of [...record.compensation].reverse()) {
-      if (op.kind === 'delete-nodes') {
-        const existing = new Set(useGenerationCanvasStore.getState().nodes.map((node) => node.id))
-        op.nodeIds.filter((id) => existing.has(id)).forEach((id) => useGenerationCanvasStore.getState().deleteNode(id))
-      } else if (op.kind === 'disconnect-edges') {
-        for (const pair of op.pairs) {
-          const edge = useGenerationCanvasStore
-            .getState()
-            .edges.find((candidate) => candidate.source === pair.source && candidate.target === pair.target)
-          if (edge) useGenerationCanvasStore.getState().disconnectEdge(edge.id)
-        }
-      } else if (op.kind === 'restore-prompt') {
-        useGenerationCanvasStore.getState().updateNodePrompt(op.nodeId, op.prompt)
-      } else if (op.kind === 'restore-graph') {
-        useGenerationCanvasStore
-          .getState()
-          .restoreGraph(op.nodes as GenerationCanvasNode[], op.edges as GenerationCanvasEdge[])
-      }
-    }
+    applyCompensationOps(record.compensation)
     emitCanvasGesture([
       {
         type: 'agent.txn.reverted',
