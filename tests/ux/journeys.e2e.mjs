@@ -39,9 +39,11 @@ function singleProjectDir(projectsDir) {
 // ── J3 冷启动骨架:示例入口 → 项目自动创建 → 工作台可用 ──────────────────
 console.log("J3 新用户冷启动(骨架)");
 await withIsolatedApp("j3", async (win, iso) => {
-  const example = win.getByText("漫剧示例", { exact: false }).first();
+  // 空库冷启动 = 单主线 hero「30 秒体验」CTA(O2 起始页重排后,不再是独立「漫剧示例」卡);
+  // 用稳定的 data 属性(与 smoke.e2e 同源),不依赖会随文案漂移的可见文字。
+  const example = win.locator('[data-try-now-hero-cta]').first();
   await example.waitFor({ timeout: 10_000 });
-  assert(true, "冷启动首页有示例入口");
+  assert(true, "冷启动首页有示例入口(30 秒体验 hero)");
   await example.click();
   let projectDir = null;
   const deadline = Date.now() + 12_000;
@@ -68,6 +70,11 @@ await withIsolatedApp("j5", async (win, iso) => {
   const projectDir = singleProjectDir(iso.projectsDir);
   assert(projectDir !== null, "空白项目创建落盘");
 
+  // 新建空白项目落「创作」区(审计 A11:CTA「从一段文字或想法开始」→ 创作,显式声明落地视图);
+  // 要改画布节点需先切到「生成」视图,画布才挂载默认节点。
+  await win.getByRole("button", { name: "生成", exact: false }).first().click({ timeout: 8000 });
+  await win.waitForTimeout(1500);
+
   // 画布默认带一个待生成图片节点(标题「关键画面」);画布自管指针事件,
   // locator.click 会被拦——用坐标点击节点中心选中它。
   const box = await win.evaluate(() => {
@@ -81,13 +88,18 @@ await withIsolatedApp("j5", async (win, iso) => {
   assert(box !== null, "空白项目画布带默认待生成节点");
   await win.mouse.click(box.x, box.y);
   await win.waitForTimeout(1000);
-  // 参数面板的提示词输入是 Tiptap 编辑器([contenteditable]),不是 textarea
-  const promptBox = win.locator('[contenteditable="true"]').first();
+  // 参数面板的提示词输入是 Tiptap 编辑器([contenteditable]),不是 textarea。
+  // 必须取 :visible——创作区编辑器(workbench-editor__content)此刻也在 DOM 里但隐藏,
+  // 不加 :visible 会被 .first() 抓到那个隐藏的(切到生成视图后创作编辑器仍挂载)。
+  const promptBox = win.locator('[contenteditable="true"]:visible').first();
   await promptBox.waitFor({ state: "visible", timeout: 8000 });
   const MARK = `J5 回归提示词 ${Date.now()}`;
   await promptBox.click();
-  await promptBox.fill(MARK);
-  await win.waitForTimeout(1500); // 等持久化 debounce
+  // Tiptap(PromptEditor)用 .fill() 常不触发其 transaction/onChange;逐字键入 + 显式 blur
+  // (节点 PromptEditor 的 onBlur → persistActiveWorkbenchProjectNow 立即落盘)。
+  await promptBox.pressSequentially(MARK, { delay: 8 });
+  await promptBox.evaluate((el) => el.blur());
+  await win.waitForTimeout(1500); // 等持久化 debounce/flush
 
   const deadline = Date.now() + 10_000;
   let persisted = false;
