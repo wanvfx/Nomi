@@ -10,6 +10,7 @@ const NOMI_LOCAL_PREFIX = "nomi-local://";
 export type LocalAsset = { bytes: Buffer; contentType: string; fileName: string; originalUrl?: string };
 export type LocalAssetReader = (url: string) => LocalAsset | null;
 export type HttpPostJson = (url: string, headers: Record<string, string>, body: unknown) => Promise<unknown>;
+export type HttpPostMultipart = (url: string, headers: Record<string, string>, file: Buffer, fileName: string, contentType: string) => Promise<unknown>;
 
 export function isLocalAssetUrl(value: unknown): value is string {
   return typeof value === "string" && value.startsWith(NOMI_LOCAL_PREFIX);
@@ -49,6 +50,7 @@ export async function resolveLocalAsset(
   apiKey: string,
   read: LocalAssetReader,
   postJson: HttpPostJson,
+  postMultipart: HttpPostMultipart,
 ): Promise<string> {
   if (ingestion.strategy === "none") {
     throw new Error("当前供应商不支持本地素材上传，请改用公网图片 URL(或为该供应商声明 assetIngestion)");
@@ -62,7 +64,18 @@ export async function resolveLocalAsset(
 
   if (ingestion.strategy === "inline-base64") return dataUrl;
 
-  // upload-url
+  if (ingestion.strategy === "upload-multipart") {
+    // multipart/form-data 上传（如 apimart POST /v1/uploads/images）
+    const headers: Record<string, string> = { Authorization: `Bearer ${apiKey}` };
+    const response = await postMultipart(ingestion.endpoint, headers, asset.bytes, asset.fileName, asset.contentType);
+    const url = readNestedPath(response, ingestion.urlPath);
+    if (typeof url !== "string" || !url) {
+      throw new Error(`上传响应缺少可达 URL(期望路径 ${ingestion.urlPath})`);
+    }
+    return url;
+  }
+
+  // upload-url（base64 JSON，如 KIE）
   const body: Record<string, unknown> = {
     [ingestion.base64Field]: ingestion.dataUrlPrefix === false ? base64 : dataUrl,
   };
@@ -87,13 +100,14 @@ export async function localizeAssetsForVendor(
   apiKey: string,
   read: LocalAssetReader,
   postJson: HttpPostJson,
+  postMultipart: HttpPostMultipart,
 ): Promise<{ value: unknown; uploaded: number }> {
   const urls = Array.from(collectLocalAssetUrls(value));
   if (urls.length === 0) return { value, uploaded: 0 };
   const effective: AssetIngestion = ingestion ?? { strategy: "none" };
   const urlMap = new Map<string, string>();
   for (const url of urls) {
-    urlMap.set(url, await resolveLocalAsset(url, effective, apiKey, read, postJson));
+    urlMap.set(url, await resolveLocalAsset(url, effective, apiKey, read, postJson, postMultipart));
   }
   return { value: replaceLocalAssetUrls(value, urlMap), uploaded: urls.length };
 }
@@ -114,10 +128,9 @@ const CURATED_ASSET_INGESTION: Record<string, AssetIngestion> = {
     fileNameField: "fileName",
     urlPath: "data.downloadUrl",
   },
-  // apimart:image_urls / first_frame_image 直接收 data:image base64(多数图片模型 + Hailuo 文档明确支持),
-  // 无需独立上传端点 → inline-base64。已知边界:Qwen 改图仅收公网 URL(本地图会失败);VEO 官方建议走
-  // 资产上传 API——这两类的本地素材路径作后续增强(见 docs/plan apimart 计划)。
-  apimart: { strategy: "inline-base64" },
+  // apimart:POST /v1/uploads/images（multipart/form-data），返回有效 72h 公网 URL（field: url）。
+  // 统一走 upload-multipart，图片端点 inline-base64 也可，但 upload 路径对所有端点（视频）通用。
+  apimart: { strategy: "upload-multipart", endpoint: "https://api.apimart.ai/v1/uploads/images", urlPath: "url" },
 };
 
 /** 取某 vendor 的吞入策略:优先持久化声明,回退 curated 注册表。 */

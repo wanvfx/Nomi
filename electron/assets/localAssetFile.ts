@@ -68,9 +68,38 @@ export function readNomiLocalAsset(url: string): LocalAsset | null {
   }
 }
 
-/** R1 上传通道:固定可信端点(vendor 声明里),用普通 fetch(与 requestJson 一致)。 */
+/** R1 上传通道(JSON body):固定可信端点(vendor 声明里),用普通 fetch(与 requestJson 一致)。 */
 export async function postJsonForAssetUpload(url: string, headers: Record<string, string>, body: unknown): Promise<unknown> {
   const response = await fetch(url, { method: "POST", headers, body: JSON.stringify(body) });
+  const text = await response.text();
+  let json: unknown = null;
+  try {
+    json = text ? JSON.parse(text) : null;
+  } catch {
+    json = text;
+  }
+  if (!response.ok) {
+    const record = json && typeof json === "object" ? (json as Record<string, unknown>) : {};
+    const detail = [record.msg, record.message, record.error].find((value) => typeof value === "string" && value) || "";
+    throw new Error(`素材上传失败(HTTP ${response.status})：${detail || "(无详情)"}`);
+  }
+  return json;
+}
+
+/** R1 上传通道(multipart/form-data):apimart 等使用 file 字段二进制上传的供应商。 */
+export async function postMultipartForAssetUpload(
+  url: string,
+  headers: Record<string, string>,
+  file: Buffer,
+  fileName: string,
+  contentType: string,
+): Promise<unknown> {
+  const form = new FormData();
+  const arrayBuffer = file.buffer.slice(file.byteOffset, file.byteOffset + file.byteLength) as ArrayBuffer;
+  form.append("file", new Blob([arrayBuffer], { type: contentType }), fileName);
+  // 不手动设 Content-Type，fetch 会自动加 boundary。
+  const { "Content-Type": _drop, ...restHeaders } = headers;
+  const response = await fetch(url, { method: "POST", headers: restHeaders, body: form });
   const text = await response.text();
   let json: unknown = null;
   try {

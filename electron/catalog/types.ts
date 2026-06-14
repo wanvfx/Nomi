@@ -48,6 +48,15 @@ export type AssetIngestion =
       urlPath: string;
       /** 鉴权:复用 vendor 的 api key(默认 bearer)。 */
       authType?: "bearer";
+    }
+  | {
+      strategy: "upload-multipart";
+      /** 上传端点(完整 URL)。multipart/form-data，file 字段为二进制。 */
+      endpoint: string;
+      /** 响应里公网 URL 的点路径(如 apimart 的 "url")。 */
+      urlPath: string;
+      /** 鉴权:复用 vendor 的 api key(默认 bearer)。 */
+      authType?: "bearer";
     };
 
 export type Vendor = {

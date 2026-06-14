@@ -3,7 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { hardenedFetch } from "./hardenedFetch";
 import { localizeAssetsForVendor, resolveAssetIngestion } from "./catalog/assetLocalization";
-import { readNomiLocalAsset, postJsonForAssetUpload } from "./assets/localAssetFile";
+import { readNomiLocalAsset, postJsonForAssetUpload, postMultipartForAssetUpload } from "./assets/localAssetFile";
 import { endpoint } from "./vendorEndpoint";
 import { requestJson } from "./vendor/vendorHttp";
 import { buildNormalizedRecipe, buildTaskProvenance } from "./vendor/provenance";
@@ -468,6 +468,7 @@ export async function executeProfileOperation(input: {
     input.apiKey,
     readNomiLocalAsset,
     postJsonForAssetUpload,
+    postMultipartForAssetUpload,
   );
   const effectiveInput =
     localized.uploaded > 0
