@@ -129,12 +129,9 @@ export default function StoryboardPlanEditor(): JSX.Element | null {
         </div>
       </header>
 
-      <div className="flex items-center justify-between gap-2 px-4 py-1.5 bg-nomi-accent-soft text-nomi-accent text-caption">
-        <span className="inline-flex items-center gap-1.5 min-w-0">
-          <IconLockOpen size={14} stroke={1.6} className="shrink-0" />
-          <span className="truncate">AI 草拟的方案，随便改——确认前不生成、不花钱</span>
-        </span>
-        <span className="shrink-0 text-micro font-medium px-2 py-0.5 rounded-full bg-nomi-accent text-nomi-paper">规划免费</span>
+      <div className="flex items-center gap-1.5 px-4 py-1.5 border-b border-nomi-line-soft text-caption text-nomi-ink-40">
+        <IconLockOpen size={14} stroke={1.6} className="shrink-0" />
+        <span className="truncate"><span className="text-nomi-ink-60">AI 草拟，随便改</span> · 确认前不生成、不花钱</span>
       </div>
 
       <div className="overflow-y-auto px-4 py-4 flex flex-col gap-4">
@@ -143,7 +140,7 @@ export default function StoryboardPlanEditor(): JSX.Element | null {
             <span className="text-bodySm font-medium text-nomi-ink-80">跨镜头要一致的</span>
             <span className="text-micro text-nomi-ink-40">生成参考图=锁长相 · 仅提示词=写进 prompt</span>
           </div>
-          <div className="flex flex-col gap-1.5">
+          <div className="border border-nomi-line rounded-nomi divide-y divide-nomi-line-soft overflow-hidden">
             {plan.anchors.length === 0 && (
               <div className="text-caption text-nomi-ink-40 px-2.5 py-2">还没有锚——加一个，或直接写镜头。</div>
             )}
@@ -160,10 +157,10 @@ export default function StoryboardPlanEditor(): JSX.Element | null {
             <button
               type="button"
               onClick={() => setStoryboardPlan(addAnchor(plan))}
-              className="self-start h-6 px-2.5 rounded-full border border-dashed border-nomi-ink-20 text-caption text-nomi-ink-60 inline-flex items-center gap-1 hover:text-nomi-ink-80"
+              className="w-full flex items-center gap-1.5 px-2.5 py-2 bg-nomi-ink-05 text-caption text-nomi-ink-40 hover:text-nomi-ink-60 hover:bg-nomi-ink-10"
             >
               <IconPlus size={13} stroke={1.8} />
-              添加锚（角色/场景/道具/风格）
+              添加锚（角色 / 场景 / 道具 / 风格）
             </button>
           </div>
         </section>

@@ -1,22 +1,16 @@
 import React from 'react'
-import { IconAlertTriangle, IconBox, IconGripVertical, IconPalette, IconPhoto, IconPlus, IconTrash, IconUser, IconX } from '@tabler/icons-react'
+import { IconAlertTriangle, IconGripVertical, IconPlus, IconTrash, IconX } from '@tabler/icons-react'
 import { cn } from '../../../utils/cn'
 import { NomiSelect } from '../../../design'
 import { AutoGrowTextarea } from '../../ai/composer/AutoGrowTextarea'
-import type { PlanAnchor, PlanAnchorKind, PlanShot } from '../../generationCanvas/agent/storyboardPlan'
+import type { PlanAnchor, PlanShot } from '../../generationCanvas/agent/storyboardPlan'
 import { DURATION_OPTIONS_SEC } from '../../generationCanvas/agent/storyboardPlanEdits'
 
 /**
- * 镜卡（白底主轴）。参考 = 从锚多选：只渲染**已选**锚 chip + 一个「+参考」入口（点开内联列
- * 未选锚，不走 portal 零裁剪）。失效引用（锚被删）红 chip + ×，就地移除。时长走 NomiSelect 预设。
+ * 镜卡（白底主轴）。重设计 v4：白卡 + shadow-nomi-sm + 放大镜号,做成视觉主轴(比锚区设定面更有存在感)。
+ * 参考 = 从锚多选,**中性纯文字 chip**(不再满屏 accent-soft 蓝);失效引用红 chip + ×就地移除。
+ * 时长走 NomiSelect 预设。
  */
-
-const KIND_ICON: Record<PlanAnchorKind, typeof IconUser> = {
-  character: IconUser,
-  scene: IconPhoto,
-  prop: IconBox,
-  style: IconPalette,
-}
 
 type Props = {
   shot: PlanShot
@@ -55,7 +49,7 @@ export default function StoryboardShotCard(props: Props): JSX.Element {
       onDrop={props.onDrop}
       onDragEnd={props.onDragEnd}
       className={cn(
-        'border rounded-nomi p-3 bg-nomi-paper',
+        'border rounded-nomi p-3 bg-nomi-paper shadow-nomi-sm',
         props.isDragOver ? 'border-nomi-accent' : 'border-nomi-line',
       )}
     >
@@ -63,7 +57,7 @@ export default function StoryboardShotCard(props: Props): JSX.Element {
         <span className="shrink-0 cursor-grab text-nomi-ink-20 active:cursor-grabbing" aria-hidden>
           <IconGripVertical size={15} stroke={1.6} />
         </span>
-        <span className="text-body font-medium text-nomi-ink">镜 {shot.index}</span>
+        <span className="text-title font-semibold text-nomi-ink tabular-nums">镜 {shot.index}</span>
         <NomiSelect
           ariaLabel="时长"
           leadingLabel="时长"
@@ -77,26 +71,24 @@ export default function StoryboardShotCard(props: Props): JSX.Element {
           type="button"
           aria-label="删除镜头"
           onClick={onRemove}
-          className="size-7 grid place-items-center rounded-nomi-sm text-nomi-ink-40 hover:bg-nomi-ink-10 hover:text-nomi-ink-60"
+          className="size-7 grid place-items-center rounded-nomi-sm text-nomi-ink-30 hover:bg-nomi-ink-10 hover:text-nomi-ink-60"
         >
           <IconTrash size={14} stroke={1.6} />
         </button>
       </div>
 
-      <div className="flex items-center gap-1.5 flex-wrap mt-2">
+      <div className="flex items-center gap-1.5 flex-wrap mt-2.5">
         <span className="text-micro text-nomi-ink-40 mr-0.5">参考</span>
         {selected.map((id) => {
           const anchor = byId.get(id)!
-          const Icon = KIND_ICON[anchor.kind]
           return (
             <button
               key={id}
               type="button"
               onClick={() => onToggleAnchor(id)}
               title={`点一下取消引用 ${anchor.name || '该锚'}`}
-              className="h-6 px-2 rounded-full bg-nomi-accent-soft text-nomi-accent text-caption inline-flex items-center gap-1"
+              className="h-6 px-2.5 rounded-full bg-nomi-ink-05 text-nomi-ink-80 text-caption inline-flex items-center hover:bg-nomi-ink-10"
             >
-              <Icon size={12} stroke={1.8} />
               {anchor.name || '未命名'}
             </button>
           )
@@ -128,23 +120,19 @@ export default function StoryboardShotCard(props: Props): JSX.Element {
 
       {pickerOpen && unselected.length > 0 && (
         <div className="flex items-center gap-1.5 flex-wrap mt-1.5 pl-7">
-          {unselected.map((anchor) => {
-            const Icon = KIND_ICON[anchor.kind]
-            return (
-              <button
-                key={anchor.id}
-                type="button"
-                onClick={() => {
-                  onToggleAnchor(anchor.id)
-                  if (unselected.length === 1) setPickerOpen(false)
-                }}
-                className="h-6 px-2 rounded-full border border-nomi-line text-nomi-ink-60 text-caption inline-flex items-center gap-1 hover:border-nomi-ink-20 hover:text-nomi-ink-80"
-              >
-                <Icon size={12} stroke={1.8} className="text-nomi-ink-40" />
-                {anchor.name || '未命名'}
-              </button>
-            )
-          })}
+          {unselected.map((anchor) => (
+            <button
+              key={anchor.id}
+              type="button"
+              onClick={() => {
+                onToggleAnchor(anchor.id)
+                if (unselected.length === 1) setPickerOpen(false)
+              }}
+              className="h-6 px-2.5 rounded-full border border-nomi-line text-nomi-ink-60 text-caption inline-flex items-center hover:border-nomi-ink-20 hover:text-nomi-ink-80"
+            >
+              {anchor.name || '未命名'}
+            </button>
+          ))}
         </div>
       )}
 
@@ -161,7 +149,7 @@ export default function StoryboardShotCard(props: Props): JSX.Element {
         aria-label={`镜 ${shot.index} 提示词`}
         placeholder="这镜画什么：运镜 + 动作演进（不复述锚的静态描述）"
         className={cn(
-          'mt-2 px-2 py-2 rounded-nomi-sm border bg-nomi-paper',
+          'mt-2.5 px-2 py-2 rounded-nomi-sm border bg-nomi-paper',
           'text-bodySm text-nomi-ink-80 leading-normal focus:border-nomi-accent',
           promptInvalid ? 'border-workbench-danger' : 'border-nomi-line',
         )}
