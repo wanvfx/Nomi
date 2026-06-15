@@ -11,6 +11,9 @@ export function resolveCatalogKind(kind?: NodeKind): BillingModelKind {
   if (kind === 'video') {
     return 'video'
   }
+  if (kind === 'audio') {
+    return 'audio'
+  }
   return 'text'
 }
 

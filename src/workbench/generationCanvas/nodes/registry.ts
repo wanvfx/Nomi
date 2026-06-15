@@ -11,7 +11,7 @@ export type GenerationNodeRenderProps<TNode = unknown> = {
 export type GenerationNodeComponent = ComponentType<
     GenerationNodeRenderProps<any>
 >;
-export type GenerationNodeExecutionKind = "image" | "video" | "text";
+export type GenerationNodeExecutionKind = "image" | "video" | "text" | "audio";
 export type GenerationNodeIconKey =
     | "text"
     | "character"
@@ -22,7 +22,8 @@ export type GenerationNodeIconKey =
     | "shot"
     | "output"
     | "panorama"
-    | "scene3d";
+    | "scene3d"
+    | "audio";
 
 export type GenerationNodePluginDefinition<TKind extends string = string> = {
     kind: TKind;
@@ -141,6 +142,22 @@ export const GENERATION_NODE_PLUGINS = defineGenerationNodePlugins([
         quickAdd: true,
         agentCreatable: true,
         promptPlaceholder: "描述这一段视频的镜头、动作和节奏...",
+    },
+    {
+        // 声音：配音生成（TTS，文→音）/ 转写（Whisper，音→文）/ 上传音频。渲染走 audio-strip（按 kind 强制，
+        // 见 BaseGenerationNode renderKind 分发），生成类挂 composer（模式切换在 NodeGenerationComposer）。
+        kind: "audio",
+        label: "Audio",
+        menuLabel: "声音",
+        component: loadBaseGenerationNode,
+        icon: "audio",
+        defaultTitle: "声音",
+        defaultSize: { width: 420, height: 80 },
+        catalogKind: "audio",
+        executionKind: "audio",
+        quickAdd: true,
+        agentCreatable: true,
+        promptPlaceholder: "输入台词或旁白…",
     },
     {
         kind: "shot",

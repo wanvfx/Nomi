@@ -11,6 +11,7 @@ import { traceVendorCompleted, traceVendorRequested } from "./events/vendorCallT
 import { scheduleTechnicalReview } from "./review/reviewTrace";
 import { type AuthType, authHeaders as buildAuthHeaders, buildHttpRequest, buildTemplateContext, extractTaskId as extractTaskIdShared } from "./ai/requestPipeline";
 import { executeTextTask } from "./textTaskRunner";
+import { runAudioTask } from "./audioTaskRunner";
 import { firstString, isJsonRecord, nowIso, trim, type JsonRecord } from "./jsonUtils";
 import { collectAssetUrls, firstMappedString, providerMetaFromResponse, taskStatusFromResponse, valuesFromMapping } from "./tasks/responseParsing";
 import { TtlLruCache } from "./tasks/taskCache";
@@ -123,7 +124,7 @@ export type TaskResult = {
   kind: ProfileKind;
   status: "queued" | "running" | "succeeded" | "failed";
   assets: Array<{
-    type: "image" | "video";
+    type: "image" | "video" | "audio";
     url: string;
     thumbnailUrl?: string | null;
     assetId?: string | null;
@@ -368,6 +369,7 @@ function authHeaders(vendor: Vendor, apiKey: string): Record<string, string> {
 export function billingKindForTaskKind(kind: ProfileKind): BillingModelKind {
   if (kind === "text_to_video" || kind === "image_to_video") return "video";
   if (kind === "chat" || kind === "prompt_refine" || kind === "image_to_prompt") return "text";
+  if (kind === "text_to_audio" || kind === "image_to_audio" || kind === "transcribe") return "audio"; // 音频族走第四路同步收口
   return "image";
 }
 
@@ -390,16 +392,15 @@ function extractAssetUrl(raw: unknown): string {
   return firstString(...candidates);
 }
 
-async function localizeTaskAsset(projectId: string, assetUrl: string, type: "image" | "video", nodeId?: string): Promise<TaskResult["assets"][number]> {
+async function localizeTaskAsset(projectId: string, assetUrl: string, type: "image" | "video" | "audio", nodeId?: string): Promise<TaskResult["assets"][number]> {
   const imported = await importRemoteAsset({
     projectId,
     url: assetUrl,
     kind: "generated",
     ownerNodeId: nodeId || null,
-    fileName: `${type}-${Date.now()}.${type === "image" ? "png" : "mp4"}`,
+    fileName: `${type}-${Date.now()}.${type === "image" ? "png" : type === "video" ? "mp4" : "mp3"}`,
   }) as { id?: string; name?: string; data?: { url?: string; absolutePath?: string } };
-  // S4-2b V-a:落地后异步技术自检(黑帧/静音/解码),fire-and-forget 绝不挡结果呈现。
-  scheduleTechnicalReview({ projectId, nodeId, absolutePath: String(imported.data?.absolutePath || ""), assetUrl: String(imported.data?.url || assetUrl), type });
+  if (type !== "audio") scheduleTechnicalReview({ projectId, nodeId, absolutePath: String(imported.data?.absolutePath || ""), assetUrl: String(imported.data?.url || assetUrl), type }); // S4-2b:落地技术自检,仅图像/视频
   return {
     type,
     url: String(imported.data?.url || assetUrl),
@@ -562,6 +563,8 @@ export async function runTask(payload: unknown): Promise<TaskResult> {
   const taskId = `task-${crypto.randomUUID()}`;
   const mapping = findTaskMapping(vendorKey, kind, modelKey);
 
+  // 第四路 audio：TTS/Whisper 同步收口（二进制/multipart，不进 admit/poll）。
+  if (wantedKind === "audio") return runAudioTask({ vendor, model, apiKey, request, kind, taskId, projectId, nodeId, mapping });
   if (mapping) {
     // S8 指纹缓存:同配方(参数没动)秒回上次成功结果,零 vendor 调用;强制重跑经 extras.forceRerun 绕读。
     const recipe = buildNormalizedRecipe({ vendor, model, mappingId: trim((mapping as unknown as JsonRecord).id), request });
@@ -603,11 +606,8 @@ export async function runTask(payload: unknown): Promise<TaskResult> {
     return normalized.result;
   }
 
-  if (wantedKind === "text") {
-    // 路径 B 文本任务统一走 AI SDK（方案 A，引擎在 textTaskRunner）。runTask 这条不传 onDelta
-    // → 收集最终文本，对外契约（TaskResult.raw 形状）不变；逐字流式由 runTextTaskStream 消费。
-    return executeTextTask({ vendor, model, apiKey, kind, request, taskId });
-  }
+  // 路径 B 文本任务走 AI SDK（引擎在 textTaskRunner）；逐字流式由 runTextTaskStream 消费。
+  if (wantedKind === "text") return executeTextTask({ vendor, model, apiKey, kind, request, taskId });
 
   const suffix = wantedKind === "video" ? "/v1/videos/generations" : "/v1/images/generations";
   // S8 指纹缓存(fallback 路径同语义)。

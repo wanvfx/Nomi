@@ -1,20 +1,9 @@
 import React from 'react'
-import {
-  IconCopy,
-  IconCut,
-  IconPlayerPlay,
-  IconTimelineEventPlus,
-} from '@tabler/icons-react'
 import { WorkbenchButton } from '../../../design'
 import { cn } from '../../../utils/cn'
-import { toast } from '../../../ui/toast'
 import type { GenerationNodeKind } from '../model/generationCanvasTypes'
 import { getQuickAddGenerationNodePlugins } from '../nodes/renderRegistry'
 import { useGenerationCanvasStore } from '../store/generationCanvasStore'
-import { sendStoryboardToTimeline } from '../agent/sendStoryboardToTimeline'
-import { runGenerationNodesBatch } from '../runner/generationRunController'
-import { buildDependencyWaves } from '../runner/dependencyWaves'
-import { useBatchPlanPreviewStore } from './batchPlanPreview'
 
 const QUICK_ADD_NODE_ITEMS = getQuickAddGenerationNodePlugins()
 
@@ -22,7 +11,9 @@ const QUICK_ADD_NODE_ITEMS = getQuickAddGenerationNodePlugins()
 // toolbar and the right-click menu so they never diverge. The其它 quickAdd kinds
 // (角色/场景/关键帧/镜头/输出) are created by the agent / storyboard flow, not by
 // manual add — keeping this list short de-clutters the right-click menu.
-const PRIMARY_NODE_KINDS: GenerationNodeKind[] = ['text', 'image', 'video', 'panorama', 'scene3d']
+// 2026-06-15：左侧栏瘦身为「纯创建节点」——复制/剪切走快捷键(⌘C/⌘X)、批量生成移到选中浮条、
+// 发送到时间轴删除(节点可直接拖入时间轴)。这里只保留可手动新建的节点种类（含新增的「声音」）。
+const PRIMARY_NODE_KINDS: GenerationNodeKind[] = ['text', 'image', 'video', 'audio', 'panorama', 'scene3d']
 const PRIMARY_ADD_ITEMS = PRIMARY_NODE_KINDS
   .map((kind) => QUICK_ADD_NODE_ITEMS.find((item) => item.kind === kind))
   .filter((item): item is (typeof QUICK_ADD_NODE_ITEMS)[number] => Boolean(item))
@@ -89,9 +80,6 @@ type CanvasToolbarProps = {
 
 export default function CanvasToolbar({ getInsertionPosition, categoryId }: CanvasToolbarProps): JSX.Element {
   const addNode = useGenerationCanvasStore((state) => state.addNode)
-  const selectedNodeIds = useGenerationCanvasStore((state) => state.selectedNodeIds)
-  const copySelectedNodes = useGenerationCanvasStore((state) => state.copySelectedNodes)
-  const cutSelectedNodes = useGenerationCanvasStore((state) => state.cutSelectedNodes)
 
   const handleAddNode = (kind: GenerationNodeKind) => {
     addNode({ kind, position: getInsertionPosition(), categoryId })
@@ -122,77 +110,6 @@ export default function CanvasToolbar({ getInsertionPosition, categoryId }: Canv
           </WorkbenchButton>
         )
       })}
-      <span className={cn('w-5 h-px bg-workbench-border')} />
-      <WorkbenchButton
-        className={cn('w-8 h-8 min-h-8 p-0 border-0 rounded-nomi-sm cursor-pointer disabled:cursor-not-allowed disabled:opacity-[0.42]')}
-        aria-label="复制选中节点"
-        title="复制选中节点"
-        disabled={selectedNodeIds.length === 0}
-        onClick={copySelectedNodes}
-      >
-        <IconCopy size={15} />
-        <span className="hidden">复制</span>
-      </WorkbenchButton>
-      <WorkbenchButton
-        className={cn('w-8 h-8 min-h-8 p-0 border-0 rounded-nomi-sm cursor-pointer disabled:cursor-not-allowed disabled:opacity-[0.42]')}
-        aria-label="剪切选中节点"
-        title="剪切选中节点"
-        disabled={selectedNodeIds.length === 0}
-        onClick={cutSelectedNodes}
-      >
-        <IconCut size={15} />
-        <span className="hidden">剪切</span>
-      </WorkbenchButton>
-      <span className={cn('w-5 h-px bg-workbench-border')} />
-      <WorkbenchButton
-        className={cn('w-8 h-8 min-h-8 p-0 border-0 rounded-nomi-sm cursor-pointer disabled:cursor-not-allowed disabled:opacity-[0.42]')}
-        aria-label="批量生成选中节点"
-        title="生成选中节点（限并发 2，失败自动重试）"
-        data-storyboard-run-all="true"
-        disabled={selectedNodeIds.length === 0}
-        onClick={() => {
-          const ids = [...selectedNodeIds]
-          if (ids.length === 0) return
-          // S2b:批量不直接跑——先建依赖波次计划给用户确认(确认前零调用零扣费)。
-          // 例外:单节点且无依赖关系,确认条是噪音(R2),沿用直接生成。
-          const state = useGenerationCanvasStore.getState()
-          const plan = buildDependencyWaves(ids, { nodes: state.nodes, edges: state.edges })
-          if (plan.blocked.length === 0 && plan.waves.flat().length <= 1 && plan.edgesUsed.length === 0) {
-            toast(`开始生成…`, 'info')
-            void runGenerationNodesBatch(ids).catch((error: unknown) => {
-              toast(error instanceof Error && error.message ? error.message : '生成异常', 'error')
-            })
-            return
-          }
-          useBatchPlanPreviewStore.getState().open(plan)
-        }}
-      >
-        <IconPlayerPlay size={15} />
-        {/* 审计 A12：按钮语义对齐实际行为——生成「选中」，三处文案曾互相矛盾 */}
-        <span className="hidden">生成选中</span>
-      </WorkbenchButton>
-      <WorkbenchButton
-        className={cn('w-8 h-8 min-h-8 p-0 border-0 rounded-nomi-sm cursor-pointer disabled:cursor-not-allowed disabled:opacity-[0.42]')}
-        aria-label="把选中节点按剧本镜序发送到时间轴"
-        title="发送到时间轴（按剧本镜序排序）"
-        data-storyboard-send-to-timeline="true"
-        disabled={selectedNodeIds.length < 2}
-        onClick={() => {
-          const result = sendStoryboardToTimeline(selectedNodeIds)
-          if (!result.ok) {
-            toast('选中的节点都还没有可用资产，无法发送到时间轴', 'error')
-            return
-          }
-          if (result.skipped.length > 0) {
-            toast(`已发送 ${result.sent.length} / ${result.total} 节点（${result.skipped.length} 个尚未生成）`, 'info')
-          } else {
-            toast(`已发送 ${result.sent.length} 个节点到时间轴`, 'success')
-          }
-        }}
-      >
-        <IconTimelineEventPlus size={15} />
-        <span className="hidden">发送到时间轴</span>
-      </WorkbenchButton>
     </div>
   )
 }

@@ -1,5 +1,5 @@
 import React from 'react'
-import { IconCopy, IconCut, IconFolderPlus, IconX } from '@tabler/icons-react'
+import { IconFolderPlus, IconPlayerPlay, IconX } from '@tabler/icons-react'
 import { WorkbenchButton, WorkbenchIconButton } from '../../../design'
 import { toast } from '../../../ui/toast'
 import { cn } from '../../../utils/cn'
@@ -11,6 +11,9 @@ import { handleCanvasStageDrop } from './canvasStageDrop'
 import type { GenerationNodeKind } from '../model/generationCanvasTypes'
 import { getGenerationNodeComponent } from '../nodes/renderRegistry'
 import { useGenerationCanvasStore } from '../store/generationCanvasStore'
+import { runGenerationNodesBatch } from '../runner/generationRunController'
+import { buildDependencyWaves } from '../runner/dependencyWaves'
+import { useBatchPlanPreviewStore } from './batchPlanPreview'
 import { notifyModelOptionsRefresh, useModelOptionsState } from '../../../config/useModelOptions'
 import { useWorkbenchStore } from '../../workbenchStore'
 import { GroupFrameList } from './GroupFrame'
@@ -336,6 +339,24 @@ export default function GenerationCanvas({ readOnly = false }: GenerationCanvasP
     toast(`已创建「${group.name}」`, 'success')
   }, [activeCategoryId, groupSelectedNodes])
 
+  // 批量生成（从旧 CanvasToolbar 迁来——左侧栏瘦身后，这是「生成选中」的唯一入口）。
+  // 不傻批量：先算依赖波次（参考先生成→镜头后生成）。单节点无依赖直跑；多节点/有依赖弹确认条
+  // （确认前零调用零扣费，用户一眼看到先生成谁）。
+  const handleBatchGenerate = React.useCallback(() => {
+    const ids = [...selectedNodeIds]
+    if (ids.length === 0) return
+    const state = useGenerationCanvasStore.getState()
+    const plan = buildDependencyWaves(ids, { nodes: state.nodes, edges: state.edges })
+    if (plan.blocked.length === 0 && plan.waves.flat().length <= 1 && plan.edgesUsed.length === 0) {
+      toast('开始生成…', 'info')
+      void runGenerationNodesBatch(ids).catch((error: unknown) => {
+        toast(error instanceof Error && error.message ? error.message : '生成异常', 'error')
+      })
+      return
+    }
+    useBatchPlanPreviewStore.getState().open(plan)
+  }, [selectedNodeIds])
+
   const handleUngroupSelectedNodes = React.useCallback(() => {
     if (!selectedGroupIds.length) return
     ungroupGroups(selectedGroupIds)
@@ -655,7 +676,7 @@ export default function GenerationCanvas({ readOnly = false }: GenerationCanvasP
               <div
                 className={cn(
                   'generation-canvas-v2__selection-toolbar',
-                  'absolute z-[11] inline-flex items-center gap-1 px-[6px] py-1',
+                  'absolute z-[11] inline-flex items-center gap-1.5 px-2 py-1',
                   'border border-nomi-line rounded-full',
                   'bg-nomi-paper/[0.96] shadow-nomi-md pointer-events-auto',
                 )}
@@ -665,11 +686,26 @@ export default function GenerationCanvas({ readOnly = false }: GenerationCanvasP
                 aria-label="选中区域操作"
                 onPointerDown={(event) => event.stopPropagation()}
               >
-                <span className={cn('px-[6px] text-nomi-ink-60 text-micro whitespace-nowrap')}>{selectedCount} 个节点</span>
-                <WorkbenchIconButton label="创建分组 (⌘G)" icon={<IconFolderPlus size={14} />} onClick={handleGroupSelectedNodes} />
-                <WorkbenchIconButton label="复制选中节点" icon={<IconCopy size={14} />} onClick={copySelectedNodes} />
-                <WorkbenchIconButton label="剪切选中节点" icon={<IconCut size={14} />} onClick={cutSelectedNodes} />
-                <WorkbenchIconButton label="清除选择" icon={<IconX size={14} />} onClick={clearSelection} />
+                <span className={cn('pl-1 pr-0.5 text-nomi-ink-60 text-caption whitespace-nowrap')}>{selectedCount} 个节点</span>
+                {/* 主操作：批量生成（参考先行 + 确认条）。深色 pill 带文字，是多选的首要动作。 */}
+                <button
+                  type="button"
+                  data-storyboard-run-all="true"
+                  className={cn(
+                    'inline-flex items-center gap-1.5 h-7 px-3 rounded-full border-0 cursor-pointer',
+                    'bg-nomi-ink text-nomi-paper text-body-sm hover:bg-nomi-accent',
+                    'transition-colors duration-[var(--nomi-transition-fast)]',
+                  )}
+                  title="生成选中节点（参考先生成、镜头后生成；确认后才扣费）"
+                  onClick={handleBatchGenerate}
+                >
+                  <IconPlayerPlay size={15} stroke={1.8} aria-hidden />
+                  生成 {selectedCount} 个
+                </button>
+                <span className={cn('w-px h-4 bg-nomi-line')} />
+                {/* 复制/剪切已移除（⌘C / ⌘X 覆盖，去重复）；保留编组 + 清除。 */}
+                <WorkbenchIconButton label="创建分组 (⌘G)" icon={<IconFolderPlus size={16} />} onClick={handleGroupSelectedNodes} />
+                <WorkbenchIconButton label="清除选择" icon={<IconX size={16} />} onClick={clearSelection} />
               </div>
             ) : null}
           </div>

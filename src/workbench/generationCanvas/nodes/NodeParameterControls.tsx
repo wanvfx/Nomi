@@ -4,7 +4,7 @@ import { getDesktopActiveProjectId } from '../../../desktop/activeProject'
 import { deriveGenerationModelCatalogStatus, findModelOptionByIdentifier, useGenerationModelOptionsState } from '../adapters/modelOptionsAdapter'
 import { type ModelParameterControl } from '../../../config/modelCatalogMeta'
 import type { GenerationCanvasNode } from '../model/generationCanvasTypes'
-import { getGenerationNodeExecutionKind, isImageLikeGenerationNodeKind, isVideoLikeGenerationNodeKind } from '../model/generationNodeKinds'
+import { getGenerationNodeExecutionKind, isAudioLikeGenerationNodeKind, isImageLikeGenerationNodeKind, isVideoLikeGenerationNodeKind } from '../model/generationNodeKinds'
 import { useGenerationCanvasStore } from '../store/generationCanvasStore'
 import { importWorkbenchLocalAssetFile } from '../../api/assetUploadApi'
 import {
@@ -85,7 +85,9 @@ export default function NodeParameterControls({
   const isVideoLike = isVideoLikeGenerationNodeKind(node.kind)
   // C5：文本节点也是可生成节点（executionKind:'text'）——要渲染模型选择器，否则没处选模型。
   const isTextLike = getGenerationNodeExecutionKind(node.kind) === 'text'
-  const isGenerationNode = isImageLike || isVideoLike || isTextLike
+  // 声音节点同为可生成节点：要走模型自动选择(选到「声音」档案)→ ModeBar(配音/转写)+ 参数才显现。
+  const isAudioLike = isAudioLikeGenerationNodeKind(node.kind)
+  const isGenerationNode = isImageLike || isVideoLike || isTextLike || isAudioLike
 
   const selectedModelValue = readMeta(meta, 'modelKey') || readMeta(meta, 'modelAlias') || readMeta(meta, 'imageModel') || readMeta(meta, 'videoModel')
   const selectedModelOption = findModelOptionByIdentifier(modelOptions, selectedModelValue) || null

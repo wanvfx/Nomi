@@ -260,15 +260,13 @@ function BaseGenerationNodeImpl({
     const renderKind = isAssetKind
         ? undefined
         : ((node.renderKind as string | undefined) ??
-          (node.categoryId === "cast"
-              ? "character-card"
-              : node.categoryId === "scene"
-                ? "scene-card"
-                : node.categoryId === "prop"
-                  ? "prop-card"
-                  : node.categoryId === "audio"
-                    ? "audio-strip"
-                    : undefined));
+          // audio kind 强制 audio-strip（声音节点可建在任意分类，按 kind 而非 categoryId 渲染）。
+          (node.kind === "audio" ? "audio-strip"
+              : node.categoryId === "cast" ? "character-card"
+              : node.categoryId === "scene" ? "scene-card"
+              : node.categoryId === "prop" ? "prop-card"
+              : node.categoryId === "audio" ? "audio-strip"
+              : undefined));
     const isCardKind = ["character-card", "scene-card", "prop-card", "audio-strip"].includes(renderKind as string);
     // C5: 文本节点走专属可编辑 body（TextDocumentNode），像 card 那样脱离图片预览。
     const isTextKind = node.kind === "text";
@@ -870,9 +868,10 @@ function BaseGenerationNodeImpl({
                 </div>
             ) : null}
 
-            {/* composer：仅生成类节点 + 选中时浮出（A1.5 抽成 NodeGenerationComposer）。
-          素材节点（asset）/ 全景图不挂它；点中节点才弹出 prompt + 参数 + 生成按钮，未选中只看图。 */}
+            {/* composer：生成类节点 + **单选**时浮出。多选(框选)一律不挂——否则每个选中节点都弹自己的
+          大 composer 层叠糊成一片(用户反馈 bug，根因收口此唯一挂载入口)。批量生成走选中浮条。 */}
             {selected &&
+            !isMultiSelectActive &&
             !readOnly &&
             node.kind !== "panorama" &&
             node.kind !== "scene3d" &&

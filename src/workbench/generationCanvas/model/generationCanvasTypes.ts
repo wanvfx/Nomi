@@ -5,9 +5,9 @@ export type { GenerationNodeKind } from './generationNodeKinds'
 
 export type GenerationNodeStatus = 'idle' | 'queued' | 'running' | 'success' | 'error'
 
-export type GenerationResultType = 'image' | 'video' | 'text'
+export type GenerationResultType = 'image' | 'video' | 'text' | 'audio'
 
-export type GenerationNodeTaskKind = 'text' | 'image' | 'video' | 'workflow' | 'asset' | 'unknown'
+export type GenerationNodeTaskKind = 'text' | 'image' | 'video' | 'audio' | 'workflow' | 'asset' | 'unknown'
 
 export const CATEGORY_IDS = ['shots', 'cast', 'scene', 'prop', 'audio'] as const
 
@@ -34,6 +34,8 @@ export function getDefaultCategoryForNodeKind(kind: GenerationNodeKind): Builtin
     case 'panorama':
     case 'scene3d':
       return 'scene'
+    case 'audio':
+      return 'audio'
     default:
       return 'shots'
   }
