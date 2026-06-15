@@ -107,10 +107,22 @@ export function OnboardingChecklist(): JSX.Element | null {
   }, [])
 
   if (allDone) return null
+  // 仅在生成/预览出现：四步(拆镜/生成/导出)都活在画布→时间轴这条流水线，这里也有干净的
+  // 「浮在时间轴之上」落点；创作区右侧是创作助手(含输入框/建议 chip)自带引导，挂清单会撞它的
+  // composer(实测遮挡)。模型步在创作区点全局入口接入,切到生成区即见已勾。
+  if (workspaceMode !== 'generation' && workspaceMode !== 'preview') return null
 
-  // 生成区 minimap 占右下角（≥MINIMAP_MIN_NODES 节点时）→ 把清单抬到它之上，避遮挡。
+  // 锚点：右下角，浮在工作区底部时间轴之上（沿用 workbench-ai.css 的同款约定）。
+  //  - 生成区：浮在 --workbench-timeline-height 之上；≥6 节点时画布右下角有 minimap(120 高@bottom-6)
+  //            → 再抬到 minimap 之上(≈160px)避遮挡。
+  //  - 预览区：浮在 --workbench-preview-timeline-height 之上。
   const minimapPresent = workspaceMode === 'generation' && nodes.length >= MINIMAP_MIN_NODES
-  const anchor = cn('fixed right-5 z-[40]', minimapPresent ? 'bottom-40' : 'bottom-5')
+  const timelineVar =
+    workspaceMode === 'preview'
+      ? 'var(--workbench-preview-timeline-height)'
+      : 'var(--workbench-timeline-height)'
+  const bottom = `calc(${timelineVar} + ${minimapPresent ? '10rem' : '1.25rem'})`
+  const anchorStyle: React.CSSProperties = { bottom, right: '1.25rem' }
 
   if (collapsed) {
     return (
@@ -118,9 +130,10 @@ export function OnboardingChecklist(): JSX.Element | null {
         type="button"
         onClick={toggleCollapsed}
         data-onboarding-checklist="collapsed"
+        style={anchorStyle}
         aria-label={`上手 4 步，已完成 ${doneCount} / ${ALL_KEYS.length}`}
         className={cn(
-          anchor,
+          'fixed z-[40]',
           'inline-flex items-center gap-2 h-8 px-2.5 cursor-pointer font-inherit',
           'rounded-full border border-nomi-line bg-nomi-paper shadow-nomi-sm',
           'text-body-sm text-nomi-ink-80 transition-colors hover:border-nomi-ink-20',
@@ -139,9 +152,10 @@ export function OnboardingChecklist(): JSX.Element | null {
     <section
       data-onboarding-checklist="expanded"
       aria-label="上手 4 步"
+      style={anchorStyle}
       className={cn(
-        anchor,
-        'w-[258px] overflow-hidden',
+        'fixed z-[40]',
+        'w-64 overflow-hidden',
         'rounded-nomi border border-nomi-line bg-nomi-paper shadow-nomi-md',
       )}
     >

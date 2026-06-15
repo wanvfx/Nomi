@@ -27,6 +27,12 @@ const win = await app.firstWindow();
 await win.waitForLoadState("domcontentloaded");
 await win.waitForTimeout(1500);
 
+// 首启开屏(SplashIntro)会全屏覆盖挡住库页 → 标记已看过并 reload，让后续库页断言可见。
+await win.evaluate(() => window.localStorage.setItem("nomi:splash:v1", "seen"));
+await win.reload();
+await win.waitForLoadState("domcontentloaded");
+await win.waitForTimeout(1500);
+
 try {
   // ── 本会话回归点 #C(库页)：项目卡无封面时缩略图区不重复项目名（名称只在卡下方一次）──
   // 缩略图区可能含 hover 浮层的「继续创作」按钮，故不查「有无文字」，而查「项目名是否漏进缩略图」。
@@ -79,7 +85,13 @@ try {
   if (start.weakEntryShown) assert(start.weakEntryH === 28, "模型接入弱钮高 28（弱于动作卡两级）", String(start.weakEntryH));
   else console.log("  ⊘ 弱入口高度核对 — 跳过（当前为缺模型态，弱入口按规则隐藏）");
 
-  await win.locator('[role="button"]', { hasText: "示例：30 秒产品介绍" }).first().click();
+  // 进工作区：优先开示例项目；当前 profile 没有它(如全新/隔离 profile)则用空库 hero CTA 现造一个。
+  const exampleCard = win.locator('[role="button"]', { hasText: "示例：30 秒产品介绍" }).first();
+  if (await exampleCard.count().then((n) => n > 0).catch(() => false)) {
+    await exampleCard.click().catch(() => {});
+  } else {
+    await win.locator("[data-try-now-hero-cta]").first().click().catch(() => {});
+  }
   await win.waitForTimeout(2500);
   await win.getByRole("button", { name: "生成", exact: false }).first().click().catch(() => {});
   await win.waitForTimeout(1000);
