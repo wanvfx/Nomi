@@ -870,9 +870,12 @@ function BaseGenerationNodeImpl({
                 </div>
             ) : null}
 
-            {/* composer：仅生成类节点 + 选中时浮出（A1.5 抽成 NodeGenerationComposer）。
-          素材节点（asset）/ 全景图不挂它；点中节点才弹出 prompt + 参数 + 生成按钮，未选中只看图。 */}
+            {/* composer：仅生成类节点 + **单选**时浮出（A1.5 抽成 NodeGenerationComposer）。
+          素材节点（asset）/ 全景图不挂它；点中单个节点才弹出 prompt + 参数 + 生成按钮，未选中只看图。
+          多选（框选 N 个）时一律不挂——否则每个被选中节点都弹自己那个大 composer，层叠糊成一片
+          （用户反馈 bug，根因收口在此唯一挂载入口：单选才挂，多选恒不挂）。批量生成走选中浮条。 */}
             {selected &&
+            !isMultiSelectActive &&
             !readOnly &&
             node.kind !== "panorama" &&
             node.kind !== "scene3d" &&
