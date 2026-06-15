@@ -62,7 +62,9 @@ export const AUDIO_ARCHETYPE: ModelArchetype = {
       promptRequired: false,
       transportTaskKind: "transcribe",
       modelEnum: "whisper-1",
-      slots: [{ kind: "audio_ref", label: "音频", min: 1, max: 1, inputKey: "file", asArray: false }],
+      // audio_ref 用默认数组槽（asArray，paramKey reference_audio_urls）→ 渲染为可上传/拖入的参考块；
+      // max 1（whisper 单文件）。runner 取 reference_audio_urls[0] 作 multipart 的 file。
+      slots: [{ kind: "audio_ref", label: "音频", min: 1, max: 1 }],
       params: TRANSCRIBE_PARAMS,
     },
   ],
