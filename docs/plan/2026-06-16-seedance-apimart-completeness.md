@@ -22,11 +22,12 @@
 1. **全能参考（omni）模式**：image_ref(≤9,image_urls) + video_ref(≤3,video_urls) + audio_ref(≤3,audio_urls)。走档案级 image_to_video 桶（同 kie omni"一条 body 覆盖多模式，空键自动丢"），i2v body 补 video_urls/audio_urls/size。
 2. **Fast 变体**：`doubao-seedance-2.0-fast` → 独立 fast 档案（resolution 仅 480/720），同模式同结构（仿 kie SEEDANCE_2_FAST_ARCHETYPE）。
 
-## 暂缓（需构造层 / 额度 E2E，单列后续）
+## 必须接手做完（用户："不是暂缓，必须完整做完，这个模型非常重要"）→ 详细交接见 [docs/handoff/2026-06-16-seedance-apimart-complete.md](../handoff/2026-06-16-seedance-apimart-complete.md)
 
-- **首尾帧（image_with_roles）**：需条件构造 `[{url,role}]` 对象数组（模板只能丢空键、丢不掉空数组元素）→ 要 archetypeInput 构造支持。kie Seedance 已有首尾帧（分离键），需首尾帧的用户暂走 kie。
-- **face / fast-face 变体**（真人版）、seed / return_last_frame 参数。
-- **真实生成 E2E 验证**（接入即验证铁律，烧额度）：补完后跑一条 apimart Seedance 全能参考真实生成确认 transport。
+- **首尾帧（image_with_roles）**：需在构造层（`archetypeMeta.buildArchetypeInputParams`）组装 `[{url,role}]`，只放有值的帧（模板引擎丢不掉 `{url:undefined,...}` 对象元素）。交接文档 §2A 给了数据驱动设计（slot.role + mode.combineSlotsInto）。
+- **face / fast-face 变体** + **seed / return_last_frame 参数**。
+- **真实生成 E2E 验证**（接入即验证铁律，烧额度）：跑一条全能参考 + 一条首尾帧确认 transport。
+- 与官方文档 §1 全表**逐项对账打钩**。
 
 ## 验收门
 五门全过；真实 E2E（额度门，待跑）。
