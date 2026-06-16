@@ -81,7 +81,7 @@ Sora `-pro`、Hailuo `-Fast`、Qwen `-pro`、Gemini `-official`。**这些变体
 seed(Wan)、negative_prompt(Kling/Wan/Qwen)、n(Seedream/Gemini/Qwen)、watermark(多视频)、prompt_extend/optimizer(Wan/Hailuo/Z-Image)。
 
 ## 3. 执行切片（建议顺序）
-- **S0 拍板**：变体选择器 UX（4选段 vs 2×2）+ 是否同时做合并+对齐 vs 先对齐后合并。出 R8 样张。
+- **S0 拍板** ✅ 已定（2026-06-16）：**方案 A——通用 4 选段变体选择器**（仿 ModeBar「生成方式」分段，token 合规）。不用 B 的 2×2 双开关（只适配 Seedance 特例，其它模型变体结构不同会 UX 混用）。样张见对话 model_variant_consolidation。
 - **S1 变体轴地基**：types `variants` + archetypeMeta 三件套 + specializeForVariant + buildArchetypeInputParams 写 out.model。单测（变体→modelKey、变体→params 收窄、旧 modelKey 迁移到 variantId）。
 - **S2 Seedance 试点合并**：seedanceApimart 声明 variants + apimartVideos 合1+body model + seedBuiltins 合1 + 迁移层。真实 E2E（4 变体各发对 modelKey）。
 - **S3 UI 变体选择器**：VariantBar 组件(仿 ModeBar,token合规) + picker 折叠 family + 渲染变体特化。R13 走查。
