@@ -22,9 +22,11 @@
 → 实现见同上 plan。通用 combineSlotsInto 原语 + 首尾帧 image_with_roles + face/fast-face + seed + catalog。
 **剩 return_last_frame**：官方两页都没给响应尾帧字段名 → 待真实 E2E 主进程埋点拿字段名后闭环（见下 M-D）。
 
-### M-D. 真实生成 E2E ⏳ 待 apimart key（A/C 的接入即验证收口）
-apimart Seedance 首尾帧 + 视频接力各跑一条真实生成；主进程埋点抓请求体确认 image_with_roles:[{url,role}] 结构、
-首帧填的是抽出的 nomi-local 帧（非视频 URL）；顺带从响应拿 return_last_frame 尾帧字段名闭环它。烧额度，需 key。
+### M-D. 真实生成 E2E ✅ 已完成（`tests/ux/seedance-apimart.e2e.mjs`，7 断言全过）
+apimart Seedance 首尾帧真实生成（image_with_roles 被接受、真实出片）+ M-A 抽帧（真实视频→尾帧→nomi-local）端到端验证。
+opt-in 烧额度（`APIMART_E2E=1 node tests/ux/seedance-apimart.e2e.mjs`，用 app 已配 apimart key 自解密）。
+**唯一剩**：return_last_frame 完整闭环——官方文档没给响应尾帧字段名，需在 catalog body 加 return_last_frame:true 跑一次真实
+E2E 抓响应体拿字段名 → 解析存 lastFrameUrl → 喂 relayFrameResolver 策略①（已预留接口）。低优先（抽帧已能接力）。
 
 ### 3. ①② 的 Playwright E2E 回归锁
 本轮 ①②（批量不弹模态 / 参考×断边）受工具 + 额度限制**没做交互级真机走查**（只过单测；③④ 真机验过了）。补一个带状态注入的 Playwright E2E（`tests/ux/`），把这两条钉成可复跑回归：

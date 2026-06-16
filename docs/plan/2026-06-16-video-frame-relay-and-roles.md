@@ -53,8 +53,11 @@
   + seed + catalog image_with_roles。根治 mapping id 撞（idKey）。单测 8（含「假想第二模型」通用性断言）。五门绿。
 - **~~M-B storyboard 自动重连~~ 已取消**：用户拍板「shot→shot 自动链删除 → 保留」（与交接 §2C 冲突，按 R3 以用户为准）。
   不自动连——多数分镜切镜头，强行首帧接力反而错；连贯靠共享定妆/场景卡。M-A 已让手动 video→video 边真抽帧、根治潜伏 batch bug。
-- **M-D 真实 E2E** ⏳ **待 apimart key**（烧额度，已授权但测试环境需 key）：① 首尾帧真实生成抓请求体确认 image_with_roles
-  结构；② 视频接力确认首帧填的是抽出的 nomi-local 帧；③ 顺带从真实响应拿 return_last_frame 尾帧字段名 → 闭环它。
+- **M-D 真实 E2E** ✅ **已完成并通过**（`tests/ux/seedance-apimart.e2e.mjs`，opt-in 烧额度，用 app 已配 apimart key 自解密）：
+  ① 首尾帧真实生成 → apimart 接受 image_with_roles(未 400) → 轮询 ~5min → **真实出片**(apib.ai mp4)；
+  ② M-A 抽帧：对生成的真实视频抽尾帧 → https 下载+ffmpeg+writeAsset → **nomi-local 素材**。7 项断言全过。
+  真实 E2E 顺带抓出一个真问题:duration 必须 int(string 被 apimart 400)——核实真实渲染流程发 number(taskParams.ts:39)、
+  仅测试 artifact，非产品 bug。③ return_last_frame 字段名：留作单独跟进（需在 body 加 return_last_frame:true 再跑一次抓响应）。
 - A/C 已完成：typecheck/filesize/tokens/lint/build + 1429 单测 + 零额度 e2e(smoke10/ipc6/cold9) 全绿；R13 画布 build 后健康。
 
 ## 不动什么
