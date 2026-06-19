@@ -69,6 +69,18 @@ export type DesktopExportTempInputWriteResult = {
 
 export type { ExportJobEvent, ExportJobSnapshot }
 
+/** 应用信息（功能需求1 查看版本号）。 */
+export type DesktopAppInfo = { version: string; platform: string; arch: string }
+
+/** 主进程更新状态广播（功能需求2/3）。renderer 状态机纯 derive 自此事件。 */
+export type DesktopUpdateEvent =
+  | { type: 'checking' }
+  | { type: 'up-to-date' }
+  | { type: 'available'; version: string; notes: string }
+  | { type: 'progress'; percent: number }
+  | { type: 'downloaded'; version: string }
+  | { type: 'error'; message: string }
+
 export type DesktopBridge = {
   platform: string
   workspace: {
@@ -226,6 +238,14 @@ export type DesktopBridge = {
       status?: number
       error?: string
     }>
+  }
+  /** 版本号 + 检查更新 + 一键更新（功能需求1/2/3）。check/download/install 用户显式触发，进度/状态走 onEvent。 */
+  update?: {
+    appInfo: () => Promise<DesktopAppInfo>
+    check: () => Promise<{ ok: boolean; reason?: string }>
+    download: () => Promise<{ ok: boolean }>
+    install: () => Promise<{ ok: boolean }>
+    onEvent: (callback: (event: DesktopUpdateEvent) => void) => () => void
   }
   modelCatalog: {
     listVendors: () => unknown[]

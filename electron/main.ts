@@ -49,6 +49,7 @@ import { catalogSecretsProvider } from "./events/secretsProvider";
 import { VendorRequestError, encodeVendorErrorMessage } from "./vendor/vendorHttp";
 import { traceVendorCompleted } from "./events/vendorCallTrace";
 import { registerOnboardingIpc } from "./ai/onboarding/onboardingIpc";
+import { registerUpdaterIpc } from "./update/autoUpdater";
 
 // 尽早安装：捕获引导阶段起的 uncaughtException / unhandledRejection，落盘到 app logs（P0-8）。
 installCrashHandlers();
@@ -300,6 +301,7 @@ function registerIpc(): void {
   registerEventsIpc();
   registerMemoryIpc();
   registerOnboardingIpc();
+  registerUpdaterIpc();
   // S4-1 评测安全铁律:事件落盘前,已配置的 vendor key 精确匹配脱敏(形态兜底之外的地基)。
   setEventLogSecretsProvider(catalogSecretsProvider);
 }

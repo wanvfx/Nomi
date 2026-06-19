@@ -158,6 +158,19 @@ contextBridge.exposeInMainWorld("nomiDesktop", {
       };
     },
   },
+  update: {
+    appInfo: () => ipcRenderer.invoke("nomi:app:version"),
+    check: () => ipcRenderer.invoke("nomi:update:check"),
+    download: () => ipcRenderer.invoke("nomi:update:download"),
+    install: () => ipcRenderer.invoke("nomi:update:install"),
+    onEvent: (callback: (event: unknown) => void) => {
+      const listener = (_event: unknown, payload: unknown) => callback(payload);
+      ipcRenderer.on("nomi:update:event", listener as never);
+      return () => {
+        ipcRenderer.removeListener("nomi:update:event", listener as never);
+      };
+    },
+  },
   modelCatalog: {
     listVendors: () => invokeSync("nomi:model-catalog:vendors:list"),
     listModels: (params?: unknown) => invokeSync("nomi:model-catalog:models:list", params),

@@ -3,6 +3,7 @@ import { IconDownload, IconPhoto, IconPlugConnected } from '@tabler/icons-react'
 import type { WorkspaceMode } from '../../workbench/workbenchStore'
 import { NomiBrand, NomiStepper, WorkbenchButton } from '../../design'
 import { OnboardingChecklist } from '../../workbench/onboarding/OnboardingChecklist'
+import { AboutNomiPopover } from './AboutNomiPopover'
 import { cn } from '../../utils/cn'
 
 // 「素材库」点击 → 打开真实素材库面板（不再直接弹文件对话框）。
@@ -23,6 +24,8 @@ type NomiAppBarProps = {
 export default function NomiAppBar({ workspaceMode, onWorkspaceModeChange, projectName, onBackToLibrary, onOpenModelCatalog, onRenameProject }: NomiAppBarProps): JSX.Element {
   const [editingProjectName, setEditingProjectName] = React.useState(false)
   const [projectTitle, setProjectTitle] = React.useState(projectName || '未命名 Nomi 项目')
+  const [aboutOpen, setAboutOpen] = React.useState(false)
+  const brandRef = React.useRef<HTMLButtonElement | null>(null)
 
   React.useEffect(() => {
     if (!editingProjectName && projectName) setProjectTitle(projectName)
@@ -57,7 +60,24 @@ export default function NomiAppBar({ workspaceMode, onWorkspaceModeChange, proje
         'inline-flex items-center gap-3 min-w-0',
         'max-[700px]:gap-0',
       )}>
-        <NomiBrand />
+        <button
+          ref={brandRef}
+          type="button"
+          className={cn(
+            'nomi-appbar__brand-btn',
+            'inline-flex items-center border-0 bg-transparent p-0 cursor-pointer rounded-[var(--nomi-radius-sm)]',
+            'transition-[opacity] duration-[var(--nomi-transition-fast)] hover:opacity-80',
+          )}
+          aria-label="关于 Nomi · 检查更新"
+          aria-haspopup="dialog"
+          aria-expanded={aboutOpen}
+          onClick={() => setAboutOpen((open) => !open)}
+        >
+          <NomiBrand />
+        </button>
+        {aboutOpen ? (
+          <AboutNomiPopover anchorEl={brandRef.current} onClose={() => setAboutOpen(false)} />
+        ) : null}
         <span
           className={cn(
             'nomi-appbar__divider',
