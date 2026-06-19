@@ -124,16 +124,16 @@ contextBridge.exposeInMainWorld("nomiDesktop", {
     },
   },
   onboarding: {
-    start: (payload: unknown) =>
-      ipcRenderer.invoke("nomi:onboarding:start", payload) as Promise<{ trialId: string }>,
-    cancel: (trialId: string) =>
-      ipcRenderer.invoke("nomi:onboarding:cancel", { trialId }),
     manualCommit: (payload: unknown) =>
       ipcRenderer.invoke("nomi:onboarding:manual-commit", payload) as Promise<{
         ok: boolean;
         vendorKey?: string;
         committed?: Array<{ modelKey: string; displayName: string }>;
         error?: string;
+      }>,
+    guessKinds: (payload: unknown) =>
+      ipcRenderer.invoke("nomi:onboarding:guess-kinds", payload) as Promise<{
+        kinds: Record<string, "text" | "image" | "video">;
       }>,
     testConnection: (payload: unknown) =>
       ipcRenderer.invoke("nomi:onboarding:test-connection", payload) as Promise<{
@@ -148,15 +148,6 @@ contextBridge.exposeInMainWorld("nomiDesktop", {
         status?: number;
         error?: string;
       }>,
-    onEvent: (trialId: string, callback: (event: unknown) => void) => {
-      const listener = (_event: unknown, payload: { trialId: string; event: unknown }) => {
-        if (payload && payload.trialId === trialId) callback(payload.event);
-      };
-      ipcRenderer.on("nomi:onboarding:event", listener as never);
-      return () => {
-        ipcRenderer.removeListener("nomi:onboarding:event", listener as never);
-      };
-    },
   },
   update: {
     appInfo: () => ipcRenderer.invoke("nomi:app:version"),

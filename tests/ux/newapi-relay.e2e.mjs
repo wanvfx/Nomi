@@ -40,6 +40,11 @@ try {
   await win.waitForLoadState("domcontentloaded");
   await win.waitForTimeout(1200);
 
+  // ⓪ 拉取模型：裸地址（不带 /v1）也能拉到（listModels 兜底重试 /v1/models）。
+  console.log("\n▶ ⓪ 拉取模型（裸地址兜底 /v1/models）");
+  const listed = await win.evaluate(async (base) => window.nomiDesktop.onboarding.listModels({ baseUrl: base, apiKey: "sk-mock", providerKind: "openai-compatible" }), MOCK_BASE);
+  check("裸地址拉到模型", !!listed?.ok && (listed.models || []).length === 7, `ok=${listed?.ok} n=${(listed?.models || []).length}`);
+
   // ① 接入：manualCommit 一个 new-api 中转（指向 mock），混合图片+视频。
   console.log("\n▶ ① 接入 new-api 中转（mock）");
   const commit = await win.evaluate(async (base) => {

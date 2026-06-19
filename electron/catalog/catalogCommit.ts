@@ -1,7 +1,7 @@
 import { firstString, isJsonRecord, nowIso, trim, type JsonRecord } from "../jsonUtils";
-import { mergeMissingParamsIntoBody } from "../ai/onboarding/curlBlueprint";
 import { humanizeModelKey } from "./modelLabel";
 import { newapiTransportFor } from "./newapiTransport";
+import { guessModelKind } from "./modelKindHeuristic";
 import { hardenedFetchText } from "../hardenedFetch";
 import type { AiSdkProviderKind, BillingModelKind, HttpOperation, Model, ProfileKind, Vendor } from "./types";
 import {
@@ -22,6 +22,47 @@ import {
   findExecutableModelForTask,
   type TaskRequest,
 } from "../runtime";
+
+/**
+ * 把「档案声明了、但 mapping body 里没有 {{request.params.*}} 槽」的参数键补进 body
+ * （档案/onboarding 字段 → 传输 body 的对账）。原属已下线的「AI 读文档」子系统，因
+ * commitOnboardedModelToCatalog 仍需要它对账参数，迁来此处单源保留（P1）。
+ */
+function mergeMissingParamsIntoBody(body: unknown, fieldKeys: string[]): unknown {
+  if (!body || typeof body !== "object") return body;
+  const clone = JSON.parse(JSON.stringify(body)) as unknown;
+  const PARAM_RE = /^\{\{\s*request\.params\.([A-Za-z0-9_]+)\s*\}\}$/;
+  const PROMPT_RE = /^\{\{\s*request\.prompt\s*\}\}$/;
+  const keySet = new Set(fieldKeys);
+  const present = new Set<string>();
+  const literalHolders = new Map<string, Record<string, unknown>>();
+  let paramContainer: Record<string, unknown> | null = null;
+  let promptContainer: Record<string, unknown> | null = null;
+  const walk = (val: unknown): void => {
+    if (!val || typeof val !== "object") return;
+    if (Array.isArray(val)) { val.forEach(walk); return; }
+    const obj = val as Record<string, unknown>;
+    for (const [k, v] of Object.entries(obj)) {
+      if (typeof v === "string") {
+        const pm = PARAM_RE.exec(v);
+        if (pm) { present.add(pm[1]); paramContainer = obj; }
+        else if (PROMPT_RE.test(v)) { promptContainer = obj; present.add(k); }
+        else if (keySet.has(k)) { literalHolders.set(k, obj); }
+      }
+      walk(v);
+    }
+  };
+  walk(clone);
+  const container = paramContainer || promptContainer || (clone as Record<string, unknown>);
+  for (const key of fieldKeys) {
+    if (present.has(key)) continue;
+    const placeholder = `{{request.params.${key}}}`;
+    const literalHolder = literalHolders.get(key);
+    if (literalHolder) literalHolder[key] = placeholder;
+    else container[key] = placeholder;
+  }
+  return clone;
+}
 
 /**
  * Commit a successful onboarding trial into the local catalog as a real entry:
@@ -276,10 +317,12 @@ export function commitManualOpenAiCompatibleModels(payload: {
   const cleanModels = rawModels
     .map((m) => {
       const k = m?.kind;
+      const id = String(m?.id || "").trim();
+      // kind 缺省时用启发式猜（安全网：即便 UI 没传 kind，flux→image / kling→video 也不会错落 text）。
       return {
-        id: String(m?.id || "").trim(),
+        id,
         displayName: String(m?.displayName || "").trim(),
-        kind: (k === "image" || k === "video" || k === "text" ? k : "text") as "text" | "image" | "video",
+        kind: (k === "image" || k === "video" || k === "text" ? k : guessModelKind(id)) as "text" | "image" | "video",
       };
     })
     .filter((m) => {

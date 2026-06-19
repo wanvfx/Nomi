@@ -1,20 +1,15 @@
 /**
- * Onboarding Wizard — Apple-style minimal "add a model".
+ * Onboarding Wizard — 「从中转添加模型」（Issue #8：中转优先·一次拉全·按模型分类）。
  *
- * User pastes a docs URL + their API key. The agent reads the docs,
- * extracts parameters with evidence, tests one real call, and persists
- * a verified-working catalog entry. UI never surfaces internal terms
- * like "vendor / mapping / endpoint" — those are implementation details
- * (per Design.md "no decorative complexity").
+ * 用户填中转地址 + key → 拉取它开放的模型（GET /v1/models）→ 每个模型按 id 自动判类型
+ * （图片/视频/文本，主进程 guessKinds，可改）→ 勾选 → 一次保存。图片/视频/文本统一一条路；
+ * 旧「AI 读文档抠参数」子系统已下线（各中转参数不一，读文档不可靠）。UI 不暴露 vendor/mapping
+ * 等内部术语（Design.md「no decorative complexity」）。
  *
- * Backed by:
- *   nomiDesktop.onboarding.start  → kicks off main-process agent loop
- *   nomiDesktop.onboarding.onEvent(trialId, cb) → streams milestones
- *
- * Auto-commits to catalog on success (the IPC handler does it).
+ * Backed by: nomiDesktop.onboarding.{listModels, guessKinds, testConnection, manualCommit}。
  */
 import React from 'react'
-import { Stack, Group, Text, PasswordInput, ActionIcon, Anchor, TagsInput } from '@mantine/core'
+import { Stack, Group, Text, PasswordInput, ActionIcon, Anchor, TagsInput, Select } from '@mantine/core'
 import { IconPlus, IconTrash, IconCheck, IconX } from '@tabler/icons-react'
 import { DesignButton, DesignModal, DesignTextInput, DesignSegmentedControl } from '../../design'
 import { getDesktopBridge } from '../../desktop/bridge'
@@ -22,19 +17,7 @@ import type { ProviderKind } from '../../desktop/providerKind'
 import { resolveManualSaveAction } from './onboardingSaveGate'
 import { PROVIDER_PRESETS } from './providerPresets'
 import { cn } from '../../utils/cn'
-import {
-  Field,
-  INITIAL_MILESTONES,
-  MILESTONE_BY_TOOL,
-  MilestoneRow,
-  activeMessageFor,
-  bumpToActive,
-  failureLabelFor,
-  humanHintFor,
-  kindLabel,
-  markStatus,
-  type Milestone,
-} from './onboardingWizardSupport'
+import { Field } from './onboardingWizardSupport'
 
 // 接口协议的人类标签——探测成功后告诉用户「用的是 X 协议」，专家覆盖时也用它。
 const PROVIDER_KIND_LABEL: Record<ProviderKind, string> = {
@@ -44,6 +27,12 @@ const PROVIDER_KIND_LABEL: Record<ProviderKind, string> = {
 }
 
 type Phase = 'input' | 'running' | 'success' | 'error'
+type ModelKind = 'text' | 'image' | 'video'
+const KIND_OPTIONS: Array<{ value: ModelKind; label: string }> = [
+  { value: 'image', label: '图片' },
+  { value: 'video', label: '视频' },
+  { value: 'text', label: '文本' },
+]
 
 export function OnboardingWizard({ opened, onClose, onCommitted }: {
   opened: boolean
@@ -55,13 +44,8 @@ export function OnboardingWizard({ opened, onClose, onCommitted }: {
   const [phase, setPhase] = React.useState<Phase>('input')
   // input has two branches: 'manual' is the primary path (BaseURL + key + models,
   // breaks the bootstrap deadlock, works for local/text models); 'docs' is the
-  // secondary path (AI reads docs) for image/video models with non-standard APIs.
-  const [inputMode, setInputMode] = React.useState<'manual' | 'docs'>('manual')
-  // Whether the catalog already has a text model. Drives the adaptive default:
-  // none → open on "add text model" (manual); has one → open on "add image/video"
-  // (docs). Also gates the image/video entry, which needs a text model to read docs.
-  const [hasTextModel, setHasTextModel] = React.useState(false)
-  const [docsUrl, setDocsUrl] = React.useState('')
+  // 统一一条手填路径（图片/视频/文本都走它）；inputMode 保留单值 'manual'（旧 docs 分支已删，Issue #8）。
+  const [inputMode] = React.useState<'manual'>('manual')
   const [userApiKey, setUserApiKey] = React.useState('')
   // manual-form state
   const [vendorName, setVendorName] = React.useState('')
@@ -83,7 +67,8 @@ export function OnboardingWizard({ opened, onClose, onCommitted }: {
   const [baseUrl, setBaseUrl] = React.useState('')
   // Model ids only (display name dropped — it defaulted to the id, nobody filled it).
   // Entered via TagsInput: type+enter for any endpoint, or pick from auto-fetched list.
-  const [models, setModels] = React.useState<string[]>([])
+  // 模型携带 per-model 类型（图片/视频/文本，Issue #8）：拉取/输入后由主进程 guessKinds 预填，用户可改。
+  const [models, setModels] = React.useState<Array<{ id: string; kind: ModelKind }>>([])
   // Auto-fetched model ids (GET /models) used as TagsInput autocomplete suggestions.
   const [fetchedModels, setFetchedModels] = React.useState<string[]>([])
   const [fetchingModels, setFetchingModels] = React.useState(false)
@@ -97,49 +82,15 @@ export function OnboardingWizard({ opened, onClose, onCommitted }: {
   // 「仍要保存」二次确认态（非阻断门槛，R3 用户拍板）：未测/测试失败时首次点保存先 arm，
   // 再次点才强行提交。任何输入或测试态变化都自动解除 arm（下方 effect），避免残留误触。
   const [forceSaveArmed, setForceSaveArmed] = React.useState(false)
-  const [milestones, setMilestones] = React.useState<Milestone[]>(INITIAL_MILESTONES)
-  const [activeMessage, setActiveMessage] = React.useState('正在阅读文档…')
-  const [fieldsCount, setFieldsCount] = React.useState(0)
-  const [detectedKind, setDetectedKind] = React.useState<string | null>(null)
   const [resultLabel, setResultLabel] = React.useState('')
   const [errorReason, setErrorReason] = React.useState('')
   const [errorHint, setErrorHint] = React.useState('')
-  const [traceJson, setTraceJson] = React.useState<unknown>(null)
-  const trialIdRef = React.useRef<string | null>(null)
-  const unsubRef = React.useRef<(() => void) | null>(null)
-
-  // Clean up event subscription on unmount.
-  React.useEffect(() => {
-    return () => {
-      unsubRef.current?.()
-      unsubRef.current = null
-      trialIdRef.current = null
-    }
-  }, [])
-
-  // On open, pick the smart default: if a text model already exists, start on the
-  // image/video flow; otherwise start on adding a text model (and disable the
-  // image/video entry, which can't run without a text model to read docs).
-  React.useEffect(() => {
-    if (!opened) return
-    let textCount = 0
-    try {
-      const list = bridge?.modelCatalog?.listModels?.({ kind: 'text' }) as unknown[] | undefined
-      textCount = Array.isArray(list) ? list.length : 0
-    } catch { /* catalog unavailable → treat as none */ }
-    setHasTextModel(textCount > 0)
-    setInputMode(textCount > 0 ? 'docs' : 'manual')
-  }, [opened, bridge])
 
   const resetToInput = React.useCallback(() => {
     setPhase('input')
-    setMilestones(INITIAL_MILESTONES)
-    setFieldsCount(0)
-    setDetectedKind(null)
     setResultLabel('')
     setErrorReason('')
     setErrorHint('')
-    setTraceJson(null)
     // Keep credentials (vendorName/baseUrl/userApiKey) so "再添加一个" under the
     // same endpoint is one step; only clear the per-add model picks + test result.
     setModels([])
@@ -187,6 +138,23 @@ export function OnboardingWizard({ opened, onClose, onCommitted }: {
     setTestState('idle')
   }, [])
 
+  // 把一组模型 id 收敛进 models（去重；保留已选类型；新 id 由主进程 guessKinds 预填，用户可改）。
+  const applyModelIds = React.useCallback(async (ids: string[]) => {
+    const uniq = Array.from(new Set(ids.map(s => s.trim()).filter(Boolean)))
+    const existing = new Map(models.map(m => [m.id, m.kind]))
+    const newIds = uniq.filter(id => !existing.has(id))
+    let guessed: Record<string, ModelKind> = {}
+    if (newIds.length > 0 && bridge?.onboarding?.guessKinds) {
+      try { guessed = (await bridge.onboarding.guessKinds({ ids: newIds })).kinds || {} } catch { /* 退回 text */ }
+    }
+    setModels(uniq.map(id => ({ id, kind: existing.get(id) ?? guessed[id] ?? 'text' })))
+    setTestState('idle')
+  }, [models, bridge])
+
+  const setModelKind = React.useCallback((id: string, kind: ModelKind) => {
+    setModels(prev => prev.map(m => (m.id === id ? { ...m, kind } : m)))
+  }, [])
+
   const handleFetchModels = React.useCallback(async () => {
     if (!bridge?.onboarding?.listModels) return
     setFetchingModels(true)
@@ -200,7 +168,9 @@ export function OnboardingWizard({ opened, onClose, onCommitted }: {
       })
       if (res.ok && res.models && res.models.length > 0) {
         setFetchedModels(res.models)
-        setFetchModelsMsg(`找到 ${res.models.length} 个，点下方输入框选择`)
+        // 一次拉全：把拉到的模型直接加进列表（自动判类型），用户再勾掉不要的 / 改类型。
+        await applyModelIds([...models.map(m => m.id), ...res.models])
+        setFetchModelsMsg(`拉到 ${res.models.length} 个，已按类型自动分好（可改 / 删）`)
       } else if (res.ok) {
         setFetchedModels([])
         setFetchModelsMsg('这个地址没返回模型列表，手填 id 即可')
@@ -211,13 +181,13 @@ export function OnboardingWizard({ opened, onClose, onCommitted }: {
     } finally {
       setFetchingModels(false)
     }
-  }, [bridge, baseUrl, userApiKey, providerKind, buildHeadersObject])
+  }, [bridge, baseUrl, userApiKey, providerKind, buildHeadersObject, applyModelIds, models])
 
   const handleTestConnection = React.useCallback(async () => {
     if (!bridge?.onboarding?.testConnection) return
     setTestState('testing')
     setTestMessage('')
-    const firstModelId = models.map(m => m.trim()).find(Boolean)
+    const firstModelId = models.map(m => m.id.trim()).find(Boolean)
     const res = await bridge.onboarding.testConnection({
       baseUrl: baseUrl.trim(),
       apiKey: userApiKey.trim(),
@@ -248,7 +218,7 @@ export function OnboardingWizard({ opened, onClose, onCommitted }: {
       return
     }
     const cleanModels = models
-      .map(m => ({ id: m.trim() }))
+      .map(m => ({ id: m.id.trim(), kind: m.kind }))
       .filter(m => m.id.length > 0)
     if (cleanModels.length === 0) return
     setSaving(true)
@@ -281,93 +251,7 @@ export function OnboardingWizard({ opened, onClose, onCommitted }: {
     setForceSaveArmed(false)
   }, [testState, baseUrl, userApiKey, models, providerKind])
 
-  const handleStart = React.useCallback(async () => {
-    if (!bridge?.onboarding) {
-      setErrorReason('当前环境没有桌面端模块，无法运行。')
-      setPhase('error')
-      return
-    }
-    if (!docsUrl.trim() || !userApiKey.trim()) return
-    setPhase('running')
-    setMilestones(prev => prev.map(m => m.id === 'read' ? { ...m, status: 'active' } : m))
-    setActiveMessage('正在阅读文档…')
-    try {
-      const { trialId } = await bridge.onboarding.start({ docsUrl: docsUrl.trim(), userApiKey: userApiKey.trim() })
-      trialIdRef.current = trialId
-      unsubRef.current = bridge.onboarding.onEvent(trialId, ev => handleEvent(ev))
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e)
-      // Most common cause: no text model configured to read the docs.
-      const isAgentMissing = /Onboarding agent not configured/.test(msg)
-      setErrorReason(isAgentMissing ? '还没有配置用来阅读文档的 AI' : '没能启动')
-      setErrorHint(isAgentMissing
-        ? '请先在「模型设置」里添加一个文本模型（如 GPT、Kimi），它会负责读文档。'
-        : msg)
-      setPhase('error')
-    }
-  }, [bridge, docsUrl, userApiKey])
-
-  const handleEvent = React.useCallback((raw: unknown) => {
-    const ev = raw as { type: string; [k: string]: unknown }
-    if (ev.type === 'tool-call' && typeof ev.toolName === 'string') {
-      const milestoneId = MILESTONE_BY_TOOL[ev.toolName]
-      if (milestoneId) {
-        setMilestones(prev => bumpToActive(prev, milestoneId))
-        setActiveMessage(activeMessageFor(milestoneId))
-      }
-    }
-    if (ev.type === 'tool-result' && typeof ev.toolName === 'string') {
-      const milestoneId = MILESTONE_BY_TOOL[ev.toolName]
-      const result = ev.result as { ok?: boolean; value?: Record<string, unknown> } | undefined
-      const ok = result?.ok !== false
-      if (milestoneId) {
-        setMilestones(prev => markStatus(prev, milestoneId, ok ? 'done' : 'failed'))
-      }
-      // Side-effects: pick up field count, detected kind from set_fields/set_model_kind results.
-      if (ev.toolName === 'set_fields' && ok) {
-        const total = Number(result?.value?.totalFields || 0)
-        setFieldsCount(total)
-      }
-      if (ev.toolName === 'set_model_kind' && ok) {
-        const kind = result?.value?.kind
-        if (typeof kind === 'string') setDetectedKind(kind)
-      }
-    }
-    if (ev.type === 'trial-end') {
-      const outcome = (ev as { outcome?: { status?: string; failureReason?: string; draft?: { modelDisplayName?: string; targetKind?: string } } }).outcome
-      if (outcome?.draft?.targetKind) setDetectedKind(outcome.draft.targetKind)
-      if (outcome?.status === 'success') {
-        setResultLabel(outcome.draft?.modelDisplayName || '新模型')
-      }
-    }
-    if (ev.type === 'result') {
-      const data = ev as { outcome?: { status?: string; failureReason?: string; draft?: { modelDisplayName?: string } }; committedModel?: unknown }
-      if (data.outcome?.status === 'success') {
-        setMilestones(prev => markStatus(prev, 'commit', 'done'))
-        setResultLabel(data.outcome.draft?.modelDisplayName || resultLabel || '新模型')
-        setPhase('success')
-        if (data.committedModel) onCommitted?.(data.committedModel)
-      } else {
-        setErrorReason(failureLabelFor(data.outcome?.failureReason))
-        setErrorHint(humanHintFor(data.outcome?.failureReason))
-        setTraceJson(data.outcome)
-        setPhase('error')
-      }
-    }
-    if (ev.type === 'error') {
-      const msg = (ev as { message?: string }).message || '出了点问题'
-      setErrorReason('运行过程中出错')
-      setErrorHint(msg)
-      setPhase('error')
-    }
-  }, [onCommitted, resultLabel])
-
-  const handleCopyLog = React.useCallback(async () => {
-    if (!traceJson) return
-    try { await navigator.clipboard.writeText(JSON.stringify(traceJson, null, 2)) } catch { /* ignore */ }
-  }, [traceJson])
-
-  const canStart = docsUrl.trim().length > 0 && userApiKey.trim().length > 0 && phase === 'input'
+  // handleStart / handleEvent / handleCopyLog / canStart（AI 读文档流）已随子系统删除（Issue #8）。
   // Anthropic has a hosted default, so a blank BaseURL is allowed there (we fill in
   // the official host); an OpenAI-compatible endpoint must be supplied.
   const baseUrlTrimmed = baseUrl.trim()
@@ -375,7 +259,7 @@ export function OnboardingWizard({ opened, onClose, onCommitted }: {
     ? (baseUrlTrimmed === '' || /^https?:\/\//i.test(baseUrlTrimmed))
     : /^https?:\/\//i.test(baseUrlTrimmed)
   const canTest = baseUrlValid && (providerKind === 'anthropic' || baseUrlTrimmed.length > 0)
-  const hasModelId = models.some(m => m.trim().length > 0)
+  const hasModelId = models.some(m => m.id.trim().length > 0)
   // 非阻断门槛（R3 拍板）：字段齐即可保存；测试未通过走二次确认（arm→confirm），不死拦。
   const manualFieldsReady = baseUrlValid && userApiKey.trim().length > 0 && hasModelId && !saving
   const manualSaveAction = resolveManualSaveAction({
@@ -402,29 +286,11 @@ export function OnboardingWizard({ opened, onClose, onCommitted }: {
       <Stack gap="md">
         {phase === 'input' && (
           <Stack gap={12}>
-            {/* 两个入口都可见、可一键切；系统只「猜默认」。无文本模型时图片/视频置灰（读文档需先有文本模型）。 */}
-            <Group gap={10} align="center">
-              <button
-                type="button"
-                onClick={() => setInputMode('manual')}
-                className={cn('text-body transition-colors duration-150',
-                  inputMode === 'manual' ? 'font-semibold text-nomi-ink' : 'text-nomi-ink-60 hover:text-nomi-ink')}
-              >
-                文本模型
-              </button>
-              <span className="text-nomi-ink-20">·</span>
-              <button
-                type="button"
-                disabled={!hasTextModel}
-                onClick={() => { if (hasTextModel) setInputMode('docs') }}
-                title={hasTextModel ? undefined : '需先添加一个文本模型来读文档'}
-                className={cn('text-body transition-colors duration-150',
-                  !hasTextModel ? 'text-nomi-ink-40 cursor-not-allowed'
-                    : inputMode === 'docs' ? 'font-semibold text-nomi-ink' : 'text-nomi-ink-60 hover:text-nomi-ink')}
-              >
-                图片 / 视频模型
-              </button>
-            </Group>
+            {/* 中转优先·一次拉全·按模型分类（Issue #8）：填中转地址 + key → 拉取它开放的模型 →
+                每个自动判好类型(图片/视频/文本，可改) → 一次加多类型。文本/图片/视频统一一条路。 */}
+            <Text size="xs" c="var(--nomi-ink-60)">
+              填中转地址 + Key，拉取它开放的模型；图片 / 视频 / 文本一次接入，类型自动判好可改。
+            </Text>
 
             {inputMode === 'manual' && (
               <>
@@ -455,7 +321,7 @@ export function OnboardingWizard({ opened, onClose, onCommitted }: {
             {showBaseUrlField ? (
               <Field
                 label="接入地址（BaseURL）"
-                hint={providerKind === 'anthropic' ? '留空用官方地址；中转站填它给你的地址' : '到 /v1 为止'}
+                hint={providerKind === 'anthropic' ? '留空用官方地址；中转站填它给你的地址' : '中转后台那个地址，带不带 /v1 都行'}
               >
                 <DesignTextInput
                   value={baseUrl}
@@ -511,13 +377,33 @@ export function OnboardingWizard({ opened, onClose, onCommitted }: {
                 </DesignButton>
               </Group>
               <TagsInput
-                value={models}
-                onChange={value => { setModels(value); setTestState('idle') }}
+                value={models.map(m => m.id)}
+                onChange={value => { void applyModelIds(value) }}
                 data={fetchedModels}
                 placeholder={models.length === 0 ? '输入模型 id 回车，或先拉取可用模型' : undefined}
                 splitChars={[',', ' ', '\n']}
               />
               {fetchModelsMsg && <Text size="xs" c="var(--nomi-ink-60)">{fetchModelsMsg}</Text>}
+              {/* 每个模型一行：id + 类型（自动判，可改）。删除经上方 TagsInput 的标签 x。 */}
+              {models.length > 0 && (
+                <Stack gap={6} mt={4}>
+                  {models.map(m => (
+                    <Group key={m.id} gap={8} wrap="nowrap" align="center" justify="space-between">
+                      <Text size="sm" c="var(--nomi-ink)" style={{ fontFamily: 'var(--nomi-font-mono, monospace)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {m.id}
+                      </Text>
+                      <Select
+                        value={m.kind}
+                        onChange={v => { if (v) setModelKind(m.id, v as ModelKind) }}
+                        data={KIND_OPTIONS}
+                        size="xs"
+                        allowDeselect={false}
+                        style={{ width: 88, flexShrink: 0 }}
+                      />
+                    </Group>
+                  ))}
+                </Stack>
+              )}
             </Stack>
 
             {presetId === 'custom' && (
@@ -642,53 +528,6 @@ export function OnboardingWizard({ opened, onClose, onCommitted }: {
             </Group>
               </>
             )}
-
-            {inputMode === 'docs' && (
-              <>
-            <Text size="xs" c="var(--nomi-ink-60)">
-              适合图片 / 视频等非标准接口：AI 读官方文档，自动抠出参数并配置。
-            </Text>
-            <Field label="文档地址" hint="粘贴这个模型的官方 API 文档页">
-              <DesignTextInput
-                value={docsUrl}
-                onChange={e => setDocsUrl(e.currentTarget.value)}
-                placeholder="https://docs.example.com/api/..."
-                autoFocus
-              />
-            </Field>
-            <Field label="你的 API Key" hint="只存在你的电脑上，加密保存">
-              <PasswordInput
-                value={userApiKey}
-                onChange={e => setUserApiKey(e.currentTarget.value)}
-                placeholder="sk-..."
-              />
-            </Field>
-            <Group justify="flex-end">
-              <DesignButton onClick={handleStart} disabled={!canStart}>
-                开始
-              </DesignButton>
-            </Group>
-              </>
-            )}
-          </Stack>
-        )}
-
-        {phase === 'running' && (
-          <Stack gap="sm">
-            <Text size="sm" c="var(--nomi-ink)">{activeMessage}</Text>
-            <Stack gap={4}>
-              {milestones.map(m => (
-                <MilestoneRow
-                  key={m.id}
-                  milestone={m}
-                  detail={m.id === 'kind' && detectedKind ? `已识别为：${kindLabel(detectedKind)}` : m.id === 'fields' && fieldsCount > 0 ? `已提取 ${fieldsCount} 个参数` : undefined}
-                />
-              ))}
-            </Stack>
-            <Text size="xs" c="var(--nomi-ink-60)">预计还需 30-60 秒</Text>
-            <Group justify="flex-start">
-              <DesignButton variant="subtle" onClick={onClose}>取消</DesignButton>
-            </Group>
           </Stack>
         )}
 
@@ -713,12 +552,9 @@ export function OnboardingWizard({ opened, onClose, onCommitted }: {
             <Text size="md" c="var(--nomi-ink)">没能完成添加</Text>
             <Text size="sm" c="var(--nomi-ink)">{errorReason}</Text>
             {errorHint && <Text size="sm" c="var(--nomi-ink-60)">{errorHint}</Text>}
-            <Group justify="space-between">
-              <DesignButton variant="subtle" onClick={handleCopyLog} disabled={!traceJson}>复制日志</DesignButton>
-              <Group>
-                <DesignButton variant="subtle" onClick={resetToInput}>改一改重试</DesignButton>
-                <DesignButton onClick={onClose}>关闭</DesignButton>
-              </Group>
+            <Group justify="flex-end">
+              <DesignButton variant="subtle" onClick={resetToInput}>改一改重试</DesignButton>
+              <DesignButton onClick={onClose}>关闭</DesignButton>
             </Group>
           </Stack>
         )}

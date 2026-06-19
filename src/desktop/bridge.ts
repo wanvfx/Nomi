@@ -184,20 +184,6 @@ export type DesktopBridge = {
     write: (projectId: string, payload: { creation: PersistedConversationArea; generation: PersistedConversationArea; committedProposal?: unknown }) => Promise<{ ok: boolean }>
   }
   onboarding: {
-    start: (payload: {
-      docsUrl: string
-      userApiKey: string
-      targetKind?: 'text' | 'image' | 'video' | 'audio'
-      maxSteps?: number
-      agent?: {
-        providerKind?: ProviderKind
-        baseUrl?: string
-        modelId?: string
-        apiKey?: string
-      }
-    }) => Promise<{ trialId: string }>
-    cancel: (trialId: string) => Promise<{ ok: boolean; error?: string }>
-    onEvent: (trialId: string, callback: (event: unknown) => void) => () => void
     manualCommit: (payload: {
       vendorName: string
       baseUrl: string
@@ -237,6 +223,10 @@ export type DesktopBridge = {
       models?: string[]
       status?: number
       error?: string
+    }>
+    /** 按 id 关键词猜模型类型（图片/视频/文本），给「类型」下拉预填，用户可改（Issue #8）。 */
+    guessKinds: (payload: { ids: string[] }) => Promise<{
+      kinds: Record<string, 'text' | 'image' | 'video'>
     }>
   }
   /** 版本号 + 检查更新 + 一键更新（功能需求1/2/3）。check/download/install 用户显式触发，进度/状态走 onEvent。 */

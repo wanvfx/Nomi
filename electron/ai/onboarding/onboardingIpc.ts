@@ -1,33 +1,16 @@
-import { ipcMain, webContents as electronWebContents } from "electron";
-import type { WebContents } from "electron";
-import { runOnboardingTrial } from "./agent";
-import type { ModelKind } from "./types";
+import { ipcMain } from "electron";
 import type { AiSdkProviderKind } from "../../catalog/types";
 import { describeNetworkError } from "../../systemProxy";
+import { guessModelKind } from "../../catalog/modelKindHeuristic";
 import {
   commitManualOpenAiCompatibleModels,
-  commitOnboardedModelToCatalog,
   normalizeProviderKind,
-  resolveOnboardingAgentFromCatalog,
 } from "../../runtime";
 
 // ---------------------------------------------------------------------------
-// Onboarding (M5.4) — IPC bridge for the Wizard UI
+// Onboarding — 中转拉取式接入 IPC（手填地址+key → 拉模型 → 按 id 分类 → 保存）。
+// 「AI 读文档」子系统已下线（Issue #8：各家中转参数不一，读文档抠参数不可靠）。
 // ---------------------------------------------------------------------------
-
-type OnboardingSession = {
-  trialId: string;
-  webContentsId: number;
-  cancelled: boolean;
-};
-
-const onboardingSessions = new Map<string, OnboardingSession>();
-
-function sendOnboardingEvent(session: OnboardingSession, event: unknown): void {
-  const target: WebContents | undefined = electronWebContents.fromId(session.webContentsId) || undefined;
-  if (!target || target.isDestroyed()) return;
-  target.send("nomi:onboarding:event", { trialId: session.trialId, event });
-}
 
 /** 单协议探测结果。mismatch=true 表示像「路由/协议不对」（可换下一个协议试）。 */
 type ProtocolProbe = { ok: boolean; status?: number; error?: string; mismatch?: boolean };
@@ -81,94 +64,7 @@ async function probeOneProtocol(
 }
 
 export function registerOnboardingIpc(): void {
-  ipcMain.handle("nomi:onboarding:start", async (event, payload: Record<string, unknown>) => {
-    const docsUrl = String(payload?.docsUrl || "").trim();
-    const userApiKey = String(payload?.userApiKey || "").trim();
-    if (!docsUrl) throw new Error("docsUrl required");
-    if (!userApiKey) throw new Error("userApiKey required");
-
-    // The onboarding doc-reader LLM is resolved in this priority order:
-    //   1. payload.agent — explicit override (the Lab CLI passes --agent-* here).
-    //   2. a configured TEXT model in the catalog — the product path. This is the
-    //      model the user already added in 模型设置 (e.g. dm-fox GPT-5.5); it works
-    //      identically in dev and a packaged app, no env / no .secrets needed.
-    //   3. NOMI_ONBOARDING_AGENT_* env vars — dev/headless fallback only.
-    const agentConfig = (payload?.agent || {}) as Record<string, unknown>;
-    const fromCatalog = resolveOnboardingAgentFromCatalog();
-    const agent = {
-      // 单一归一化器（R1）：不再 `as ProviderKind` 裸 cast——任意脏值流经 normalizeProviderKind 才到工厂。
-      providerKind: normalizeProviderKind(
-        agentConfig.providerKind || fromCatalog?.providerKind || process.env.NOMI_ONBOARDING_AGENT_PROVIDER,
-      ),
-      baseUrl: String(agentConfig.baseUrl || fromCatalog?.baseUrl || process.env.NOMI_ONBOARDING_AGENT_BASE_URL || ""),
-      modelId: String(agentConfig.modelId || fromCatalog?.modelId || process.env.NOMI_ONBOARDING_AGENT_MODEL || ""),
-      apiKey: String(agentConfig.apiKey || fromCatalog?.apiKey || process.env.NOMI_ONBOARDING_AGENT_KEY || ""),
-      // Replay the catalog vendor's custom headers so the doc-reader reaches the
-      // same relay/proxy gateway the user's text model is behind.
-      ...(fromCatalog?.extraHeaders ? { extraHeaders: fromCatalog.extraHeaders } : {}),
-    };
-    if (!agent.baseUrl || !agent.modelId || !agent.apiKey) {
-      throw new Error(
-        "Onboarding agent not configured. Add a text model (e.g. GPT/Kimi) in 模型设置 first — it will be used to read the docs.",
-      );
-    }
-
-    // Optional target kind hint; if absent, the agent infers from the docs.
-    const targetKind = (payload?.targetKind as ModelKind) || undefined;
-
-    const trialId = `onboard-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-    const session: OnboardingSession = { trialId, webContentsId: event.sender.id, cancelled: false };
-    onboardingSessions.set(trialId, session);
-
-    queueMicrotask(() => {
-      void runOnboardingTrial({
-        trialId,
-        docsUrl,
-        targetKind: targetKind ?? ("image" as ModelKind), // initial seed; the agent overrides it via set_model_kind after reading the docs
-        userApiKey,
-        agent,
-        // Async APIs legitimately need ~11 tool calls (create + query stage),
-        // and a self-corrected 404 can eat one more. 10 was too tight and left
-        // drafts "partial" (test passed, query stage never wired). 14 gives margin.
-        maxSteps: Number(payload?.maxSteps) || 14,
-        onEvent: (evt) => sendOnboardingEvent(session, evt),
-      })
-        .then((outcome) => {
-          // Auto-commit on success so the wizard's "success" event already shows the persisted model.
-          let committedModel: unknown = null;
-          if (outcome.status === "success") {
-            try {
-              committedModel = commitOnboardedModelToCatalog({ outcome, userApiKey });
-            } catch (e) {
-              const message = e instanceof Error ? e.message : String(e);
-              sendOnboardingEvent(session, { type: "commit-error", message });
-            }
-          }
-          sendOnboardingEvent(session, { type: "result", outcome, committedModel });
-          sendOnboardingEvent(session, { type: "done", reason: "finished" });
-        })
-        .catch((error: unknown) => {
-          const message = error instanceof Error ? error.message : String(error);
-          sendOnboardingEvent(session, { type: "error", message });
-          sendOnboardingEvent(session, { type: "done", reason: "error" });
-        })
-        .finally(() => {
-          onboardingSessions.delete(trialId);
-        });
-    });
-
-    return { trialId };
-  });
-
-  ipcMain.handle("nomi:onboarding:cancel", async (_event, payload: { trialId: string }) => {
-    const session = onboardingSessions.get(payload.trialId);
-    if (!session) return { ok: false, error: "session not found" };
-    // True cancellation requires plumbing AbortSignal through generateText.
-    // For now flag the session; the next "done" emit will see cancelled=true.
-    session.cancelled = true;
-    sendOnboardingEvent(session, { type: "cancelled" });
-    return { ok: true };
-  });
+  // 「AI 读文档」接入路径已下线（Issue #8：改为中转拉取式接入图片/视频/文本）。
 
   // PRIMARY model-adding path — manual provider entry (BaseURL + key + models).
   // Deterministic openai-compatible text commit; reuses the single catalog write
@@ -205,6 +101,15 @@ export function registerOnboardingIpc(): void {
       const message = error instanceof Error ? error.message : String(error);
       return { ok: false, error: message };
     }
+  });
+
+  // 类型启发式（Issue #8）：从 /v1/models 拉到/手填的模型 id 没带类型，主进程按关键词猜
+  // 图片/视频/文本（单一真相源 guessModelKind），返回给 UI 预填「类型」下拉，用户可改。
+  ipcMain.handle("nomi:onboarding:guess-kinds", async (_event, payload: Record<string, unknown>) => {
+    const ids = Array.isArray(payload?.ids) ? (payload.ids as unknown[]).map((x) => String(x || "")) : [];
+    const kinds: Record<string, "text" | "image" | "video"> = {};
+    for (const id of ids) if (id) kinds[id] = guessModelKind(id);
+    return { kinds };
   });
 
   // 接口协议探测（auto-probe）+ 连接测试。非阻塞，永不 gate 保存。
@@ -289,34 +194,32 @@ export function registerOnboardingIpc(): void {
     }
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 12_000);
+    const headers: Record<string, string> =
+      providerKind === "anthropic"
+        ? { "anthropic-version": "2023-06-01", ...(apiKey ? { "x-api-key": apiKey } : {}), ...extraHeaders }
+        : { ...(apiKey ? { authorization: `Bearer ${apiKey}` } : {}), ...extraHeaders };
+    // 候选 URL：openai-compatible baseUrl 通常已含 /v1 → /models；但很多 new-api 后台给的是
+    // **裸地址**（不带 /v1）——那样 /models 会 404。鲁棒兜底：依次试 /models 与 /v1/models，
+    // 命中即返回（用户填不填 /v1 都能拉到，Issue #8「开箱即用」）。
+    const candidates =
+      providerKind === "anthropic"
+        ? [`${baseUrl}/v1/models`]
+        : baseUrl.endsWith("/v1")
+          ? [`${baseUrl}/models`, `${baseUrl}/v1/models`]
+          : [`${baseUrl}/models`, `${baseUrl}/v1/models`];
+    let lastErr = "";
+    let lastStatus: number | undefined;
     try {
-      // openai-compatible baseUrl already ends in /v1 → /models; anthropic baseUrl
-      // is the host root → /v1/models.
-      const url =
-        providerKind === "anthropic" ? `${baseUrl}/v1/models` : `${baseUrl}/models`;
-      const headers: Record<string, string> =
-        providerKind === "anthropic"
-          ? {
-              "anthropic-version": "2023-06-01",
-              ...(apiKey ? { "x-api-key": apiKey } : {}),
-              ...extraHeaders,
-            }
-          : {
-              ...(apiKey ? { authorization: `Bearer ${apiKey}` } : {}),
-              ...extraHeaders,
-            };
-      const res = await fetch(url, { method: "GET", headers, signal: controller.signal });
-      if (!res.ok) {
-        const text = await res.text().catch(() => "");
-        return { ok: false, status: res.status, error: text.slice(0, 300) || `HTTP ${res.status}` };
+      for (const url of candidates) {
+        let res: Response;
+        try { res = await fetch(url, { method: "GET", headers, signal: controller.signal }); }
+        catch (e) { lastErr = describeNetworkError(e); continue; }
+        if (!res.ok) { lastStatus = res.status; lastErr = (await res.text().catch(() => "")).slice(0, 300) || `HTTP ${res.status}`; continue; }
+        const json = (await res.json().catch(() => null)) as { data?: Array<{ id?: unknown }> } | null;
+        const models = Array.isArray(json?.data) ? json!.data.map((m) => String(m?.id || "").trim()).filter(Boolean) : [];
+        return { ok: true, models };
       }
-      const json = (await res.json().catch(() => null)) as { data?: Array<{ id?: unknown }> } | null;
-      const models = Array.isArray(json?.data)
-        ? json!.data.map((m) => String(m?.id || "").trim()).filter(Boolean)
-        : [];
-      return { ok: true, models };
-    } catch (error) {
-      return { ok: false, error: describeNetworkError(error) };
+      return { ok: false, status: lastStatus, error: lastErr || "拉取不到模型列表" };
     } finally {
       clearTimeout(timeout);
     }
