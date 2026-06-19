@@ -422,7 +422,6 @@ export default function TimelinePreview({ activeClips, aspectRatio, fps, playhea
             )}
             src={videoPlaybackUrl}
             crossOrigin="use-credentials"
-            muted
             playsInline
             style={videoStyle}
             onError={() => {
