@@ -53,6 +53,19 @@ type SkillDescriptor = {
 - **S2 第一个模型技能**：接 1 个高价值模型技能验证「model 类技能」通路——**抠图(remove-bg)** 或 **放大(upscale)**（看哪个有现成模型/能力）。真实出图验证。
 - **S3 扩**：局部重绘(需 mask 输入)/扩图(outpaint) 等,按需加 descriptor。
 
+## 4'. 技能可分享/导入（Flova/MiniMax 信号 → 强化设计）
+
+业界（Flova 分享技能 / MiniMax Hub / Nody）的"技能"都是**声明式、可分享的单元**,不是写死的功能。因
+SkillDescriptor = **纯数据**（本地算子的 run 是少数例外,见下），它天然可**导出/导入/分享** —— 完全复用
+Nomi 模型目录已有的 `exportPackage/importPackage` 范式（catalogStore）。
+
+- **模型类技能**（descriptor 全是数据:input/params/taskKind/output）→ 直接可分享,粘一份 JSON 就接入。
+- **本地算子技能**（裁剪/切图含 `run` 函数）→ 内置那批不分享;用户/社区分享的技能**限定为 model 类 + 声明式参数**（安全:不执行外部代码,只声明"调哪个 taskKind + 什么参数 + 怎么落画布"）。
+- 这条让"加技能=加一份声明"升级成"**贴一份技能 JSON 就接入**",对齐 Flova 的分享心智,也守住安全（不跑外部代码）。
+
+> ⚠️ 协同提醒：用户提到「另一个 Claude(萌萌)正在做技能」。**本框架是技能的架构骨架** —— 任何在做的技能都应
+> 落成 SkillDescriptor 插进这套 registry/runner,**别另起一套并行的技能系统**(P1)。两边先对齐这份方案。
+
 ## 5. 不动什么
 - 不为技能单独接模型（复用 catalog,P1/P4）；不另写参数 UI（复用 parameterControlModel）；不动 canvas 节点/边系统（复用 addNode）。
 - 本地算子逻辑（cropImageRegion 等）保留,只是从硬编码 handler 挪进 descriptor.run。
