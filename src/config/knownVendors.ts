@@ -68,6 +68,16 @@ export const KNOWN_VENDORS: readonly KnownVendor[] = [
       url: 'https://modelscope.cn/my/myaccesstoken',
     },
   },
+  {
+    vendorKey: 'volcengine',
+    glyph: '火',
+    tagline: '官方原生 · 豆包 Seedream / Seedance',
+    promo: {
+      text: '火山方舟（字节跳动）官方。需先在 Ark 控制台「开通管理」激活模型（Seedream/Seedance），再拿 API Key。',
+      ctaLabel: '去火山方舟',
+      url: 'https://console.volcengine.com/ark',
+    },
+  },
 ] as const
 
 const KNOWN_VENDOR_BY_KEY = new Map<string, KnownVendor>(
