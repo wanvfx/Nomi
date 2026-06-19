@@ -52,6 +52,12 @@
   pointer-events: auto;
 }
 
+/* 一键整理：仅整理瞬间给节点开 transform 过渡，让它们滑入归位。
+   只在 data-tidying 期间开——常驻会让拖拽迟滞跟手（手感 bug）。 */
+.generation-canvas-v2__nodes[data-tidying='true'] .generation-canvas-v2-node {
+  transition: transform 0.55s cubic-bezier(0.2, 0.7, 0.3, 1);
+}
+
 /* 新落点节点弹入（add/paste/Agent）。用**独立 scale 属性**而非 transform——
    根节点 transform 已被 translate(定位) 占用，独立 scale 与之组合不冲突（不会把节点弹回原点）。 */
 .generation-canvas-v2-node[data-appear='true'] {

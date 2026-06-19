@@ -1,5 +1,5 @@
 import React from 'react'
-import { IconFolderPlus, IconPlayerPlay, IconX } from '@tabler/icons-react'
+import { IconFolderPlus, IconLayoutGrid, IconPlayerPlay, IconX } from '@tabler/icons-react'
 import { WorkbenchButton, WorkbenchIconButton } from '../../../design'
 import { toast } from '../../../ui/toast'
 import { cn } from '../../../utils/cn'
@@ -24,6 +24,7 @@ import { CanvasEmptyState } from './CanvasEmptyState'
 import { CanvasMinimap } from './CanvasMinimap'
 import { CanvasGestureHint } from './CanvasGestureHint'
 import { useNodeAppearTracking } from './useNodeAppearTracking'
+import { useTidyCanvas } from './useTidyCanvas'
 import {
   centerNodeOffset,
   clampNumber,
@@ -173,6 +174,7 @@ export default function GenerationCanvas({ readOnly = false }: GenerationCanvasP
   }, [nodes, zoom, offset, stageSize])
   // 出现动画：只让**新落点**节点弹入（add/paste/Agent），开项目时已有节点不齐闪（实现见 hook）。
   const appearNodeIds = useNodeAppearTracking(allNodes)
+  const { isTidying, tidy } = useTidyCanvas(activeCategoryId)
   // B3 边层视口裁剪：仅在虚拟化生效时给边层一个可见节点集，剔除两端都在视口外的边；
   // 未虚拟化（小图）传 null = 渲染全部边，行为与改动前逐字一致。
   const visibleEdgeNodeIds = React.useMemo(
@@ -651,7 +653,7 @@ export default function GenerationCanvas({ readOnly = false }: GenerationCanvasP
               onDisconnectEdge={disconnectEdge}
               getCanvasPointFromClientPoint={getCanvasPointFromClientPoint}
             />
-            <div className={cn('generation-canvas-v2__nodes', 'absolute top-0 left-0 w-full h-full')}>
+            <div className={cn('generation-canvas-v2__nodes', 'absolute top-0 left-0 w-full h-full')} data-tidying={isTidying ? 'true' : undefined}>
               {/* E.2C-30: GroupFrame 抽离为独立组件 */}
               <GroupFrameList boxes={groupBoxes} onPointerDown={handleGroupFramePointerDown} />
               <React.Suspense fallback={null}>
@@ -772,6 +774,11 @@ export default function GenerationCanvas({ readOnly = false }: GenerationCanvasP
               zoomAtStagePoint(nextZoom, { x: rect.width / 2, y: rect.height / 2 })
             }}
           />
+          {!readOnly ? (
+            <WorkbenchButton aria-label="整理画布" title="整理画布（散乱时一键收纳 · ⌘Z 撤销）" onClick={() => tidy(stageSize.width)}>
+              <IconLayoutGrid size={15} stroke={1.8} aria-hidden="true" />
+            </WorkbenchButton>
+          ) : null}
           <WorkbenchButton aria-label="画布帮助" title="画布帮助" onClick={() => toast('滚轮/双指 平移 · ⌘/Ctrl+滚轮 或 捏合 缩放 · 拖空白 框选 · 空格/中键/右键拖 平移 · Delete 删除', 'info')}>?</WorkbenchButton>
         </div>
         {!readOnly ? <CanvasGestureHint /> : null}

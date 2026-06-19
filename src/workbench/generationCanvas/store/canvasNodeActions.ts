@@ -1,5 +1,6 @@
 import { createGenerationNode, removeNodes, upsertNode } from '../model/graphOps'
 import { resolveInsertionPosition } from './resolveInsertionPosition'
+import { tidyCanvasLayout } from './tidyCanvasLayout'
 import { getDefaultCategoryForNodeKind, type GenerationCanvasNode } from '../model/generationCanvasTypes'
 import { getNodeSize } from '../model/generationNodeKinds'
 import { isShotNumberedNode, nextShotIndex } from '../model/shotNumbering'
@@ -156,6 +157,34 @@ export const createCanvasNodeActions: CanvasSliceCreator<CanvasNodeActions> = (s
           .map((node) => ({ type: 'canvas.node.moved', payload: { nodeId: node.id, position: node.position } })),
       )
     }
+  },
+  tidyCategory: (categoryId, availableWidth) => {
+    const state0 = get()
+    const catNodes = state0.nodes.filter((node) => (node.categoryId || 'shots') === categoryId)
+    if (!catNodes.length) return
+    const idSet = new Set(catNodes.map((node) => node.id))
+    const catEdges = state0.edges.filter((edge) => idSet.has(edge.source) && idSet.has(edge.target))
+    const positions = tidyCanvasLayout(catNodes, catEdges, availableWidth)
+    // 全部位置已是目标态 → 不打撤销点、不持久（避免空操作污染撤销栈 / 触发存盘）。
+    const changed = catNodes.some((node) => {
+      const next = positions.get(node.id)
+      return next && (next.x !== node.position.x || next.y !== node.position.y)
+    })
+    if (!changed) return
+    pushUndoSnapshot(state0)
+    set((state) => {
+      for (const node of state.nodes) {
+        const next = positions.get(node.id)
+        if (next) node.position = { x: next.x, y: next.y }
+      }
+      bumpPersistRevision(state)
+    })
+    emitCanvasGesture(
+      catNodes
+        .map((node) => positions.get(node.id) && { node, pos: positions.get(node.id)! })
+        .filter((entry): entry is { node: GenerationCanvasNode; pos: { x: number; y: number } } => Boolean(entry))
+        .map((entry) => ({ type: 'canvas.node.moved' as const, payload: { nodeId: entry.node.id, position: entry.pos } })),
+    )
   },
   deleteSelectedNodes: () => {
     const currentState = get()
