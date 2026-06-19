@@ -12,9 +12,12 @@
  *    读系统网络设置/PAC（macOS 从 Finder 启动拿不到 env 时的兜底）。
  *  - 用 `SelectiveProxyDispatcher` 包一层：origin 命中私网/回环（本地模型服务器 127.0.0.1 等）→ 走
  *    原始直连，绝不把本地流量也代理掉。私网判定复用 `hardenedFetch` 的 `isPrivateHost`（单一真相源）。
+ *  - 渲染层同源（修「主进程能下载、预览区放不出远端视频」的撕裂）：env 来源的代理另用
+ *    `session.setProxy()` 喂给 Chromium 网络栈——渲染层默认只读系统设置、不读环境变量。系统来源
+ *    无需处理（session 默认 mode:'system' 已在用它）。私网/回环经 proxyBypassRules 直连。
  *
  * Phase 1 不做（留 Phase 2）：设置界面（系统/自定义/关闭三态）、SOCKS（undici ProxyAgent 不支持，
- * 需 fetch-socks）、系统代理热更新、渲染层 session.setProxy。探到 SOCKS-only 会明确 log 告知，不静默。
+ * 需 fetch-socks）、系统代理热更新。探到 SOCKS-only 会明确 log 告知，不静默。
  */
 import { URL } from "node:url";
 import type { Session } from "electron";
@@ -215,6 +218,20 @@ export async function applySystemProxy(session: Session): Promise<ProxyResolutio
       const proxy = new ProxyAgent(resolution.url);
       setGlobalDispatcher(new SelectiveProxyDispatcher(proxy, direct));
       console.log(`${LOG} 已启用代理 ${activeProxyLabel}；本地/私网地址直连`);
+      // 渲染层同源修复：主进程 undici 走代理后，渲染层的 Chromium 网络栈（<video>/<img>/
+      // renderer fetch）默认只读「系统设置」代理、**不读环境变量**。env 来源的代理（Clash/终端
+      // export HTTPS_PROXY 的典型场景）会出现「主进程能下载、渲染层放不出远端视频」的撕裂——
+      // 表现为预览区「视频加载失败」。这里把 env 代理也显式喂给 session，让两层同一真相源。
+      // 系统来源的代理无需处理：session 默认 mode:'system' 已在用它（且可能是 PAC，别用 fixed 覆盖）。
+      if (resolution.source === "env") {
+        await session.setProxy({
+          proxyRules: resolution.url,
+          // 本地/私网直连：回环 + 私网网段 + 无点主机名（<local>），别把本地模型服务器
+          //（Ollama 11434 / ComfyUI 8188）也代理掉，与 SelectiveProxyDispatcher 的 isPrivateHost 同义。
+          proxyBypassRules: "localhost,127.0.0.1,[::1],10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,<local>",
+        });
+        console.log(`${LOG} 已把环境变量代理同步到渲染层 session（远端视频/图片预览同源走代理）`);
+      }
     } else if (resolution.kind === "unsupported") {
       // 按直连跑，但记下 unsupported 详情 → describeNetworkError 会如实告知用户「检测到
       // SOCKS 但本版不支持，请改用 HTTP 代理」，而非误说「未启用代理」。

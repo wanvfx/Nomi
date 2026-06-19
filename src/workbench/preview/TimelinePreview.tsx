@@ -19,7 +19,7 @@ import { markChecklistStep } from '../onboarding/onboardingState'
 import { buildMp4ExportButtonTitle } from '../export/exportCopy'
 import { toast } from '../../ui/toast'
 import { buildVideoPlaybackUrl } from '../../media/videoPlaybackUrl'
-import { diagnoseVideoPlaybackFailure, logVideoPlaybackFailure } from '../../media/videoPlaybackDiagnostics'
+import { describeVideoPlaybackFailure, diagnoseVideoPlaybackFailure, logVideoPlaybackFailure } from '../../media/videoPlaybackDiagnostics'
 import { computeTimelineDuration } from '../timeline/timelineMath'
 import { getDesktopBridge } from '../../desktop/bridge'
 import { getDesktopActiveProjectId } from '../../desktop/activeProject'
@@ -427,8 +427,7 @@ export default function TimelinePreview({ activeClips, aspectRatio, fps, playhea
             onError={() => {
               void diagnoseVideoPlaybackFailure(videoUrl, videoRef.current?.error || null).then((diagnostics) => {
                 logVideoPlaybackFailure(diagnostics)
-                const message = diagnostics.probeMessage
-                setPlaybackError(message ? `视频加载失败：${message}` : '视频加载失败：代理无法读取该视频地址')
+                setPlaybackError(`视频加载失败：${describeVideoPlaybackFailure(diagnostics)}`)
               })
               setTimelinePlaying(false)
             }}
