@@ -174,7 +174,9 @@ export type AgentChatV2Hooks = {
 // human-in-the-loop confirmation channel: emit `tool-call`, await the user's
 // decision, then emit `tool-result` / `tool-error` and feed a structured
 // result back to the model. Shared by both the canvas and document tool groups.
-function makeAgentTool<TParams extends z.ZodTypeAny>(
+// 导出仅供集成测试（agentLoopIntegration.test.ts）驱动真实「确认门焊接」路径——
+// 生产代码仍只经 buildCanvasToolsForV2 / 文档工具组取用，不直接调。
+export function makeAgentTool<TParams extends z.ZodTypeAny>(
   hooks: AgentChatV2Hooks,
   toolName: AgentToolName,
   description: string,
