@@ -114,6 +114,34 @@
 
 ---
 
+## 7. 实现进度 + 现状对照（回填）
+
+### 切片 0（已交付）
+- **后端接线 — 已 push（c0d2e8c）**：记忆注入从渲染层下沉到后端 `runAgentChatV2` 单一注入点（`agentChatV2.ts`，按 `projectIdFromSessionKey(sessionKey)` 解析 → `getProjectMemory` → `formatMemoryForPrompt`，放 system 末尾）。创作区/生成区**共享同一份记忆**（Letta 共享 block 落地），根治「创作助手失明」。`formatMemoryForPrompt` 移到后端 `projectMemory.ts` 单一真相源，渲染层同名死函数 + 其测试删除（P1），等价测试迁后端。typecheck 双向 + 274 单测 + 五门全过；真机 LLM E2E 需额度未验。
+- **软偏好提议卡 — 样张已出（show_widget `soft_pref_proposal_card`）**：对话流里「要记住这条偏好吗？」可编辑措辞 + 记住/不用 + 塌成确认条并入「AI 记得 N 条」折叠条。诚实标边界（只记软偏好，身份不自动记成文字）。**待用户拍板触发粒度/时机后实现。**
+
+### 切片 1（设定卡库）— 样张已出 + 现状对照（实现 grounding）
+
+样张：show_widget `setting_card_library`（角色卡升级版：参考图锁身份 + 别名 + 参考强度 + 自动挂载三态 + 挂到镜头的出镜角色，全可交互）。
+
+现状盘点（Explore 实测，file:line）：现有 character/scene = **image 节点 + categoryId + renderKind + 两三个 meta 文本字段**，没有「我是个被引用的设定」身份。升级要补：
+
+| 维度 | 现状 file:line | 设定卡需补 |
+|---|---|---|
+| 数据结构 | `nodeMetaFields.ts` CharacterMeta 仅 `tagline?/tags?` | `meta.aliases: string[]`（别名/@引用目标，自动挂载靠它命中） |
+| 参考图 | 卡的「图」= `node.result.url`（自产）；上传参考走 `meta.referenceImageUrls`+edge | 卡自带「参考图槽」（多张、锁身份），区别于自产 result |
+| 参考强度 | `ArchetypeReferenceSlot`（`modelArchetypes/types.ts:22-47`）**无 weight 字段** | 参考图 weight/强度（槽 + 投递层都要补，**vendor 门控**） |
+| 三态自动挂载 | 完全没有 | 总是挂 / 检测到名字才挂 / 从不（Novelcrafter Codex） |
+| 挂载可视化 | 卡面仅 `UsageDot` 数字（`useNodeRelationships.ts:66`）；镜头面无显示 | 卡面「挂到哪些镜头 + 出镜角色（主体/出镜/背景）」；镜头面挂载徽章行 |
+| 出镜角色 | edge mode = `character_ref/style_ref/composition_ref`（参考语义，`generationCanvasTypes.ts:205`） | 主体/出镜/背景三态（映射到 edge mode/meta，**vendor 门控**） |
+| kind 身份 | character/scene 插件 `registry.ts:75-104`，渲染 `render/CharacterCardNode.tsx`/`SceneCardNode.tsx` | 沿用现 kind；扩 card body 布局承载上述 |
+
+复用而非另造：参数/参考槽渲染复用 `NodeParameterControls.tsx` + `AssetReference.tsx` + `ModelParameterControl`；建议改文件 = `render/CharacterCardNode.tsx`/`SceneCardNode.tsx`/`CardCommon.tsx`/`nodeMetaFields.ts`。
+
+**诚实缺口（D4，实现时如实兑现）**：参考强度 weight + 主体/出镜/背景出镜角色，底层依赖 vendor 能力——按档案声明槽（P4），不声明的卡面**灰掉/隐藏**，不假装通用。
+
+---
+
 ## 附：CLAUDE.md R6 参考池更新建议
 
 R6「参考池」当前列的是 coding-agent / 画布向项目，对**记忆专题**不对口。建议补一行记忆专题参考池（见本文 §2/§3 来源），避免下次又凭 CLAUDE.md 里随手写的项目去查。
