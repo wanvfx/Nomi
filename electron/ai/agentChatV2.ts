@@ -11,6 +11,8 @@ import {
 } from "./agentSessionStore";
 import { runAgentLoop } from "./agentLoop";
 import { traceContextCapped } from "../events/agentChatTrace";
+import { projectIdFromSessionKey } from "../events/eventLogRepository";
+import { getProjectMemory, formatMemoryForPrompt } from "../memory/projectMemory";
 import { consumeAgentStreamWithTimeout } from "./agentStreamConsumer";
 import { buildLanguageModelForVendor } from "./vendorLanguageModel";
 import { getModelProfile } from "./modelProfiles";
@@ -447,7 +449,18 @@ export async function runAgentChatV2(
   // 收口 sanitize（P0-6）：送进 LLM 的 user/system 文本 ASCII 可移植化（防 Moonshot 等 tokenizer 异常）。
   const userPrompt = sanitizeForBroadCompat(trim(payload.prompt) || trim(payload.displayPrompt));
 
-  const systemParts = [NOMI_AGENT_IDENTITY, systemPrompt, skillSystemPrompt].filter((part) => part && part.length > 0);
+  // 项目记忆的「共享 block」单一注入点(切片0):按 sessionKey 解析 projectId,创作区/生成区
+  // 同走这里 → 两 agent 共享同一份项目记忆(根治「创作助手失明」)。放 system 末尾——记忆变更
+  // 最频繁,殿后只击穿后缀缓存,前面身份/专长/skill 的 vendor 前缀缓存仍命中。注入失败不阻断。
+  let memoryBlock = "";
+  try {
+    const memoryProjectId = projectIdFromSessionKey(trim(payload.sessionKey));
+    if (memoryProjectId) memoryBlock = formatMemoryForPrompt(getProjectMemory(memoryProjectId).facts);
+  } catch {
+    /* 记忆读取/提炼失败静默退回无记忆,绝不阻断对话 */
+  }
+
+  const systemParts = [NOMI_AGENT_IDENTITY, systemPrompt, skillSystemPrompt, memoryBlock].filter((part) => part && part.length > 0);
   const system = systemParts.length > 0 ? sanitizeForBroadCompat(systemParts.join("\n\n")) : undefined;
 
   const languageModel = buildLanguageModelForVendor(vendor, model, apiKey);

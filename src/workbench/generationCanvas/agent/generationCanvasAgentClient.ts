@@ -7,7 +7,6 @@ import { applyProposalBatch } from './proposalTxn'
 import { evaluateGate } from './gate'
 import { buildLockGateContext } from './lockGateContext'
 import { listAvailableModelsForAgent, formatAvailableModelsForPrompt } from './availableModels'
-import { fetchProjectMemoryFacts, formatMemoryForPrompt } from './projectMemoryClient'
 import { formatCanvasForAgent } from './canvasPromptContext'
 
 export type { ToolCallEvent } from '../../ai/workbenchAgentRunner'
@@ -151,18 +150,13 @@ export async function sendGenerationCanvasAgentMessage(
   const prompt = input.buildPrompt
     ? input.buildPrompt({ message: input.message, snapshot: input.snapshot, selectedNodes: input.selectedNodes })
     : buildGenerationCanvasUserMessage(input, modelsBlock)
-  // T2:静态段(身份/规则)+ 低频段(记忆,放末尾——变了只击穿后缀)进 system,
-  // 会话内 byte 稳定 → vendor 自动前缀缓存命中。注入失败不阻断。
-  const systemParts: string[] = [buildStaticAgentSystemPrompt(input.mode)]
-  try {
-    // S9:项目记忆(≤1.5k token 预算内裁剪)。
-    const memoryBlock = formatMemoryForPrompt(await fetchProjectMemoryFacts())
-    if (memoryBlock) systemParts.push(memoryBlock)
-  } catch { /* 静默 */ }
+  // 静态段(身份/规则)进 system,会话内 byte 稳定 → vendor 自动前缀缓存命中。
+  // 项目记忆已下沉到后端 runAgentChatV2 的单一注入点(创作区/生成区共享 block),这里不再各自注入。
+  const staticSystemPrompt = buildStaticAgentSystemPrompt(input.mode)
 
   const response = await runWorkbenchAgent({
     prompt,
-    ...(input.buildPrompt ? {} : { systemPrompt: systemParts.join('\n\n') }),
+    ...(input.buildPrompt ? {} : { systemPrompt: staticSystemPrompt }),
     displayPrompt: input.message,
     sessionKey: workbenchSessionKey('generation'),
     skillKey: input.skill?.key || 'workbench.generation.canvas-planner',

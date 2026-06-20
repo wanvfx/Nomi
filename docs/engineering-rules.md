@@ -69,7 +69,10 @@
 - 我们能直接借鉴什么
 - 哪里不适用、为什么
 
-参考池（非穷尽）：Cline / OpenHands / Aider / Continue / Cherry Studio / LobeChat；画布向：tldraw / ComfyUI / xyflow。
+参考池（非穷尽，按专题选，别拿这串当唯一清单——做某专题就去查那个专题真正的顶尖项目）：
+- coding agent / 通用：Cline / OpenHands / Aider / Continue / Cherry Studio / LobeChat
+- 画布向：tldraw / ComfyUI / xyflow
+- **记忆/上下文专题**：Mem0 / Letta（MemGPT）/ Zep（Graphiti，双时间知识图谱）/ Anthropic memory tool / Cline Memory Bank / 学术（Generative Agents 反思·A-Mem·MIRIX）；创作域：SillyTavern lorebook / Novelcrafter Codex（结构化设定卡+三态挂载）/ Sudowrite·NovelAI story bible。完整调研见 `docs/plan/2026-06-20-memory-system-redesign.md`。
 
 ## R7 6 角色评审
 

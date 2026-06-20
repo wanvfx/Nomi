@@ -14,10 +14,12 @@ import {
   setEventLogProjectDirResolverForTests,
 } from "../events/eventLogRepository";
 import {
+  formatMemoryForPrompt,
   getProjectMemory,
   removeMemoryFact,
   setProjectMemoryDirResolverForTests,
   updateMemoryFact,
+  type MemoryFact,
 } from "./projectMemory";
 
 let tmpRoot = "";
@@ -138,5 +140,42 @@ describe("projectMemory — S9 零 LLM 提炼器", () => {
 
     appendEvents("p1", [evt("canvas.node.removed", { nodeId: "c1" })]);
     expect(getProjectMemory("p1").facts).toHaveLength(0);
+  });
+});
+
+const fact = (id: string, text: string, extra: Partial<MemoryFact> = {}): MemoryFact => ({
+  id,
+  text,
+  kind: "character",
+  origin: "auto",
+  sourceSeqs: [1],
+  pinned: false,
+  updatedAt: "2026-06-12T00:00:00Z",
+  ...extra,
+});
+
+describe("formatMemoryForPrompt — 注入段(预算 + 排序),创作区/生成区共享", () => {
+  it("空记忆零注入", () => {
+    expect(formatMemoryForPrompt([])).toBe("");
+  });
+
+  it("裁剪顺序:pinned > 用户纠正 > 自动 + 新近度", () => {
+    const facts = [
+      fact("a", "自动旧", { updatedAt: "2026-06-01T00:00:00Z" }),
+      fact("b", "用户纠正的", { origin: "user" }),
+      fact("c", "置顶的", { pinned: true, updatedAt: "2026-05-01T00:00:00Z" }),
+      fact("d", "自动新", { updatedAt: "2026-06-12T00:00:00Z" }),
+    ];
+    const block = formatMemoryForPrompt(facts);
+    const order = ["置顶的", "用户纠正的", "自动新", "自动旧"].map((needle) => block.indexOf(needle));
+    expect([...order].sort((x, y) => x - y)).toEqual(order);
+  });
+
+  it("超预算按序截断,不超不裁", () => {
+    const facts = Array.from({ length: 50 }, (_, index) => fact(`f${index}`, `事实${index}`.padEnd(100, "。")));
+    const block = formatMemoryForPrompt(facts, 500);
+    expect(block.length).toBeLessThanOrEqual(500 + 40); // 标题行不计预算
+    expect(block).toContain("事实0");
+    expect(block).not.toContain("事实49");
   });
 });

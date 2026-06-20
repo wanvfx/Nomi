@@ -238,6 +238,31 @@ export function getProjectMemory(projectId: string): ProjectMemory {
   return next;
 }
 
+/**
+ * 注入 system prompt 的记忆段(单一真相源:创作区/生成区共享同一注入,见 agentChatV2)。
+ * 预算 ≤约 1.5k token(CJK 按 1 字≈1 token 保守计,上限 1500 字符);
+ * 超了按 pinned > 用户纠正 > 自动 + 新近度裁(总方案 §C 层2)。
+ * 精度铁律:此处只搬 fact.text 原文,不做任何摘要/改写——精确值逐字进逐字出。
+ */
+export function formatMemoryForPrompt(facts: readonly MemoryFact[], budgetChars = 1500): string {
+  if (facts.length === 0) return "";
+  const ranked = [...facts].sort((a, b) => {
+    if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
+    if (a.origin !== b.origin) return a.origin === "user" ? -1 : 1;
+    return (b.updatedAt || "").localeCompare(a.updatedAt || "");
+  });
+  const lines: string[] = [];
+  let used = 0;
+  for (const fact of ranked) {
+    const line = `- ${fact.text}`;
+    if (used + line.length > budgetChars) break;
+    lines.push(line);
+    used += line.length;
+  }
+  if (lines.length === 0) return "";
+  return `项目记忆（此前积累的事实，遵守其中的约束与偏好）：\n${lines.join("\n")}`;
+}
+
 /** 用户改文本(纠正,origin→user)/pin。纠正进日志审计。 */
 export function updateMemoryFact(
   projectId: string,
