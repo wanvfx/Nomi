@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { countShotUsage } from './useNodeRelationships'
+import { countShotUsage, listMountedCards } from './useNodeRelationships'
 import type { GenerationCanvasNode, GenerationCanvasEdge } from '../model/generationCanvasTypes'
 
 function node(id: string, categoryId: string, title = ''): GenerationCanvasNode {
   return { id, kind: 'image', title, position: { x: 0, y: 0 }, categoryId } as GenerationCanvasNode
+}
+function kindNode(id: string, kind: string, title = ''): GenerationCanvasNode {
+  return { id, kind, title, position: { x: 0, y: 0 } } as GenerationCanvasNode
 }
 function edge(source: string, target: string): GenerationCanvasEdge {
   return { id: `${source}->${target}`, source, target }
@@ -62,5 +65,35 @@ describe('countShotUsage — 结构化引用计数（替代 prompt.includes(titl
     const nodes = [node('char', 'character'), node('s1', 'shots')]
     const edges = [edge('s1', 'char')] // s1 -> char（方向反了）
     expect(countShotUsage('char', nodes, edges)).toBe(0)
+  })
+})
+
+describe('listMountedCards — 镜头挂了哪些设定卡（切片2）', () => {
+  it('收集指向本镜头、source 是角色/场景卡的边', () => {
+    const nodes = [
+      kindNode('林夏', 'character', '林夏'),
+      kindNode('咖啡馆', 'scene', '咖啡馆'),
+      kindNode('s1', 'video', '镜头 1'),
+    ]
+    const edges = [edge('林夏', 's1'), edge('咖啡馆', 's1')]
+    const mounted = listMountedCards('s1', nodes, edges)
+    expect(mounted.map((m) => m.title)).toEqual(['林夏', '咖啡馆'])
+    expect(mounted.map((m) => m.kind)).toEqual(['character', 'scene'])
+  })
+
+  it('非卡 source（图片/视频）不算挂载', () => {
+    const nodes = [kindNode('img', 'image', '参考图'), kindNode('s1', 'video', '镜头 1')]
+    expect(listMountedCards('s1', nodes, [edge('img', 's1')])).toEqual([])
+  })
+
+  it('同一张卡多条边只算一次', () => {
+    const nodes = [kindNode('林夏', 'character', '林夏'), kindNode('s1', 'video')]
+    const edges = [edge('林夏', 's1'), edge('林夏', 's1')]
+    expect(listMountedCards('s1', nodes, edges)).toHaveLength(1)
+  })
+
+  it('无标题的卡按 kind 兜底名', () => {
+    const nodes = [kindNode('c1', 'character', ''), kindNode('s1', 'video')]
+    expect(listMountedCards('s1', nodes, [edge('c1', 's1')])[0].title).toBe('角色')
   })
 })

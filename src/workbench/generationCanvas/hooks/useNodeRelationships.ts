@@ -67,6 +67,62 @@ export function useNodeUsageCount(nodeId: string, _nodeTitle?: string | undefine
   return useGenerationCanvasStore((state) => countShotUsage(nodeId, state.nodes, state.edges))
 }
 
+// ── 镜头「挂了哪些设定卡」（设定卡切片2）─────────────────────────────────────
+// 一个镜头节点被哪些角色/场景卡引用（指向本镜头的参考边里，source 是 character/scene 卡）。
+// 给镜头面常驻徽章用——不选中也能一眼看出「挂了林夏 / 咖啡馆」，免点开数连线（可审计）。
+// 缓存 keyed on edges（与 buildUsageMap 同模式）：生成进度 tick 改的是 nodes 引用、edges 稳定，
+// 故徽章不随每次 tick 重建；title 在 edges 不变期间可能短暂滞后（改名才变），对徽章可接受。
+
+export type MountedCard = { id: string; title: string; kind: 'character' | 'scene' }
+
+const mountedCache = new WeakMap<readonly GenerationCanvasEdge[], Map<string, MountedCard[]>>()
+
+function buildMountedCardsMap(
+  nodes: readonly GenerationCanvasNode[],
+  edges: readonly GenerationCanvasEdge[],
+): Map<string, MountedCard[]> {
+  const cached = mountedCache.get(edges)
+  if (cached) return cached
+  const byId = new Map(nodes.map((node) => [node.id, node]))
+  const map = new Map<string, MountedCard[]>()
+  const seenPerTarget = new Map<string, Set<string>>()
+  for (const edge of edges) {
+    const src = byId.get(edge.source)
+    if (!src || (src.kind !== 'character' && src.kind !== 'scene')) continue
+    let seen = seenPerTarget.get(edge.target)
+    if (!seen) {
+      seen = new Set<string>()
+      seenPerTarget.set(edge.target, seen)
+    }
+    if (seen.has(src.id)) continue // 同一卡多条边只算一次
+    seen.add(src.id)
+    let bucket = map.get(edge.target)
+    if (!bucket) {
+      bucket = []
+      map.set(edge.target, bucket)
+    }
+    bucket.push({ id: src.id, title: src.title || (src.kind === 'character' ? '角色' : '场景'), kind: src.kind })
+  }
+  mountedCache.set(edges, map)
+  return map
+}
+
+const EMPTY_MOUNTED: MountedCard[] = []
+
+/** 纯查询（可单测）：节点 nodeId 挂了哪些角色/场景设定卡（按连边顺序、去重）。 */
+export function listMountedCards(
+  nodeId: string,
+  nodes: readonly GenerationCanvasNode[],
+  edges: readonly GenerationCanvasEdge[],
+): MountedCard[] {
+  return buildMountedCardsMap(nodes, edges).get(nodeId) ?? EMPTY_MOUNTED
+}
+
+/** 当前镜头挂载的设定卡列表（给节点面徽章）。edges 不变 → 引用稳定，不引发重渲染churn。 */
+export function useMountedCards(nodeId: string): MountedCard[] {
+  return useGenerationCanvasStore((state) => listMountedCards(nodeId, state.nodes, state.edges))
+}
+
 // sourceId → 变体数（直接派生自该 id 的节点数）
 type VariantMap = Map<string, number>
 const variantCache = new WeakMap<readonly GenerationCanvasNode[], VariantMap>()
