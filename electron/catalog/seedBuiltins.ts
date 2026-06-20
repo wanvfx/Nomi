@@ -36,6 +36,7 @@ import { APIMART_AUDIO_MODELS } from "./apimartAudios";
 import { APIMART_TEXT_MODELS } from "./apimartTexts";
 import { MODELSCOPE_VENDOR_SEED } from "./modelscopeVendor";
 import { MODELSCOPE_IMAGE_MODELS, MODELSCOPE_IMAGE_QUERY, MODELSCOPE_IMAGE_STATUS } from "./modelscopeImages";
+import { MODELSCOPE_TEXT_MODELS } from "./modelscopeTexts";
 import { VOLCENGINE_VENDOR_SEED } from "./volcengineVendor";
 import { VOLCENGINE_IMAGE_MODELS } from "./volcengineImages";
 
@@ -117,10 +118,12 @@ const APIMART_CURATED_MAPPINGS: CuratedMapping[] = [
   ),
 ];
 
-/** 魔搭社区（官方原生）curated 模型 + mapping，从单源 MODELSCOPE_IMAGE_MODELS 派生（async create→poll，与 apimart 同构）。 */
-const MODELSCOPE_CURATED_MODELS: CuratedModel[] = MODELSCOPE_IMAGE_MODELS.map((m) => ({
-  modelKey: m.modelKey, labelZh: m.labelZh, kind: "image" as const, archetypeId: m.archetypeId,
-}));
+/** 魔搭社区（官方原生）curated 模型 + mapping。图片：async create→poll；文本：免费 LLM(无 mapping，直连 chat)。 */
+const MODELSCOPE_CURATED_MODELS: CuratedModel[] = [
+  // 免费文本大脑（Qwen3 系，真实验证 chat+tool_use 双通）：补 Issue #9，给没付费用户免费大脑。
+  ...MODELSCOPE_TEXT_MODELS.map((m) => ({ modelKey: m.modelKey, labelZh: m.labelZh, kind: "text" as const })),
+  ...MODELSCOPE_IMAGE_MODELS.map((m) => ({ modelKey: m.modelKey, labelZh: m.labelZh, kind: "image" as const, archetypeId: m.archetypeId })),
+];
 const MODELSCOPE_CURATED_MAPPINGS: CuratedMapping[] = MODELSCOPE_IMAGE_MODELS.flatMap((m) =>
   m.mappings.map((mp) => ({
     id: mp.id, taskKind: mp.taskKind, modelKey: m.modelKey, name: mp.name,

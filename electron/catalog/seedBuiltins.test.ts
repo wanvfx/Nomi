@@ -249,4 +249,18 @@ describe("applyBuiltinSeeds", () => {
     expect(vendor?.baseUrlHint).toBe("https://my-relay.example.com");
     expect(vendor?.name).toBe("我自己接的 kie");
   });
+
+  it("魔搭免费 LLM：fresh seed 播 Qwen3 系 text 模型(enabled,无 archetype/mapping)——免费文本大脑(真实验证)", () => {
+    const { state } = applyBuiltinSeeds(emptyCatalog(), NOW);
+    const texts = state.models.filter((m) => m.vendorKey === "modelscope" && m.kind === "text");
+    expect(texts.map((m) => m.modelKey)).toEqual(expect.arrayContaining([
+      "Qwen/Qwen3-Next-80B-A3B-Instruct", "Qwen/Qwen3-30B-A3B", "Qwen/Qwen3-8B",
+    ]));
+    for (const m of texts) {
+      expect(m.enabled).toBe(true);
+      expect((m.meta as { archetypeId?: string } | undefined)?.archetypeId).toBeUndefined();
+    }
+    // 文本大脑不建 mapping（直连 chat）。
+    expect(state.mappings.some((mp) => mp.vendorKey === "modelscope" && mp.taskKind === "chat")).toBe(false);
+  });
 });
