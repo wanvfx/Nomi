@@ -110,6 +110,53 @@ export const storyboardPlanParamsSchema = z.object({
   shots: z.array(storyboardShotSchema).min(1).max(24),
 })
 
+// ── 站位参考 schema（create_staging_reference 的参数；镜像渲染层 stagingBuilder 的 StagingSpec，
+// 进程隔离故两处各一份，与 storyboardPlan 同例。pose 枚举=已校准的 12 预设 id）。──
+export const stagingReferenceParamsSchema = z.object({
+  shotClientId: z
+    .string()
+    .optional()
+    .describe(
+      "clientId (from this turn's create_canvas_nodes) or real node id of the shot/keyframe/video this staging locks; the rendered reference auto-connects to it as composition_ref. Omit for a standalone reference.",
+    ),
+  characters: z
+    .array(
+      z.object({
+        name: z.string().optional().describe("Character label, e.g. '林夏' / '角色A'."),
+        pose: z
+          .enum([
+            "standing", "t-pose", "walk", "run", "sit", "squat",
+            "single-knee", "double-knee", "hands-on-hips", "point", "wave", "cheer",
+          ])
+          .optional()
+          .describe("Body pose preset (default standing). single-knee=proposal kneel, hands-on-hips, point, wave, cheer=arms up."),
+        facing: z
+          .enum(["toward", "away", "camera", "left", "right"])
+          .optional()
+          .describe("Facing direction. toward = face the partner / circle center."),
+      }),
+    )
+    .min(1)
+    .max(6)
+    .describe("Characters to stage (1-6)."),
+  layout: z
+    .enum(["solo", "facing", "side-by-side", "line", "behind", "circle"])
+    .optional()
+    .describe("Spatial arrangement. facing = two face each other; behind = one in front of another; line = a queue; circle = around a center."),
+  camera: z
+    .object({
+      angle: z.enum(["front", "three-quarter", "side", "back"]).optional(),
+      height: z.enum(["eye", "low", "high", "overhead"]).optional().describe("low = low-angle look up; high = high-angle look down; overhead = top-down."),
+      shot: z.enum(["wide", "medium", "close"]).optional(),
+    })
+    .optional(),
+  environment: z.enum(["studio", "day", "night"]).optional(),
+  crowd: z
+    .object({ rows: z.number().int(), columns: z.number().int() })
+    .optional()
+    .describe("Optional background crowd grid behind the main characters."),
+});
+
 export const canvasToolNames = [
   "read_canvas_state",
   "propose_storyboard_plan",
@@ -119,6 +166,7 @@ export const canvasToolNames = [
   "delete_canvas_nodes",
   "run_generation_batch",
   "arrange_storyboard_to_timeline",
+  "create_staging_reference",
 ] as const;
 export type CanvasToolName = (typeof canvasToolNames)[number];
 
@@ -197,6 +245,13 @@ export const canvasTools = {
           "Optional subset of shot node ids to arrange. Omit to arrange the entire storyboard in script order.",
         ),
     }),
+  }),
+  // 站位参考：组装 3D 假人场景(站位+动作+机位)离屏出图 → 自动连 composition_ref 到镜头，
+  // 锁死视频模型最易崩的「谁站哪/做什么动作/从哪拍」。零扣费(只出灰模参考图)。
+  create_staging_reference: tool({
+    description:
+      "Create a 3D staging reference image that LOCKS character blocking (who stands where, facing whom), body poses (kneel / sit / squat / point...), and camera angle for a shot — so the video model doesn't break the spatial relationship or the actions. Use it when a shot needs this pinned down: (a) two or more characters with a spatial relationship, (b) a specific physical action / pose, or (c) a director-specified camera angle (low / high / overhead / side). The rendered gray-mannequin reference auto-connects to shotClientId as composition_ref. Do NOT use it for a simple single talking-head shot. One call per shot.",
+    parameters: stagingReferenceParamsSchema,
   }),
 } as const;
 

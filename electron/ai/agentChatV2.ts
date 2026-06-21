@@ -23,6 +23,7 @@ import {
   plannedEdgeSchema,
   plannedNodeSchema,
   storyboardPlanParamsSchema,
+  stagingReferenceParamsSchema,
   type CanvasToolName,
 } from "./canvasTools";
 import {
@@ -292,6 +293,11 @@ function buildCanvasToolsForV2(hooks: AgentChatV2Hooks) {
       z.object({
         nodeIds: z.array(z.string().min(1)).max(48).optional(),
       }),
+    ),
+    create_staging_reference: makeTool(
+      "create_staging_reference",
+      "Create a 3D staging reference image locking character blocking + poses + camera for a shot (auto-connects to shotClientId as composition_ref). Use when ≥2 characters have a spatial relationship, a specific physical action is needed, or a director-specified camera angle. Not for simple single talking-head shots.",
+      stagingReferenceParamsSchema,
     ),
     // Silence unused-import warning for canvasNodeKindSchema by re-exporting
     // it through the tool registry shape (it's enforced via plannedNodeSchema).

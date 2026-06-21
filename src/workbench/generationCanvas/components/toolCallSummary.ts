@@ -45,6 +45,16 @@ export function summarizeToolCall(toolName: string, args: unknown): string {
     const ids = Array.isArray(record.nodeIds) ? record.nodeIds : []
     return ids.length ? `把 ${ids.length} 个镜头按剧本时序排入时间轴` : '把整条故事板按剧本时序排入时间轴'
   }
+  if (toolName === 'create_staging_reference') {
+    const characters = Array.isArray(record.characters) ? record.characters : []
+    const camera = record.camera && typeof record.camera === 'object' ? (record.camera as Record<string, unknown>) : {}
+    const parts = [
+      `${characters.length} 角色`,
+      typeof record.layout === 'string' ? String(record.layout) : null,
+      typeof camera.shot === 'string' ? String(camera.shot) : null,
+    ].filter(Boolean)
+    return `建站位参考图（${parts.join(' · ')}）`
+  }
   return toolName
 }
 

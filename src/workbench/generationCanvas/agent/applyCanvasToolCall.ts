@@ -12,6 +12,7 @@ import { runPlanWithToasts } from '../components/batchPlanPreview'
 import { mintSpendGrant } from '../../api/taskApi'
 import { arrangeStoryboardToTimeline } from './sendStoryboardToTimeline'
 import { parseStoryboardPlan } from './storyboardPlan'
+import { buildStagingScene, type StagingSpec, type StagingCharacterSpec } from '../nodes/scene3d/stagingBuilder'
 import { useWorkbenchStore } from '../../workbenchStore'
 
 // 批量创建节点的布局由渲染层 derive，而不是信任 LLM 发来的像素坐标。
@@ -79,6 +80,38 @@ function normalizePlannedEdges(rawEdges: unknown[]): Array<{ source: string; tar
 /** S6-4 锁求值要把 LLM 口中的 clientId 翻译成真实节点 id 再查锁面(gate 调用方用)。 */
 export function resolveCanvasToolNodeId(id: string): string {
   return resolveNodeId(id)
+}
+
+/** create_staging_reference 的参数 → StagingSpec（容错提取；非法枚举值由 builder 兜默认）。 */
+function parseStagingSpec(record: Record<string, unknown>): StagingSpec {
+  const str = (value: unknown): string | undefined => (typeof value === 'string' && value.trim() ? value.trim() : undefined)
+  const rawChars = Array.isArray(record.characters) ? record.characters : []
+  const characters: StagingCharacterSpec[] = rawChars
+    .map((raw) => (raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {}))
+    .map((c) => ({
+      name: str(c.name),
+      pose: str(c.pose),
+      facing: str(c.facing) as StagingCharacterSpec['facing'],
+    }))
+  if (characters.length === 0) characters.push({})
+  const cameraRaw = record.camera && typeof record.camera === 'object' ? (record.camera as Record<string, unknown>) : null
+  const crowdRaw = record.crowd && typeof record.crowd === 'object' ? (record.crowd as Record<string, unknown>) : null
+  return {
+    characters,
+    layout: str(record.layout) as StagingSpec['layout'],
+    camera: cameraRaw
+      ? {
+          angle: str(cameraRaw.angle) as NonNullable<StagingSpec['camera']>['angle'],
+          height: str(cameraRaw.height) as NonNullable<StagingSpec['camera']>['height'],
+          shot: str(cameraRaw.shot) as NonNullable<StagingSpec['camera']>['shot'],
+        }
+      : undefined,
+    environment: str(record.environment) as StagingSpec['environment'],
+    crowd:
+      crowdRaw && typeof crowdRaw.rows === 'number' && typeof crowdRaw.columns === 'number'
+        ? { rows: crowdRaw.rows, columns: crowdRaw.columns }
+        : undefined,
+  }
 }
 
 export async function applyCanvasToolCall(toolName: string, args: unknown, gesture?: CanvasGestureContext): Promise<unknown> {
@@ -194,6 +227,39 @@ export async function applyCanvasToolCall(toolName: string, args: unknown, gestu
       clientIdToNodeId,
       ...(rawPlanEdges.length ? { connectedCount } : {}),
       ...(skippedEdges.length > 0 ? { skippedEdges } : {}),
+    }
+  }
+
+  if (toolName === 'create_staging_reference') {
+    // 站位参考：词汇 spec → 3D 场景 → 建 scene3d 节点(带 stagingAutoCapture)。
+    // 节点挂载时离屏出图 + 连 composition_ref 到目标镜头（Scene3DEditor 内完成）。
+    const spec = parseStagingSpec(record)
+    const state = buildStagingScene(spec)
+    const rawShot = typeof record.shotClientId === 'string' ? record.shotClientId.trim() : ''
+    const targetNodeId = rawShot ? resolveNodeId(rawShot) : undefined
+    const existing = generationCanvasTools.read_canvas().nodes
+    const position = layoutPlannedNodes(['image'], existing)[0]
+    const created = inCtx(() =>
+      generationCanvasTools.create_nodes([
+        {
+          kind: 'scene3d',
+          categoryId: getDefaultCategoryForNodeKind('scene3d'),
+          title: '站位参考',
+          prompt: '',
+          position,
+          meta: {
+            scene3dState: state,
+            stagingAutoCapture: targetNodeId ? { targetNodeId } : {},
+          },
+        },
+      ]),
+    )
+    const stagingNodeId = created[0]?.id ?? null
+    const cam = spec.camera ?? {}
+    return {
+      stagingNodeId,
+      targetNodeId: targetNodeId ?? null,
+      message: `已创建站位参考（${spec.characters.length} 角色 · ${spec.layout ?? '自动'} 站位 · ${cam.angle ?? 'three-quarter'}/${cam.height ?? 'eye'}/${cam.shot ?? 'medium'}）。正在离屏渲染出图${targetNodeId ? '并连到镜头作 composition_ref' : ''}。`,
     }
   }
 

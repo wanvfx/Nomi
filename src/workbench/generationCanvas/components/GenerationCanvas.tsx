@@ -35,6 +35,7 @@ import {
 import { useCanvasViewport } from './useCanvasViewport'
 import { GENERATION_DEFAULT_BASE_URL, GENERATION_PROVIDER, readProviderSetting, writeProviderSettings } from '../services/providerSettings'
 import CanvasEdgeLayer, { type ActiveEdge } from './CanvasEdgeLayer'
+import { StagingCaptureHost } from '../nodes/scene3d/StagingCaptureHost'
 import '../styles/generationCanvas.css'
 
 const OPEN_MODEL_CATALOG_EVENT = 'nomi-open-model-catalog'
@@ -486,6 +487,7 @@ export default function GenerationCanvas({ readOnly = false }: GenerationCanvasP
       data-ready={isReady ? 'true' : undefined}
     >
       <div className={cn('generation-canvas-v2__main', 'relative w-full h-full min-w-0 min-h-0')}>
+        <StagingCaptureHost />
         {settingsOpen ? (
           <div
             className={cn(
