@@ -14,7 +14,10 @@ import {
   setTimelinePlayheadFrame,
   setTimelineScale,
   splitClipAtFrame,
+  updateClipsBySourceNodeId,
 } from './timeline/timelineEdit'
+import { applyRegeneratedResultToClip } from './generationCanvas/model/buildClipFromGenerationNode'
+import type { GenerationNodeResult } from './generationCanvas/model/generationCanvasTypes'
 import type { ClipFraming } from './timeline/clipFraming'
 import {
   addTextClip,
@@ -182,6 +185,12 @@ type WorkbenchState = {
    * 由 canvasNodeActions 的 deleteNode/deleteSelectedNodes 删完节点后调用（跨 store 最小耦合）。
    */
   reconcileTimelineForDeletedNodes: (nodeIds: readonly string[]) => void
+  /**
+   * 节点产物更新后的时间轴回填闸（C0，与删除对账对称）：把引用该 nodeId 的所有 clip
+   * 换成新产物——位置不变（startFrame 不动）、URL 走 providerUrl 优先、trim 越界夹取。
+   * 由 in-place 重生成完成后调用（见 generationRunController）。
+   */
+  reconcileTimelineForUpdatedNodes: (nodeId: string, result: GenerationNodeResult | null) => void
   resizeTimelineClip: (clipId: string, edge: 'left' | 'right', deltaFrame: number) => void
   splitTimelineClip: (clipId: string, frame: number) => void
   duplicateTimelineClip: (clipId: string) => void
@@ -522,6 +531,20 @@ export const useWorkbenchStore = create<WorkbenchState>()(subscribeWithSelector(
       return {
         timeline: nextTimeline,
         selectedTimelineClipIds: state.selectedTimelineClipIds.filter((id) => liveClipIds.has(id)),
+        persistRevision: state.persistRevision + 1,
+      }
+    })
+  },
+  reconcileTimelineForUpdatedNodes: (nodeId, result) => {
+    set((state) => {
+      const id = String(nodeId || '').trim()
+      if (!id) return state
+      const nextTimeline = updateClipsBySourceNodeId(state.timeline, id, (clip) =>
+        applyRegeneratedResultToClip(clip, result, state.timeline.fps),
+      )
+      if (nextTimeline === state.timeline) return state // 无引用该节点的 clip → 不动、不触发自动保存
+      return {
+        timeline: nextTimeline,
         persistRevision: state.persistRevision + 1,
       }
     })

@@ -2,6 +2,7 @@ import type { GenerationCanvasEdge, GenerationCanvasNode, GenerationNodeResult }
 import { getGenerationNodeExecutionKind } from '../model/generationNodeKinds'
 import { persistActiveWorkbenchProjectNow } from '../../project/workbenchProjectSession'
 import { useGenerationCanvasStore } from '../store/generationCanvasStore'
+import { useWorkbenchStore } from '../../workbenchStore'
 import { toast } from '../../../ui/toast'
 import { mintSpendGrant } from '../../api/taskApi'
 import { describeGenerationCost, useSpendConfirmStore } from '../spend/spendConfirm'
@@ -435,6 +436,40 @@ export async function rerunGenerationNodeAsNewNode(
   const duplicatedNode = state.duplicateNodeForRegeneration(nodeId)
   if (!duplicatedNode) throw new Error('node not found')
   return runGenerationNode(duplicatedNode.id, options)
+}
+
+/**
+ * In-place 重生成（C0）：同节点重出 —— **不 duplicate、不换 id、不动 shotIndex**。
+ * `runGenerationNode` 本就原地（addNodeResult 把新 result 设为 node.result、旧的进 history），
+ * 这里加「轻确认 + 铸令牌（不绕付费闸）+ 完成后回填时间轴」。产物贴回原节点后，
+ * 时间轴里引用该节点的 clip 走回填闸（位置不变、URL providerUrl 优先、trim 越界夹取）。
+ * 与「基于此生成变体」(confirmAndRunNode{rerun} / rerunGenerationNodeAsNewNode = duplicate) 分流，
+ * 别共用一个口子（一个改这一镜、一个长出新镜）。
+ */
+export async function regenerateNodeInPlace(nodeId: string): Promise<void> {
+  const id = String(nodeId || '').trim()
+  if (!id) return
+  const node = useGenerationCanvasStore.getState().nodes.find((n) => n.id === id)
+  const ok = await useSpendConfirmStore.getState().requestConfirm({
+    title: '重新生成',
+    message: describeGenerationCost(1, node ? spendCostKind(node.kind) : 'image'),
+    confirmLabel: '重新生成',
+    light: true,
+  })
+  if (!ok) return
+  let grantId: string
+  try {
+    grantId = await mintSpendGrant([id])
+  } catch (error) {
+    toast(error instanceof Error && error.message ? error.message : '付费授权失败', 'error')
+    return
+  }
+  try {
+    const result = await runGenerationNode(id, { grantId })
+    useWorkbenchStore.getState().reconcileTimelineForUpdatedNodes(id, result)
+  } catch {
+    // 失败已记在节点卡片（人话错误），不再弹。
+  }
 }
 
 export function canRunGenerationNode(

@@ -203,6 +203,49 @@ export function removeClipsBySourceNodeIds(timeline: TimelineState, nodeIds: rea
   return removed ? { ...timeline, tracks } : timeline
 }
 
+/**
+ * 把某源节点的所有 clip 过一遍 transform（C0 回填闸的时间轴侧；transform 自身不感知邻居）。
+ * 通用、不依赖生成层：transform 由调用方注入（如「应用重生成产物」）。
+ * 应用后防与下一片重叠——超出则按 resizeClipEdge 同模型收回可见长度（video/audio 加 offsetEnd，image 缩 frameCount），
+ * 保证「位置不变（startFrame 不动）」的同时不踩到邻片。
+ */
+export function updateClipsBySourceNodeId(
+  timeline: TimelineState,
+  nodeId: string,
+  transform: (clip: TimelineClip) => TimelineClip,
+): TimelineState {
+  const id = String(nodeId || '').trim()
+  if (!id) return timeline
+  let changed = false
+  const tracks = timeline.tracks.map((track) => {
+    let trackChanged = false
+    const clips = track.clips.map((clip, index) => {
+      if (clip.sourceNodeId !== id) return clip
+      let next = transform(clip)
+      const after = track.clips[index + 1]
+      if (after && next.endFrame > after.startFrame) {
+        const maxVisible = Math.max(1, after.startFrame - next.startFrame)
+        const curVisible = next.endFrame - next.startFrame
+        if (curVisible > maxVisible) {
+          const cut = curVisible - maxVisible
+          next = {
+            ...next,
+            endFrame: next.startFrame + maxVisible,
+            offsetEndFrame: (next.type === 'video' || next.type === 'audio') ? next.offsetEndFrame + cut : next.offsetEndFrame,
+            frameCount: next.type === 'image' ? maxVisible : next.frameCount,
+          }
+        }
+      }
+      if (next !== clip) trackChanged = true
+      return next
+    })
+    if (!trackChanged) return track
+    changed = true
+    return { ...track, clips }
+  })
+  return changed ? { ...timeline, tracks } : timeline
+}
+
 // ── 成组移动（多选拖动）─────────────────────────────────────────
 export type ClipOrigin = { id: string; startFrame: number; endFrame: number }
 
