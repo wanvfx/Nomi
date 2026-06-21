@@ -1,22 +1,49 @@
-// 运镜旅途级评测 · B 层（agent 选择质量）：喂自然语言运镜场景，抓 agent 产出的
-// create_camera_move spec，自动判它选的 move/speed 对不对 + 人眼复核；含负样本（静止机位不该调）。
-// 纯文本额度。gated APIMART_E2E。
+// 运镜旅途级评测 · B 层（agent 选择质量）—— FAITHFUL 版。
+//
+// 为什么重写：旧版直接 chatV2Start RAW（不带 systemPrompt）在空画布上跑，
+// 结构上根本点不出工具——运镜的触发规则住在渲染层 system prompt（generationCanvasAgentClient）
+// 与工具自身 schema 描述里，RAW 路径两者皆无，且画布没有可指的视频节点 → 8/8 误判 0 调用。
+//
+// 这版走「真·应用内 agent 路径」：隔离真 Electron 实例 + 真 catalog（apimart key + deepseek-v4-pro）
+// → 新建项目 → 先用一轮 agent 建出一个 kind=video 的镜头节点当靶子（create_canvas_nodes 在
+// 白名单内，自动批准、零额度）→ 落盘确认视频节点存在 → 再逐条发运镜请求，经真实 UI 面板
+// （openGenerationAiPanel + sendAgentMessage）让 agent 拿到带触发规则的真 system prompt。
+//
+// 取证 = 读 .nomi/events 里的 agent.tool.proposed 事件（payload.args.move），不信 agent 自述。
+// 零额度铁律：create_camera_move 不在 TOOL_WHITELIST，approveUntilTurnEnds 会在「确认卡」出现时
+// 自动「拒绝」它——即「捕获 spec 然后拒绝」，host 永不真渲/真生成。仅验工具选择层。
+//
 // 用法：pnpm run build && APIMART_E2E=1 node tests/ux/camera-move-agent-eval.e2e.mjs
-import { _electron as electron } from "playwright";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { createRequire } from "node:module";
+import {
+  prepareIsolation,
+  launchIsolatedApp,
+  createBlankProject,
+  openGenerationAiPanel,
+  setAssistantModelPref,
+  sendAgentMessage,
+  approveUntilTurnEnds,
+  countFinishedTurns,
+  waitForPersistedCanvas,
+  readEventsLog,
+  readProjectPayload,
+} from "../../evals/lib/isoApp.mjs";
 
-const require = createRequire(import.meta.url);
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 
-if (!process.env.APIMART_E2E && !process.env.APIMART_API_KEY) {
-  console.log("SKIP camera-move-agent-eval: 会花文本额度。APIMART_E2E=1 才跑。");
+if (!process.env.APIMART_E2E) {
+  console.log("SKIP camera-move-agent-eval: 会花文本额度（真 LLM 工具选择）。APIMART_E2E=1 才跑。");
   process.exit(0);
 }
-const MODEL_KEY = process.env.APIMART_TEXT_MODEL || "deepseek-v4-pro";
 
-// 每条：自然语言意图 + 期望的 move（null = 期望「不调用」的负样本）。
+const MODEL_PREF = {
+  vendorKey: process.env.APIMART_VENDOR || "apimart",
+  modelKey: process.env.APIMART_TEXT_MODEL || "deepseek-v4-pro",
+};
+
+// 8 条：7 个运镜意图（期望 move 枚举集）+ 1 个负样本（静止 → 不该调）。
 const SCENARIOS = [
   { text: "镜头慢慢推近女主角的脸。", expect: ["push_in"] },
   { text: "镜头绕着主角转一圈。", expect: ["orbit_left", "orbit_right"] },
@@ -28,64 +55,118 @@ const SCENARIOS = [
   { text: "固定机位，角色站着说话，镜头不动。", expect: [] }, // 负样本：不该调运镜
 ];
 
-function captureCameraMove(win, mk, text) {
-  return win.evaluate(async ({ mk, text }) => {
-    const { sessionId } = await window.nomiDesktop.agents.chatV2Start({
-      prompt: `为这个镜头处理运镜（用合适的工具，如果需要的话）：${text}`,
-      sessionKey: "probe-camera-move-eval",
-      skillKey: "workbench.generation.canvas-planner",
-      mode: "auto",
-      agentModelKey: mk,
-      agentVendorKey: "apimart",
-    });
-    return await new Promise((resolve) => {
-      let found = null;
-      const off = window.nomiDesktop.agents.onChatV2Event(sessionId, (ev) => {
-        if (!ev) return;
-        if (ev.type === "tool-call" || ev.type === "tool-call-pending") {
-          if (ev.toolName === "create_camera_move") found = ev.args ?? ev.input ?? null;
-          if (ev.type === "tool-call-pending" && ev.toolCallId) {
-            window.nomiDesktop.agents.confirmTool(sessionId, ev.toolCallId, { ok: false, denied: true, message: "probe" });
-          }
-        }
-        if (ev.type === "done" || ev.type === "error") { off?.(); resolve(found); }
-      });
-      setTimeout(() => { off?.(); resolve(found); }, 90000);
-    });
-  }, { mk, text });
+/** 读落盘画布节点（终态真相源，不信 agent 自述）。 */
+function readNodes(projectDir) {
+  const rec = readProjectPayload(projectDir);
+  return rec?.payload?.generationCanvas?.nodes || [];
 }
 
-const app = await electron.launch({ executablePath: require("electron"), args: ["."], cwd: repoRoot, env: { ...process.env } });
+/** 本轮新出现的 create_camera_move 提议（基线之后）→ 它的 args（含 move）；没有则 null。 */
+function newCameraMoveArgs(events, baselineProposedCount) {
+  const proposals = events.filter(
+    (e) => e.type === "agent.tool.proposed" && e.payload?.toolName === "create_camera_move",
+  );
+  if (proposals.length <= baselineProposedCount) return null;
+  return proposals[proposals.length - 1]?.payload?.args ?? {};
+}
+
+function countCameraMoveProposals(events) {
+  return events.filter(
+    (e) => e.type === "agent.tool.proposed" && e.payload?.toolName === "create_camera_move",
+  ).length;
+}
+
+const isoDir = path.join(os.tmpdir(), "nomi-camera-move-eval");
+let app = null;
 try {
-  const win = await app.firstWindow();
-  await win.waitForLoadState("domcontentloaded");
-  await win.waitForTimeout(1500);
-  if (process.env.APIMART_API_KEY) {
-    await win.evaluate((key) => window.nomiDesktop.modelCatalog.upsertVendorApiKey("apimart", { apiKey: key, enabled: true }), process.env.APIMART_API_KEY);
+  // 1) 隔离环境 + 真 catalog（apimart key 同机可解密 + deepseek-v4-pro 可用）。
+  const iso = prepareIsolation(isoDir, { requireCatalog: true });
+  const launched = await launchIsolatedApp(repoRoot, iso);
+  app = launched.app;
+  const win = launched.win;
+
+  // 2) 新建空白项目 + 打开真·生成 AI 面板 + 指定助手模型（与用户手选等价）。
+  const projectDir = await createBlankProject(win, iso.projectsDir);
+  await openGenerationAiPanel(win);
+  await setAssistantModelPref(win, MODEL_PREF);
+
+  // 3) 先用一轮 agent 建出一个 kind=video 的镜头节点当运镜靶子（create_canvas_nodes
+  //    在白名单内 → 自动批准、零额度；不点生成所以不出网络）。
+  console.log("◆ 种子轮：让 agent 在画布上建一个视频镜头节点（运镜靶子）……");
+  {
+    const baselineTurnCount = countFinishedTurns(readEventsLog(projectDir));
+    await sendAgentMessage(
+      win,
+      "在画布上创建一个视频镜头节点：一个女孩站在窗边的特写镜头（kind=video）。只建节点，先不要生成。",
+    );
+    const turn = await approveUntilTurnEnds(win, projectDir, {
+      log: (m) => console.log(m),
+      baselineTurnCount,
+    });
+    await waitForPersistedCanvas(win, projectDir);
+    if (!turn.finished) {
+      throw new Error(`种子轮未正常收尾（status=${turn.status} ${turn.errorMessage || ""}）`);
+    }
   }
 
+  // 4) 落盘确认视频节点存在（没有就没法测运镜——直接判 infra 失败）。
+  const videoNodes = readNodes(projectDir).filter((n) => n.kind === "video");
+  if (videoNodes.length === 0) {
+    throw new Error("种子轮后画布上没有 kind=video 节点——无法给运镜提供靶子");
+  }
+  console.log(`✓ 视频靶子节点已就绪：${videoNodes.map((n) => n.id).join(", ")}\n`);
+
+  // 5) 逐条发运镜请求，走真 UI 面板（拿真 system prompt + 工具自身 schema 触发规则）。
+  //    create_camera_move 不在白名单 → approveUntilTurnEnds 自动「拒绝」（捕获后拒，零额度）。
   const rows = [];
   let pass = 0;
   for (const sc of SCENARIOS) {
-    const spec = await captureCameraMove(win, MODEL_KEY, sc.text);
-    const move = spec?.move ?? null;
+    const baselineEvents = readEventsLog(projectDir);
+    const baselineTurnCount = countFinishedTurns(baselineEvents);
+    const baselineCmCount = countCameraMoveProposals(baselineEvents);
+
+    await sendAgentMessage(
+      win,
+      `画布上已有一个视频镜头节点。请只为它处理「运镜」（如果这个镜头需要运镜就用合适的工具，不需要就什么都别做）：${sc.text}`,
+    );
+    await approveUntilTurnEnds(win, projectDir, {
+      log: () => {}, // 静默：拒绝 create_camera_move 是预期行为，不刷屏
+      baselineTurnCount,
+    });
+    await waitForPersistedCanvas(win, projectDir);
+
+    const args = newCameraMoveArgs(readEventsLog(projectDir), baselineCmCount);
+    const called = args !== null;
+    const move = called ? (args.move ?? null) : null;
     const wantStatic = sc.expect.length === 0;
+
     let ok;
-    if (wantStatic) ok = spec === null; // 负样本：不该调
-    else ok = move != null && sc.expect.includes(move);
+    if (wantStatic) ok = !called; // 负样本：不该调
+    else ok = called && move != null && sc.expect.includes(move);
     if (ok) pass += 1;
-    const got = spec === null ? "(未调用)" : `move=${move} speed=${spec.speed || "auto"} shot=${spec.shot || "auto"}`;
-    rows.push(`${ok ? "✓" : "✗"} 期望[${sc.expect.join("/") || "不调用"}] 实得 ${got} | ${sc.text}`);
-    console.log("  " + rows[rows.length - 1]);
+
+    const got = !called
+      ? "(未调用)"
+      : `move=${move} speed=${args.speed || "auto"} shot=${args.shot || "auto"}`;
+    const row = `${ok ? "✓" : "✗"} 期望[${sc.expect.join("/") || "不调用"}] 实得 ${got} | ${sc.text}`;
+    rows.push(row);
+    console.log("  " + row);
   }
 
-  console.log("\n═══ 运镜 agent 选择评测（B 层）═══");
+  console.log("\n═══ 运镜 agent 选择评测（B 层 · 真应用内路径）═══");
   rows.forEach((r) => console.log(r));
   console.log(`\n通过 ${pass}/${SCENARIOS.length}`);
+
+  // 零额度兜底断言：整条会话不得有任何真实 vendor 生成调用。
+  const vendorCalls = readEventsLog(projectDir).filter((e) => e.type === "vendor.call.requested").length;
+  if (vendorCalls > 0) {
+    console.log(`⚠️ 安全门：检测到 ${vendorCalls} 次 vendor.call.requested（评测不应真生成）`);
+  }
+
   await app.close();
-  process.exit(pass === SCENARIOS.length ? 0 : 1);
+  process.exit(pass === SCENARIOS.length && vendorCalls === 0 ? 0 : 1);
 } catch (err) {
   console.log(`✗ ${err?.message || err}`);
-  await app.close().catch(() => undefined);
+  if (app) await app.close().catch(() => undefined);
   process.exit(1);
 }

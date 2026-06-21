@@ -293,9 +293,11 @@ export const canvasTools = {
   // 全能参考)或降级成结构化运镜 prompt，锁住视频模型最易崩的「镜头怎么运动」。零扣费(只出灰模小片)。
   create_camera_move: tool({
     description:
-      "Create a 3D camera-move reference clip that LOCKS the camera motion of a shot (orbit / push-in / pull-out / crane / track / arc) — so the video model follows the intended camera path instead of guessing. Use it ONLY when a shot has a SPECIFIC camera-move intent the director called out (e.g. '镜头绕着她转一圈推近', 'pull out to reveal'). Do NOT use it for a static / locked-off shot, or a simple talking-head. One call per shot.\n" +
-      "Pick the SINGLE dominant move that matches the intent; the system renders a short gray-mannequin clip of exactly that camera path and feeds it as a video reference to the shot's video node. On models with a reference-video slot (e.g. Seedance 2.0 全能参考) the model copies ONLY the camera movement (content stays driven by the character refs + prompt); on models without one it degrades to a structured camera-move prompt directive.\n" +
-      "shotClientId MUST point to the shot's VIDEO node (the node that actually generates the clip) — not its keyframe image, and not a text/shot note. For an image-first storyboard that is the shot's video node downstream of the keyframe.",
+      "Create a 3D camera-move reference clip that LOCKS the camera motion of a shot (orbit / push-in / pull-out / crane / track / arc) — so the video model follows the intended camera path instead of guessing. The rendered gray-mannequin clip auto-attaches to the shot's video node as a reference video.\n" +
+      "WHEN to call: a shot whose description carries a SPECIFIC camera-move intent — orbit/circle around the subject, push-in/dolly-in, pull-out/dolly-out to reveal, crane/boom up or down, lateral track/follow, or an arc sweep (e.g. '镜头绕着她转一圈推近', 'pull out to reveal the empty room', 'crane up over the battlefield'). One call per shot.\n" +
+      "WHEN NOT: a static / locked-off / fixed-tripod shot, or a simple single talking-head — these have no camera motion to lock, so do NOT call it.\n" +
+      "Pick the SINGLE dominant move that matches the intent. On models with a reference-video slot (e.g. Seedance 2.0 全能参考) the model copies ONLY the camera movement (content stays driven by the character refs + prompt); on models without one it degrades to a structured camera-move prompt directive.\n" +
+      "shotClientId MUST point to the shot's VIDEO node (the node that actually generates the clip) — NOT its keyframe image, and NOT a text/shot note. For an image-first storyboard that is the shot's video node downstream of the keyframe. If no video node exists for the shot yet, create it first; never aim this at an image node.",
     parameters: cameraMoveParamsSchema,
   }),
 } as const;

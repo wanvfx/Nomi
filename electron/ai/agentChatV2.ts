@@ -302,7 +302,7 @@ function buildCanvasToolsForV2(hooks: AgentChatV2Hooks) {
     ),
     create_camera_move: makeTool(
       "create_camera_move",
-      "Create a 3D camera-move reference clip locking a shot's camera motion (orbit / push-in / pull-out / crane / track / arc), fed to the shot's VIDEO node as a reference video (or degraded to a camera-move prompt directive on models without a video_ref slot). Use only when a shot has a specific camera-move intent; not for static or talking-head shots. shotClientId must point to the shot's VIDEO node.",
+      "Create a 3D camera-move reference clip locking a shot's camera motion (orbit / push-in / pull-out / crane / track / arc), fed to the shot's VIDEO node as a reference video (or degraded to a camera-move prompt directive on models without a video_ref slot). Call ONLY when a shot has a specific camera-move intent (orbit/push-in/pull-out/crane/track/arc); do NOT call for a static / locked-off shot or a simple talking-head. shotClientId MUST point to the shot's VIDEO node — not its keyframe image; if none exists yet, create the video node first.",
       cameraMoveParamsSchema,
     ),
     // Silence unused-import warning for canvasNodeKindSchema by re-exporting
