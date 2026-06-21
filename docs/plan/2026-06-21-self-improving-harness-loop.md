@@ -38,7 +38,9 @@
 
 **依赖卫生**：`@mastra/core` 放 **devDependencies**(评测/dev 工具,不随产品发布)→ `ai@6` peer 仅 dev 警告,产品 runtime 不受影响,合并 main 干净。
 
-**仍卡在用户独有资源(诚实标 · D4)**：① LLM 查/修变聪明 = 需 `NOMI_LOOP_LLM_*` key（现回退规则版,机制已验）；② 半客观/真画质 = 需额度跑真生成 + VLM key + 人工校准；③ 主观美感 = 创始人抽查,不自动化。**迁移收尾**：与真 capability-core headless host 全链路接通(现用其纯领域层)+ 删旧 `scripts/eval-run/score/diff.mjs`，待 LLM/额度门后随真实跑通一起收。
+**LLM 查/修已在用户模型上跑通(2026-06-21,不再是门控)**：`llmViaApp.mjs` 复用 Nomi app **已配置的文本模型**(自动挑 enabled,免用户手填 key)——照 `r1-upload-verify.mjs` 自解密范式:启真app→主进程 safeStorage 解密→主进程内 fetch(明文key不出主进程)。`NOMI_LOOP_USE_APP_LLM=1 tsx loop.ts` 实跑(modelscope/Qwen3-Next-80B):**查诊断对 + 修产正确 patch(含 image_ref→composition_ref)→ 0.500→1.000 固化、坏patch回滚 exit 0**。⚠️约束:启真app须 Nomi 关着(单实例锁)。默认路径仍走规则版(快、不启app)。调试教训:查须被告知可用杠杆才在行动空间内诊断、修须被告知语义映射方向。
+
+**仍卡在用户独有资源(诚实标 · D4)**：① 半客观/真画质 = 需额度跑真生成 + VLM key(`NOMI_LOOP_VLM_*`)+ 人工校准 P/R≥80%;② 主观美感 = 创始人抽查,不自动化。**迁移收尾**：与真 capability-core headless host 全链路接通(现用其纯领域层 + 已能复用 app 身份)+ 删旧 `scripts/eval-run/score/diff.mjs`，待额度门后随真生成跑通一起收。
 
 ---
 
