@@ -10,6 +10,26 @@
 
 ---
 
+## 回填 · 执行结果（2026-06-21，分支 `feat/self-improving-loop`）
+
+**用户已拍板（本轮）**：① 迁移到 Mastra —— 去做。② 人格/场景初始集 = **尽量覆盖每一类用户**（每类都能在 Nomi 用好）。③ 在**隔离 worktree** 干（避开并行分支脏树）。
+
+**S1 已交付（隔离 worktree，离线零额度跑通）**：
+- `evals/loop/personas.mjs` —— 8 类用户人格 × 场景（新手/短视频/叙事/品牌/二次元/专业精修/教育解说/音乐MV），每条带能力族 + 成功标准 + 真实摩擦；`NOMI_CAPABILITIES` 诚实标缺口（lipsync/beat_sync/music_gen 暂无）。
+- `evals/loop/scorers.mjs` —— 5 个**客观打分器**（task-completion / error-free / retry-efficiency / capability-coverage / connection-validity），纯 JS `createScorer().generateScore()`，零 LLM、零网络。
+- `evals/loop/runLoop.mjs` —— 离线 runner：8 人格 → mock target → 5 维指标表 + 总览均分 + 缺口诚实标。**实跑结果**：7/8 人格服务良好，音乐 MV 当场暴露缺口（completion 0 / coverage 0.60，缺 beat_sync+music_gen）。
+- `evals/loop/_smoke.mjs` —— 最小离线证明（已验 `scorer.run()` 纯客观路径跑通）。
+- ⚠️ **mock target 是占位**：按 `NOMI_CAPABILITIES` 推轨迹（"有能力即成功"，1.00 偏乐观）。真实质量要 S2 接 capability-core 才出。
+
+**实查发现（R5，改架构）**：
+- `@mastra/core@1.45.0`：`createScorer` / `runEvals` 确认真导出，**纯客观打分离线跑通**（不碰 `ai`/网络）。
+- ⚠️ **peer 冲突**：Mastra 1.45 要 `ai@^6`，Nomi 在 `ai@4.3.19`。**客观路径不受影响**（不走 `ai`）；但 **Mastra Agent / LLM-judge scorer 会撞**。→ **架构决策（S2 前定）**：loop 子系统的 Mastra 依赖须**与产品运行时的 `ai@4` 隔离**（独立 workspace 包 / 自带 `ai@6`），别污染产品。这反而强化「loop 是独立子系统」的边界。
+- `runEvals` 的 `target` 必须是 Mastra **Agent / Workflow**（非任意函数）→ S2 把「合成用户驱动」包成 Mastra Workflow/Agent。
+
+**下一步（S2）**：把 mock target 换成**真 capability-core 驱动** + 独立「查（诊断）agent」「修（patch）agent」；先解决 `ai@6` 隔离。**迁移收尾**：S1-S2 验完，按 P1 **删除旧 `scripts/eval-run/score/diff.mjs`**（非永久并行版）——此删除是一个跟踪项，不遗忘。
+
+---
+
 ## 0. 一句话战略定位（为什么、底层逻辑、用户体验）
 
 **底层逻辑（D6 ①）**：一个系统只能变得和它对「好」的定义一样好。自循环变好 = `可靠验证器 × (生成 + 择优 + 记忆)`，**乘法**——验证器假则全盘 0。难点在「验证器从哪来」：真实用户信号要等用户、量小；自评会自偏。**解法 = AI 扮多种用户人格 × 多场景驱动 Nomi，产出机器可判定的量化指标当验证器；查/修两个独立 agent 防自偏。**
