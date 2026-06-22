@@ -80,6 +80,10 @@
 
 ## 📸 看一眼
 
+**▶ 这是用 Nomi 做出来的** — 想法 → 3D 构图 → 生成 → 成片。[看 46 秒完整演示视频](https://nomiaqm.com/assets/demo.mp4)
+
+<img src="marketing/assets/demo.gif" alt="Nomi 生成的视频片段" width="100%" />
+
 **Mura 画布** — 角色定妆 / 场景 / 镜头分层，并行生成、跨节点复用参考，下方就是吸附剪辑的镜头时间轴
 
 <img src="marketing/assets/screen-canvas.png" alt="Mura 画布" width="100%" />
