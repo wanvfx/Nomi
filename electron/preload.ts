@@ -205,8 +205,8 @@ contextBridge.exposeInMainWorld("nomiDesktop", {
     setActiveProject: (projectId: string) => ipcRenderer.send("nomi:capability:active-project", projectId),
     // 「接入 AI 编程助手」卡：读状态/配置 + 一键写入/撤销 ~/.claude.json。
     mcpInfo: () => invokeSync("nomi:capability:mcp-info"),
-    installMcp: () => invokeSync("nomi:capability:mcp-install"),
-    uninstallMcp: () => invokeSync("nomi:capability:mcp-uninstall"),
+    installMcp: (client?: string) => invokeSync("nomi:capability:mcp-install", client),
+    uninstallMcp: (client?: string) => invokeSync("nomi:capability:mcp-uninstall", client),
     // A 模式实时桥：主进程把外部 MCP 的画布读/写/付费确认转发到这里，渲染层处理后回结果（按 id 配对）。
     onApply: (handler: (op: string, payload: unknown) => unknown | Promise<unknown>) => {
       const listener = (_event: unknown, message: { id?: number; op?: string; payload?: unknown }) => {

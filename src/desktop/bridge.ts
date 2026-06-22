@@ -282,19 +282,17 @@ export type DesktopBridge = {
   /** 能力核：上报当前打开项目，供外部调用的 A/B 守卫（可选——老 preload 无此口）。 */
   capability?: {
     setActiveProject: (projectId: string) => void
-    /** 「接入 AI 编程助手」卡：读接入状态 + 配置片段。 */
+    /** 「接入 AI 编程助手」卡：读接入状态 + 各客户端配置片段。 */
     mcpInfo: () => {
       tokenReady: boolean
       rpcRunning: boolean
-      installed: boolean
-      configPath: string
-      snippet: string
       server: { command: string; args: string[] }
+      clients: Record<'claude' | 'codex' | 'cursor', { installed: boolean; configPath: string; snippet: string }>
     }
-    /** 一键写入 ~/.claude.json 的 mcpServers.nomi（合并 + 备份）。 */
-    installMcp: () => { ok: boolean; configPath: string; backupPath: string | null }
-    /** 撤销接入：删 mcpServers.nomi。 */
-    uninstallMcp: () => { ok: boolean }
+    /** 一键写入指定客户端配置的 nomi 条目（合并 + 备份）。默认 Claude Code。 */
+    installMcp: (client?: string) => { ok: boolean; client: string; configPath: string; backupPath: string | null }
+    /** 撤销接入指定客户端：删 nomi 条目。默认 Claude Code。 */
+    uninstallMcp: (client?: string) => { ok: boolean; client: string }
     /** A 模式实时桥：注册处理器，接主进程转发来的外部 MCP 画布读/写/付费确认。返回反注册函数。 */
     onApply?: (handler: (op: string, payload: unknown) => unknown | Promise<unknown>) => () => void
   }
