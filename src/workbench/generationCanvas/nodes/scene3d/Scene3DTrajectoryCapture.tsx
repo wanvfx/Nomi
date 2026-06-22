@@ -9,7 +9,7 @@ import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { Sky } from '@react-three/drei'
 import * as THREE from 'three'
 import { Mannequin, MannequinCrowd, MannequinAssetBoundary, ProceduralMannequin } from './scene3dObjects'
-import { captureScene, applySceneCameraPose, aspectDimensions } from './scene3dMath'
+import { captureScene, applySceneCameraPose, aspectDimensions, capCameraMoveDimensions } from './scene3dMath'
 import { cameraWithPlaybackPosition, objectWithPlaybackPose } from './scene3dPlayback'
 import { frameTimes } from './cameraMoveSchedule'
 import type { Scene3DState, Scene3DObject } from './scene3dTypes'
@@ -113,7 +113,8 @@ function TrajectoryFrameStepper({
     }
 
     const playbackCamera = cameraWithPlaybackPosition(state, camera, t)
-    const dims = aspectDimensions(playbackCamera.aspectRatio)
+    // Seedance video_urls 要求参考视频 480P–720P → 运镜捕获封顶 720p(不动 aspectDimensions 全局)。
+    const dims = capCameraMoveDimensions(aspectDimensions(playbackCamera.aspectRatio))
     const captureCamera = new THREE.PerspectiveCamera(
       playbackCamera.fov,
       dims.width / dims.height,
@@ -132,7 +133,7 @@ function TrajectoryFrameStepper({
         onResult(null)
         return
       }
-      const dims2 = aspectDimensions(camera.aspectRatio)
+      const dims2 = capCameraMoveDimensions(aspectDimensions(camera.aspectRatio))
       onResult({ frames: framesRef.current, width: dims2.width, height: dims2.height, fps, title })
     }
   })

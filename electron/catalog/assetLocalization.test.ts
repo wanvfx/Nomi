@@ -116,6 +116,30 @@ describe("resolveLocalAsset (per strategy)", () => {
     await expect(resolveLocalAsset(localUrl("a.png"), ingestion, "k", read, vi.fn(), postMultipart)).rejects.toThrow(/缺少可达 URL/);
   });
 
+  it("upload-stream posts binary + uploadPath/fileName fields and reads the declared url path", async () => {
+    const ingestion: AssetIngestion = {
+      strategy: "upload-stream",
+      endpoint: "https://kieai.redpandaai.co/api/file-stream-upload",
+      uploadPathField: "uploadPath",
+      uploadPath: "videos/nomi",
+      fileNameField: "fileName",
+      urlPath: "data.downloadUrl",
+      accepts: ["image", "video", "audio"],
+    };
+    const readMp4 = (): LocalAsset => ({ bytes: Buffer.from("mp4-bytes"), contentType: "video/mp4", fileName: "clip.mp4" });
+    const postMultipart = vi.fn().mockResolvedValue({ success: true, data: { downloadUrl: "https://tempfile.redpandaai.co/clip.mp4" } });
+    const out = await resolveLocalAsset(localUrl("clip.mp4"), ingestion, "key123", readMp4, vi.fn(), postMultipart);
+    expect(out).toBe("https://tempfile.redpandaai.co/clip.mp4");
+    const [url, headers, bytes, fileName, contentType, extraFields] = postMultipart.mock.calls[0];
+    expect(url).toBe("https://kieai.redpandaai.co/api/file-stream-upload");
+    expect(headers.Authorization).toBe("Bearer key123");
+    expect(Buffer.isBuffer(bytes)).toBe(true);
+    expect(fileName).toBe("clip.mp4");
+    expect(contentType).toBe("video/mp4");
+    expect((extraFields as Record<string, string>).uploadPath).toBe("videos/nomi");
+    expect((extraFields as Record<string, string>).fileName).toBe("clip.mp4");
+  });
+
   it("sidecar originalUrl short-circuits: returns public URL, never uploads", async () => {
     const readWithSidecar = (): LocalAsset => ({ ...fakeAsset("a.png"), originalUrl: "https://cdn.origin/a.png" });
     const postJson = vi.fn();
@@ -130,6 +154,7 @@ describe("resolveLocalAsset (per strategy)", () => {
 
 describe("localizeAssetsForVendor", () => {
   const ingestion: AssetIngestion = { strategy: "upload-url", endpoint: "https://up/x", base64Field: "b", urlPath: "url" };
+  const resolverFor = (ing: AssetIngestion, key = "k") => () => ({ ingestion: ing, uploadApiKey: key });
 
   it("uploads each unique url once and replaces all occurrences", async () => {
     const post = vi.fn().mockImplementation((_u, _h, body: Record<string, string>) => {
@@ -140,7 +165,7 @@ describe("localizeAssetsForVendor", () => {
       firstFrameUrl: localUrl("a.png"),
       referenceImageUrls: [localUrl("b.png"), localUrl("a.png")],
     };
-    const out = await localizeAssetsForVendor(extras, ingestion, "k", read, post, noMultipart);
+    const out = await localizeAssetsForVendor(extras, resolverFor(ingestion), read, post, noMultipart);
     expect(out.uploaded).toBe(2); // a.png + b.png, a.png not uploaded twice
     expect(post).toHaveBeenCalledTimes(2);
     const value = out.value as typeof extras;
@@ -151,10 +176,44 @@ describe("localizeAssetsForVendor", () => {
   it("is a zero-cost passthrough when there are no local assets", async () => {
     const post = vi.fn();
     const extras = { firstFrameUrl: "https://pub/a.png", prompt: "hi" };
-    const out = await localizeAssetsForVendor(extras, ingestion, "k", read, post, noMultipart);
+    const out = await localizeAssetsForVendor(extras, resolverFor(ingestion), read, post, noMultipart);
     expect(out.uploaded).toBe(0);
     expect(out.value).toBe(extras);
     expect(post).not.toHaveBeenCalled();
+  });
+
+  it("routes per media kind: image asset uses image channel, video asset uses video channel", async () => {
+    // image asset (png) + video asset (mp4) in same extras → each routed by its contentType
+    const readMixed = (url: string): LocalAsset | null => {
+      const name = url.split("/").pop() || "x";
+      const contentType = name.endsWith(".mp4") ? "video/mp4" : "image/png";
+      return { bytes: Buffer.from("bytes-" + name), contentType, fileName: name };
+    };
+    const imageIngestion: AssetIngestion = { strategy: "upload-url", endpoint: "https://img/up", base64Field: "b", urlPath: "url", accepts: ["image"] };
+    const videoIngestion: AssetIngestion = { strategy: "upload-stream", endpoint: "https://vid/up", urlPath: "data.downloadUrl", accepts: ["image", "video"] };
+    const resolver = (kind: "image" | "video" | "audio") =>
+      kind === "video" ? { ingestion: videoIngestion, uploadApiKey: "vk" } : { ingestion: imageIngestion, uploadApiKey: "ik" };
+    const post = vi.fn().mockResolvedValue({ url: "https://pub/img.png" });
+    const postMultipart = vi.fn().mockResolvedValue({ data: { downloadUrl: "https://pub/clip.mp4" } });
+    const extras = { referenceImageUrls: [localUrl("a.png")], referenceVideoUrls: [localUrl("clip.mp4")] };
+    const out = await localizeAssetsForVendor(extras, resolver, readMixed, post, postMultipart);
+    expect(out.uploaded).toBe(2);
+    expect(post).toHaveBeenCalledTimes(1); // image via base64 upload-url
+    expect(postMultipart).toHaveBeenCalledTimes(1); // video via stream multipart
+    const value = out.value as typeof extras;
+    expect(value.referenceImageUrls[0]).toBe("https://pub/img.png");
+    expect(value.referenceVideoUrls[0]).toBe("https://pub/clip.mp4");
+    // stream upload sent uploadPath + fileName as extra multipart fields
+    const extraFields = postMultipart.mock.calls[0][5] as Record<string, string>;
+    expect(extraFields.uploadPath).toBe("uploads");
+    expect(extraFields.fileName).toBe("clip.mp4");
+  });
+
+  it("throws an honest error when no channel accepts the asset's media kind", async () => {
+    const readVideo = (url: string): LocalAsset | null => ({ bytes: Buffer.from("v"), contentType: "video/mp4", fileName: url.split("/").pop() || "v.mp4" });
+    const resolver = () => null; // no channel for any kind
+    const extras = { referenceVideoUrls: [localUrl("clip.mp4")] };
+    await expect(localizeAssetsForVendor(extras, resolver, readVideo, vi.fn(), noMultipart)).rejects.toThrow(/运镜参考视频需要支持视频上传的通道/);
   });
 });
 
@@ -207,6 +266,38 @@ describe("resolveAssetIngestionWithFallback (跨 vendor 上传优先级链)", ()
     // vendor 列表里有 kie，但 getApiKey('kie') 返回 null
     const out = resolveAssetIngestionWithFallback({ key: "openai" }, [{ key: "openai" }, { key: "kie" }], keysOf("openai"));
     expect(out).toBeNull();
+  });
+});
+
+describe("resolveAssetIngestionWithFallback (内容类型感知路由)", () => {
+  const keysOf = (...vendorKeys: string[]) => (k: string) => (vendorKeys.includes(k) ? `key-${k}` : null);
+
+  it("image asset → apimart chosen (image channel)", () => {
+    const out = resolveAssetIngestionWithFallback({ key: "apimart" }, [{ key: "apimart" }], keysOf("apimart"), "image");
+    expect(out?.ingestion.strategy).toBe("upload-multipart");
+    expect(out?.uploadApiKey).toBe("key-apimart");
+  });
+
+  it("video asset + only apimart configured → null (apimart is image-only, honest fail)", () => {
+    const out = resolveAssetIngestionWithFallback({ key: "apimart" }, [{ key: "apimart" }], keysOf("apimart"), "video");
+    expect(out).toBeNull();
+  });
+
+  it("video asset + KIE configured → KIE stream chosen", () => {
+    const out = resolveAssetIngestionWithFallback({ key: "apimart" }, [{ key: "apimart" }, { key: "kie" }], keysOf("apimart", "kie"), "video");
+    expect(out?.ingestion.strategy).toBe("upload-stream");
+    expect(out?.uploadApiKey).toBe("key-kie");
+    if (out?.ingestion.strategy === "upload-stream") {
+      expect(out.ingestion.endpoint).toBe("https://kieai.redpandaai.co/api/file-stream-upload");
+      expect(out.ingestion.urlPath).toBe("data.downloadUrl");
+    }
+  });
+
+  it("video asset + apimart target + KIE configured → apimart skipped, KIE used", () => {
+    // target is apimart, but mp4 can't go there; KIE picks it up
+    const out = resolveAssetIngestionWithFallback({ key: "apimart" }, [{ key: "kie" }], keysOf("kie"), "video");
+    expect(out?.uploadApiKey).toBe("key-kie");
+    expect(out?.ingestion.strategy).toBe("upload-stream");
   });
 });
 

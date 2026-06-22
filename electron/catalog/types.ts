@@ -26,13 +26,37 @@ export type AiSdkProviderKind = "openai-compatible" | "anthropic" | "openai-resp
  * 加新 vendor = 多声明一份,通用层不改。
  *  - inline-base64：直接把 data:URI 塞进 body(无需上传)。
  *  - upload-url   ：把字节传到 vendor 文件接口 → 拿回临时公网 URL → 填进 body。
+ *  - upload-stream：multipart 流式上传(二进制,大文件高效)→ 拿回临时公网 URL。用于视频 mp4
+ *                   (KIE file-stream-upload),base64 对 mp4 低效/受限。
  *  - none         ：vendor 只收公网 URL 且无上传通道 → 明确报错(不静默失败)。
+ *
+ * `accepts`：该通道接受的媒体类型(image/video/audio)。缺省视为 ['image']——今天的通道都面向图片
+ * (apimart 的 /uploads/images 仅图片)。视频素材必须路由到声明 'video' 的通道(如 KIE 通用文件托管)。
  */
+export type AssetMediaKind = "image" | "video" | "audio";
+
 export type AssetIngestion =
-  | { strategy: "inline-base64" }
-  | { strategy: "none" }
+  | { strategy: "inline-base64"; accepts?: ReadonlyArray<AssetMediaKind> }
+  | { strategy: "none"; accepts?: ReadonlyArray<AssetMediaKind> }
+  | {
+      strategy: "upload-stream";
+      /** 上传端点(完整 URL)。multipart/form-data,file 字段为二进制,另带 uploadPath/fileName。 */
+      endpoint: string;
+      /** 目录字段名(默认 "uploadPath")。 */
+      uploadPathField?: string;
+      uploadPath?: string;
+      /** 文件名字段名(默认 "fileName")。 */
+      fileNameField?: string;
+      /** 响应里公网 URL 的点路径(如 KIE 的 "data.downloadUrl")。 */
+      urlPath: string;
+      /** 鉴权:复用 vendor 的 api key(默认 bearer)。 */
+      authType?: "bearer";
+      /** 该通道接受的媒体类型;缺省 ['image']。 */
+      accepts?: ReadonlyArray<AssetMediaKind>;
+    }
   | {
       strategy: "upload-url";
+      accepts?: ReadonlyArray<AssetMediaKind>;
       /** 上传端点(完整 URL)。 */
       endpoint: string;
       method?: string;
@@ -58,6 +82,8 @@ export type AssetIngestion =
       urlPath: string;
       /** 鉴权:复用 vendor 的 api key(默认 bearer)。 */
       authType?: "bearer";
+      /** 该通道接受的媒体类型;缺省 ['image']。 */
+      accepts?: ReadonlyArray<AssetMediaKind>;
     };
 
 export type Vendor = {
