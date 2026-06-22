@@ -110,6 +110,43 @@ describe("resolveLocalAsset (per strategy)", () => {
     expect("Authorization" in headers).toBe(false);
   });
 
+  it("upload-multipart plain-text url (litterbox): no auth header, posts reqtype/time/fileToUpload, returns trimmed body", async () => {
+    const ingestion: AssetIngestion = {
+      strategy: "upload-multipart",
+      endpoint: "https://litterbox.catbox.moe/resources/internals/api.php",
+      responseIsPlainTextUrl: true,
+      fileField: "fileToUpload",
+      extraFields: { reqtype: "fileupload", time: "1h" },
+      accepts: ["image", "video", "audio"],
+    };
+    const readMp4 = (): LocalAsset => ({ bytes: Buffer.from("mp4-bytes"), contentType: "video/mp4", fileName: "clip.mp4" });
+    // 纯文本响应（两端带空白，验证 trim）
+    const postMultipart = vi.fn().mockResolvedValue("  https://litter.catbox.moe/abc123.mp4\n");
+    const out = await resolveLocalAsset(localUrl("clip.mp4"), ingestion, "", readMp4, vi.fn(), postMultipart);
+    expect(out).toBe("https://litter.catbox.moe/abc123.mp4");
+    const [url, headers, bytes, fileName, contentType, extraFields, fileField] = postMultipart.mock.calls[0];
+    expect(url).toBe("https://litterbox.catbox.moe/resources/internals/api.php");
+    expect("Authorization" in (headers as Record<string, string>)).toBe(false); // 匿名：无 key → 无 Authorization
+    expect(Buffer.isBuffer(bytes)).toBe(true);
+    expect(fileName).toBe("clip.mp4");
+    expect(contentType).toBe("video/mp4");
+    expect((extraFields as Record<string, string>).reqtype).toBe("fileupload");
+    expect((extraFields as Record<string, string>).time).toBe("1h");
+    expect(fileField).toBe("fileToUpload");
+  });
+
+  it("upload-multipart plain-text url throws when body isn't an http url", async () => {
+    const ingestion: AssetIngestion = {
+      strategy: "upload-multipart",
+      endpoint: "https://litterbox.catbox.moe/resources/internals/api.php",
+      responseIsPlainTextUrl: true,
+      fileField: "fileToUpload",
+      extraFields: { reqtype: "fileupload", time: "1h" },
+    };
+    const postMultipart = vi.fn().mockResolvedValue("Error: too big");
+    await expect(resolveLocalAsset(localUrl("a.png"), ingestion, "", read, vi.fn(), postMultipart)).rejects.toThrow(/不是可达 URL/);
+  });
+
   it("upload-multipart throws when response lacks the url path", async () => {
     const ingestion: AssetIngestion = { strategy: "upload-multipart", endpoint: "https://up/x", urlPath: "url" };
     const postMultipart = vi.fn().mockResolvedValue({ oops: "no url" });
@@ -251,21 +288,24 @@ describe("resolveAssetIngestionWithFallback (跨 vendor 上传优先级链)", ()
     expect(out?.uploadApiKey).toBe("key-custom");
   });
 
-  it("inline-base64 的 vendor 不算「有上传能力」，不被选作中转", () => {
+  it("inline-base64 的 vendor 不算「有上传能力」，不被选作中转 → 落到 litterbox 零配置兜底", () => {
     const inlineVendor = { key: "inliner", assetIngestion: { strategy: "inline-base64" } as AssetIngestion };
     const out = resolveAssetIngestionWithFallback({ key: "openai" }, [{ key: "openai" }, inlineVendor], keysOf("openai", "inliner"));
-    expect(out).toBeNull(); // 没有任何真正能产出公网 URL 的通道
+    // 没有真正能产出公网 URL 的供应商通道 → litterbox（零配置）接住
+    expect(out?.ingestion.endpoint).toContain("litterbox.catbox.moe");
+    expect(out?.uploadApiKey).toBe("");
   });
 
-  it("⑤ 全无上传通道 → 返回 null（待 nomi-relay 兜底）", () => {
+  it("⑤ 无任何供应商上传通道 → litterbox 零配置兜底（不再返回 null）", () => {
     const out = resolveAssetIngestionWithFallback({ key: "openai" }, [{ key: "openai" }], keysOf("openai"));
-    expect(out).toBeNull();
+    expect(out?.ingestion.endpoint).toContain("litterbox.catbox.moe");
+    expect(out?.uploadApiKey).toBe("");
   });
 
-  it("配了 KIE 但没填 key → 不选 KIE（key 缺失视为不可用）", () => {
+  it("配了 KIE 但没填 key → 不选 KIE，落到 litterbox（key 缺失视为不可用）", () => {
     // vendor 列表里有 kie，但 getApiKey('kie') 返回 null
     const out = resolveAssetIngestionWithFallback({ key: "openai" }, [{ key: "openai" }, { key: "kie" }], keysOf("openai"));
-    expect(out).toBeNull();
+    expect(out?.ingestion.endpoint).toContain("litterbox.catbox.moe");
   });
 });
 
@@ -278,9 +318,10 @@ describe("resolveAssetIngestionWithFallback (内容类型感知路由)", () => {
     expect(out?.uploadApiKey).toBe("key-apimart");
   });
 
-  it("video asset + only apimart configured → null (apimart is image-only, honest fail)", () => {
+  it("video asset + only apimart configured → litterbox (apimart image-only, zero-config fallback)", () => {
     const out = resolveAssetIngestionWithFallback({ key: "apimart" }, [{ key: "apimart" }], keysOf("apimart"), "video");
-    expect(out).toBeNull();
+    expect(out?.ingestion.endpoint).toContain("litterbox.catbox.moe");
+    expect(out?.uploadApiKey).toBe("");
   });
 
   it("video asset + KIE configured → KIE stream chosen", () => {
@@ -298,6 +339,39 @@ describe("resolveAssetIngestionWithFallback (内容类型感知路由)", () => {
     const out = resolveAssetIngestionWithFallback({ key: "apimart" }, [{ key: "kie" }], keysOf("kie"), "video");
     expect(out?.uploadApiKey).toBe("key-kie");
     expect(out?.ingestion.strategy).toBe("upload-stream");
+  });
+
+  it("video asset + no KIE (only apimart, image-only) → litterbox zero-config fallback, no honest error", () => {
+    // target apimart can't take mp4, no KIE key → litterbox (no key) catches it
+    const out = resolveAssetIngestionWithFallback({ key: "apimart" }, [{ key: "apimart" }], keysOf("apimart"), "video");
+    expect(out).not.toBeNull();
+    expect(out?.uploadApiKey).toBe(""); // anonymous, no key needed
+    if (out?.ingestion.strategy === "upload-multipart") {
+      expect(out.ingestion.endpoint).toBe("https://litterbox.catbox.moe/resources/internals/api.php");
+      expect(out.ingestion.responseIsPlainTextUrl).toBe(true);
+      expect(out.ingestion.fileField).toBe("fileToUpload");
+    } else {
+      throw new Error("expected upload-multipart (litterbox)");
+    }
+  });
+
+  it("video asset + nothing configured at all → still litterbox (zero user config)", () => {
+    const out = resolveAssetIngestionWithFallback({ key: "openai" }, [{ key: "openai" }], keysOf("openai"), "video");
+    expect(out?.uploadApiKey).toBe("");
+    expect(out?.ingestion.endpoint).toContain("litterbox.catbox.moe");
+  });
+
+  it("video asset + KIE present → KIE wins over litterbox (upgrade when key available)", () => {
+    const out = resolveAssetIngestionWithFallback({ key: "openai" }, [{ key: "openai" }, { key: "kie" }], keysOf("openai", "kie"), "video");
+    expect(out?.ingestion.strategy).toBe("upload-stream");
+    expect(out?.uploadApiKey).toBe("key-kie");
+  });
+
+  it("image asset + apimart present → apimart still wins over litterbox", () => {
+    const out = resolveAssetIngestionWithFallback({ key: "apimart" }, [{ key: "apimart" }], keysOf("apimart"), "image");
+    expect(out?.ingestion.strategy).toBe("upload-multipart");
+    expect(out?.ingestion.endpoint).toBe("https://api.apimart.ai/v1/uploads/images");
+    expect(out?.uploadApiKey).toBe("key-apimart");
   });
 });
 

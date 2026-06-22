@@ -18,6 +18,7 @@ export type HttpPostMultipart = (
   fileName: string,
   contentType: string,
   extraFields?: Record<string, string>,
+  fileField?: string,
 ) => Promise<unknown>;
 
 export function isLocalAssetUrl(value: unknown): value is string {
@@ -88,10 +89,29 @@ export async function resolveLocalAsset(
   if (ingestion.strategy === "inline-base64") return dataUrl;
 
   if (ingestion.strategy === "upload-multipart") {
-    // multipart/form-data 上传（如 apimart POST /v1/uploads/images）
-    // apiKey 为空时不发 Authorization（nomi-relay 等无鉴权中转端点）
+    // multipart/form-data 上传（如 apimart POST /v1/uploads/images；litterbox 匿名临时托管）
+    // apiKey 为空时不发 Authorization（litterbox 匿名、nomi-relay 无鉴权中转端点）
     const headers: Record<string, string> = apiKey ? { Authorization: `Bearer ${apiKey}` } : {};
-    const response = await postMultipart(ingestion.endpoint, headers, asset.bytes, asset.fileName, asset.contentType);
+    const response = await postMultipart(
+      ingestion.endpoint,
+      headers,
+      asset.bytes,
+      asset.fileName,
+      asset.contentType,
+      ingestion.extraFields,
+      ingestion.fileField,
+    );
+    // litterbox 等：整个响应体即直链(纯文本,非 JSON)。postMultipart 解析失败时返回原始字符串。
+    if (ingestion.responseIsPlainTextUrl) {
+      const text = typeof response === "string" ? response.trim() : "";
+      if (!/^https?:\/\//i.test(text)) {
+        throw new Error(`上传响应不是可达 URL(纯文本期望)：${text.slice(0, 120) || "(空)"}`);
+      }
+      return text;
+    }
+    if (!ingestion.urlPath) {
+      throw new Error("upload-multipart 声明缺少 urlPath（且未启用 responseIsPlainTextUrl）");
+    }
     const url = readNestedPath(response, ingestion.urlPath);
     if (typeof url !== "string" || !url) {
       throw new Error(`上传响应缺少可达 URL(期望路径 ${ingestion.urlPath})`);
@@ -213,6 +233,23 @@ const CURATED_VIDEO_INGESTION: Record<string, AssetIngestion> = {
   },
 };
 
+/**
+ * litterbox（catbox.moe 匿名临时文件托管）：零配置兜底通道——无 key、无账号、收任意文件。
+ * POST https://litterbox.catbox.moe/resources/internals/api.php，multipart：
+ *   reqtype=fileupload, time=1h, fileToUpload=<二进制>。无 Authorization（匿名）。
+ * 响应体是**纯文本直链**（非 JSON），如 "https://litter.catbox.moe/abc123.mp4"。
+ * 文件 1 小时有效，够一次生成。accepts 全媒体类型（它收任何文件）。
+ * 用作视频上传的零配置兜底：目标 vendor 与 KIE 都没有视频通道时仍能"开箱即用"。
+ */
+export const LITTERBOX_INGESTION: AssetIngestion = {
+  strategy: "upload-multipart",
+  endpoint: "https://litterbox.catbox.moe/resources/internals/api.php",
+  responseIsPlainTextUrl: true,
+  fileField: "fileToUpload",
+  extraFields: { reqtype: "fileupload", time: "1h" },
+  accepts: ["image", "video", "audio"],
+};
+
 /** 取某 vendor 的吞入策略:优先持久化声明,回退 curated 注册表。 */
 export function resolveAssetIngestion(vendor: { key?: string; assetIngestion?: AssetIngestion } | null | undefined): AssetIngestion | null {
   if (!vendor) return null;
@@ -283,6 +320,12 @@ export function resolveAssetIngestionWithFallback(
     if (!ing || ing.strategy === "none" || ing.strategy === "inline-base64") continue;
     const key = getApiKey(vendor.key);
     if (key) return { ingestion: ing, uploadApiKey: key };
+  }
+  // 5. litterbox：零配置兜底（无 key、匿名、收任意文件 → 临时公网直链）。
+  //    走到这里说明上面更优的通道都没命中（图片几乎总有 apimart；视频缺 KIE 时此处接住）。
+  //    NET：视频上传零配置"开箱即用"，诚实错误基本只在 litterbox 本身不可达时才触发。
+  if (ingestionAccepts(LITTERBOX_INGESTION, mediaKind)) {
+    return { ingestion: LITTERBOX_INGESTION, uploadApiKey: "" };
   }
   return null;
 }

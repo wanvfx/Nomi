@@ -78,9 +78,22 @@ export type AssetIngestion =
       strategy: "upload-multipart";
       /** 上传端点(完整 URL)。multipart/form-data，file 字段为二进制。 */
       endpoint: string;
-      /** 响应里公网 URL 的点路径(如 apimart 的 "url")。 */
-      urlPath: string;
-      /** 鉴权:复用 vendor 的 api key(默认 bearer)。 */
+      /**
+       * 响应里公网 URL 的点路径(如 apimart 的 "url")。
+       * 当 responseIsPlainTextUrl 为 true 时整个响应体即 URL,此字段可省。
+       */
+      urlPath?: string;
+      /**
+       * 响应体是否为纯文本 URL(整个 body trim 后即直链,非 JSON)。
+       * 用于 litterbox/catbox 这类匿名临时文件托管(响应 = "https://litter.catbox.moe/abc.mp4")。
+       * 缺省 false → 按 JSON + urlPath 读取。
+       */
+      responseIsPlainTextUrl?: boolean;
+      /** file 字段名(默认 "file")。litterbox 用 "fileToUpload"。 */
+      fileField?: string;
+      /** multipart 里除 file 外的固定文本字段(如 litterbox 的 reqtype=fileupload & time=1h)。 */
+      extraFields?: Record<string, string>;
+      /** 鉴权:复用 vendor 的 api key(默认 bearer)。无 key 时不发 Authorization。 */
       authType?: "bearer";
       /** 该通道接受的媒体类型;缺省 ['image']。 */
       accepts?: ReadonlyArray<AssetMediaKind>;
