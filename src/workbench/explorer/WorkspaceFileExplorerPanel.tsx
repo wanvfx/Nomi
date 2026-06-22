@@ -84,7 +84,7 @@ export default function WorkspaceFileExplorerPanel({ projectId }: Props): JSX.El
             disabled={importing}
             className={cn(
               'w-full px-2 py-1.5 text-caption rounded-md border border-dashed border-nomi-line',
-              'text-nomi-ink-50 hover:text-nomi-ink hover:bg-nomi-ink-05',
+              'text-nomi-ink-40 hover:text-nomi-ink hover:bg-nomi-ink-05',
               importing && 'opacity-60 cursor-wait',
             )}
             title="把本地文件拷贝进项目素材文件夹"

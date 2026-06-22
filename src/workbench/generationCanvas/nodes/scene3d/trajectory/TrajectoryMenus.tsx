@@ -166,13 +166,13 @@ export function TrajectoryPointBindMenu({
           >
             {category.icon}
             <span className="min-w-0 flex-1 truncate">{category.label}</span>
-            <span className="text-micro text-[var(--nomi-ink-45)]">{category.items.length}</span>
+            <span className="text-micro text-[var(--nomi-ink-40)]">{category.items.length}</span>
             <IconChevronRight size={13} stroke={1.9} />
           </button>
         ))}
         <div className="absolute left-[calc(100%+6px)] top-1 min-w-[148px] rounded-nomi-sm border border-[var(--nomi-line-soft)] bg-[var(--nomi-paper)] p-1 shadow-[0_14px_34px_rgba(18,24,38,0.2)]">
           {hoveredItems.length === 0 ? (
-            <div className="px-2 py-2 text-micro text-[var(--nomi-ink-45)]">暂无可绑定节点</div>
+            <div className="px-2 py-2 text-micro text-[var(--nomi-ink-40)]">暂无可绑定节点</div>
           ) : hoveredItems.map((target) => (
             <button
               key={target.id}

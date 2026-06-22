@@ -489,7 +489,7 @@ export default function TimelinePreview({ activeClips, aspectRatio, fps, playhea
                 padding: box.hasBackdrop ? '0.32em 0.7em' : 0,
                 background: box.hasBackdrop ? 'color-mix(in oklch, var(--nomi-paper) 86%, transparent)' : 'transparent',
                 border: box.hasBackdrop ? '1px solid var(--nomi-line-soft)' : 'none',
-                borderRadius: 'var(--nomi-radius-md)',
+                borderRadius: 'var(--nomi-radius)',
                 // 折行契约：预览用 CSS 原生折行，导出 canvas 用 textLayout.wrapTextToWidth 复刻同一语义
                 // （white-space:pre-wrap + word-break:break-word ⇔ 显式换行 + 优先整词断 + 超长词逐字断）。
                 // 两端共用 box 几何（resolveTextBox）与内边距（0.32em/0.7em ↔ 导出 fontSize*1.4 budget），断行一致。
@@ -704,7 +704,7 @@ export default function TimelinePreview({ activeClips, aspectRatio, fps, playhea
               'workbench-preview-player__text-menu',
               'absolute bottom-full mb-1.5 left-1/2 -translate-x-1/2 z-[5]',
               'min-w-[148px] p-1 flex flex-col gap-0.5',
-              'rounded-[var(--nomi-radius-md)] border border-[var(--workbench-border)]',
+              'rounded-[var(--nomi-radius)] border border-[var(--workbench-border)]',
               'bg-[var(--nomi-paper)] shadow-[var(--workbench-shadow-pop)]',
             )} role="menu">
               <button type="button" role="menuitem"

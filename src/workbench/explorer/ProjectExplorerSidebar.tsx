@@ -51,10 +51,10 @@ export default function ProjectExplorerSidebar({ categories, projectId = null }:
           <span aria-hidden />
           <div className="flex items-center justify-center gap-1">
             <div className="flex items-center gap-0.5 rounded-md bg-nomi-bg p-0.5">
-              <button type="button" onClick={() => setTab('categories')} className={cn('flex items-center gap-1 px-2 py-1 text-micro rounded', tab === 'categories' ? 'bg-nomi-paper text-nomi-ink' : 'text-nomi-ink-40 hover:text-nomi-ink-70')}>
+              <button type="button" onClick={() => setTab('categories')} className={cn('flex items-center gap-1 px-2 py-1 text-micro rounded', tab === 'categories' ? 'bg-nomi-paper text-nomi-ink' : 'text-nomi-ink-40 hover:text-nomi-ink-60')}>
                 <IconCategory size={14} stroke={1.5} />分类
               </button>
-              <button type="button" onClick={() => setTab('files')} className={cn('flex items-center gap-1 px-2 py-1 text-micro rounded', tab === 'files' ? 'bg-nomi-paper text-nomi-ink' : 'text-nomi-ink-40 hover:text-nomi-ink-70')}>
+              <button type="button" onClick={() => setTab('files')} className={cn('flex items-center gap-1 px-2 py-1 text-micro rounded', tab === 'files' ? 'bg-nomi-paper text-nomi-ink' : 'text-nomi-ink-40 hover:text-nomi-ink-60')}>
                 <IconFolder size={14} stroke={1.5} />文件
               </button>
             </div>

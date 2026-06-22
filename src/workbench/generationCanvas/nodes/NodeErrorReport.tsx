@@ -61,7 +61,7 @@ export function NodeErrorReport({ message, onRetry }: { message: string; onRetry
       {/* 服务商真实原话——提到可见区，别再让用户去折叠的「技术详情」里挖（一脸懵逼的根源）。 */}
       {report.providerMessage ? (
         <p className="mt-2 select-text cursor-text rounded-nomi-sm bg-nomi-ink-05 p-2 text-caption leading-relaxed text-nomi-ink-60">
-          <span className="text-nomi-ink-45">服务商原话：</span>
+          <span className="text-nomi-ink-40">服务商原话：</span>
           {report.providerMessage}
         </p>
       ) : null}
@@ -95,7 +95,7 @@ export function NodeErrorReport({ message, onRetry }: { message: string; onRetry
         <button
           type="button"
           onClick={handleCopy}
-          className="text-caption text-nomi-ink-45 hover:text-nomi-ink"
+          className="text-caption text-nomi-ink-40 hover:text-nomi-ink"
         >
           {copied ? '已复制' : '复制详情'}
         </button>

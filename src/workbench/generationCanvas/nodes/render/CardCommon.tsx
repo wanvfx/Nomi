@@ -193,7 +193,7 @@ export function placeholderLabel(categoryName: string | undefined, title: string
 /** Scene3DEditor 懒加载期间的占位（React.Suspense fallback）。 */
 export function Scene3DEditorLoading(): JSX.Element {
   return (
-    <div className={cn('flex w-full h-full items-center justify-center bg-nomi-ink-05 text-caption text-nomi-ink-45')}>
+    <div className={cn('flex w-full h-full items-center justify-center bg-nomi-ink-05 text-caption text-nomi-ink-40')}>
       3D 编辑器加载中
     </div>
   )

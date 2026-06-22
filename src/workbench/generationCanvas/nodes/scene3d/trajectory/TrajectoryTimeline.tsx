@@ -296,7 +296,7 @@ export function TrajectoryTimeline({
           <IconPlayerSkipBack size={16} />
         </button>
         <div className="min-w-0 flex-1 text-caption font-medium">轨迹时间轴</div>
-        <div className="text-micro text-[var(--nomi-ink-50)]">{formatSeconds(totalDuration)}</div>
+        <div className="text-micro text-[var(--nomi-ink-40)]">{formatSeconds(totalDuration)}</div>
         <button
           className="grid size-8 place-items-center rounded-nomi-sm bg-[var(--nomi-ink-05)] text-[var(--nomi-ink-60)] hover:bg-[var(--nomi-ink-10)] hover:text-[var(--nomi-ink)]"
           type="button"
@@ -325,7 +325,7 @@ export function TrajectoryTimeline({
           </div>
           <div className="mt-2 grid max-h-[calc(34vh-54px)] gap-1 overflow-auto pr-1">
             {rows.length === 0 ? (
-              <div className="grid h-12 place-items-center rounded-nomi-sm border border-dashed border-[var(--nomi-line-soft)] text-micro text-[var(--nomi-ink-45)]">
+              <div className="grid h-12 place-items-center rounded-nomi-sm border border-dashed border-[var(--nomi-line-soft)] text-micro text-[var(--nomi-ink-40)]">
                 暂无轨迹
               </div>
             ) : rows.map((row) => {
@@ -340,7 +340,7 @@ export function TrajectoryTimeline({
                   >
                     <span className="size-2.5 rounded-full" style={{ backgroundColor: row.trajectory.color }} />
                     <span className="min-w-0 truncate text-micro">{row.trajectory.name}</span>
-                    <span className="justify-self-end text-micro text-[var(--nomi-ink-45)]">{row.binding ? '已绑定' : '未绑定'}</span>
+                    <span className="justify-self-end text-micro text-[var(--nomi-ink-40)]">{row.binding ? '已绑定' : '未绑定'}</span>
                   </div>
                 )
               }
@@ -371,7 +371,7 @@ export function TrajectoryTimeline({
                   <IconFolder
                     size={13}
                     stroke={1.9}
-                    className={selected ? 'text-[var(--nomi-paper)]' : 'text-[var(--nomi-ink-45)]'}
+                    className={selected ? 'text-[var(--nomi-paper)]' : 'text-[var(--nomi-ink-40)]'}
                   />
                   {row.group && renamingGroupId === row.group.id ? (
                     <GroupNameEditor
@@ -397,7 +397,7 @@ export function TrajectoryTimeline({
                   )}
                   <span className={cn(
                     'justify-self-end text-micro',
-                    selected ? 'text-[var(--nomi-paper)] opacity-75' : 'text-[var(--nomi-ink-45)]',
+                    selected ? 'text-[var(--nomi-paper)] opacity-75' : 'text-[var(--nomi-ink-40)]',
                   )}
                   >
                     {row.trajectoryCount}
@@ -408,7 +408,7 @@ export function TrajectoryTimeline({
           </div>
         </div>
         <div className="min-w-0 p-2">
-          <div className="grid grid-cols-5 text-micro text-[var(--nomi-ink-45)]">
+          <div className="grid grid-cols-5 text-micro text-[var(--nomi-ink-40)]">
             {[0, 0.25, 0.5, 0.75, 1].map((ratio) => (
               <span key={ratio} className={cn(ratio === 0.5 && 'text-center', ratio > 0.5 && 'text-right')}>
                 {formatSeconds(ratio * totalDuration)}
@@ -420,7 +420,7 @@ export function TrajectoryTimeline({
             className="relative mt-2 grid max-h-[calc(34vh-54px)] min-w-0 gap-1 overflow-auto pr-1"
           >
             {rows.length === 0 ? (
-              <div className="grid h-12 place-items-center text-micro text-[var(--nomi-ink-45)]">暂无绑定区间</div>
+              <div className="grid h-12 place-items-center text-micro text-[var(--nomi-ink-40)]">暂无绑定区间</div>
             ) : rows.map((row) => row.type === 'group' ? (
               <div key={row.id} className="h-7 rounded-nomi-sm bg-[var(--nomi-paper)]/70" />
             ) : (
@@ -436,7 +436,7 @@ export function TrajectoryTimeline({
                     onPatchTrajectoryPoint={onPatchTrajectoryPoint}
                   />
                 ) : (
-                  <span className="absolute left-2 top-1/2 -translate-y-1/2 text-micro text-[var(--nomi-ink-35)]">未绑定</span>
+                  <span className="absolute left-2 top-1/2 -translate-y-1/2 text-micro text-[var(--nomi-ink-30)]">未绑定</span>
                 )}
               </div>
             ))}

@@ -204,8 +204,8 @@ function Scene3DEditor({ node, width, height, readOnly = false }: Scene3DEditorP
               <IconCube className="text-nomi-ink-60" size={25} stroke={1.65} />
             </div>
             <div className="text-center">
-              <div className="text-caption font-medium text-nomi-ink-70">点击进入 3D 编辑器</div>
-              <div className="mt-1 text-micro text-nomi-ink-45">摆放模型、相机并输出截图</div>
+              <div className="text-caption font-medium text-nomi-ink-60">点击进入 3D 编辑器</div>
+              <div className="mt-1 text-micro text-nomi-ink-40">摆放模型、相机并输出截图</div>
             </div>
           </div>
         )}

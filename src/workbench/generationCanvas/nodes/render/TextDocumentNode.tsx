@@ -140,7 +140,7 @@ function TextDocumentNodeImpl({ node }: Props): JSX.Element {
         <header
           className={cn(
             'shrink-0 flex items-center gap-1 h-7 px-2',
-            'border-b border-nomi-line-soft text-nomi-ink-45',
+            'border-b border-nomi-line-soft text-nomi-ink-40',
             'cursor-grab select-none',
           )}
           aria-label="拖动文本节点">

@@ -94,7 +94,7 @@ function TrajectoryPointRow({
           控制点
         </button>
         <button
-          className="grid size-7 place-items-center rounded-nomi-sm text-[var(--nomi-ink-45)] hover:bg-[var(--nomi-ink-05)] hover:text-[var(--nomi-danger)] disabled:opacity-40"
+          className="grid size-7 place-items-center rounded-nomi-sm text-[var(--nomi-ink-40)] hover:bg-[var(--nomi-ink-05)] hover:text-[var(--workbench-danger)] disabled:opacity-40"
           disabled={readOnly || trajectory.points.length <= 2}
           type="button"
           title="删除控制点"
@@ -159,7 +159,7 @@ function TrajectoryBindingCard({
       <button className="flex min-w-0 items-center gap-2 text-left" type="button" onClick={() => onSelectTrajectory(trajectory.id)}>
         <span className="size-3 shrink-0 rounded-full" style={{ backgroundColor: trajectory.color }} />
         <span className="min-w-0 flex-1 truncate text-caption font-medium text-[var(--nomi-ink)]">{trajectory.name}</span>
-        <span className="shrink-0 text-micro text-[var(--nomi-ink-45)]">{binding?.objects.length ?? 0}节点</span>
+        <span className="shrink-0 text-micro text-[var(--nomi-ink-40)]">{binding?.objects.length ?? 0}节点</span>
       </button>
 
       {binding ? (
@@ -208,7 +208,7 @@ function TrajectoryBindingCard({
                 {nodeName(state, boundObject.objectId)}
               </div>
               <label className="grid gap-1">
-                <span className="text-micro text-[var(--nomi-ink-45)]">Offset</span>
+                <span className="text-micro text-[var(--nomi-ink-40)]">Offset</span>
                 <input
                   className="h-8 min-w-0 rounded-nomi-sm border border-[var(--nomi-line)] bg-[var(--nomi-paper)] px-1.5 text-caption text-[var(--nomi-ink)] outline-none"
                   disabled={readOnly}
@@ -223,7 +223,7 @@ function TrajectoryBindingCard({
                 />
               </label>
               <button
-                className="grid size-7 place-items-center rounded-nomi-sm text-[var(--nomi-ink-45)] hover:bg-[var(--nomi-ink-05)] hover:text-[var(--nomi-danger)] disabled:opacity-40"
+                className="grid size-7 place-items-center rounded-nomi-sm text-[var(--nomi-ink-40)] hover:bg-[var(--nomi-ink-05)] hover:text-[var(--workbench-danger)] disabled:opacity-40"
                 disabled={readOnly}
                 type="button"
                 title="解绑节点"
@@ -246,7 +246,7 @@ function TrajectoryBindingCard({
             {availableNodes.map((node) => <option key={node.id} value={node.id}>{node.name}</option>)}
           </select>
           <button
-            className="h-7 rounded-nomi-sm bg-[var(--nomi-ink-05)] text-micro text-[var(--nomi-ink-60)] hover:bg-[var(--nomi-ink-10)] hover:text-[var(--nomi-danger)] disabled:opacity-40"
+            className="h-7 rounded-nomi-sm bg-[var(--nomi-ink-05)] text-micro text-[var(--nomi-ink-60)] hover:bg-[var(--nomi-ink-10)] hover:text-[var(--workbench-danger)] disabled:opacity-40"
             disabled={readOnly}
             type="button"
             onClick={() => onDeleteBinding(binding.id)}
@@ -325,7 +325,7 @@ export function TrajectoryPanel({
       </div>
 
       {!activeTrajectory ? (
-        <div className="rounded-nomi-sm border border-dashed border-[var(--nomi-line)] px-3 py-4 text-center text-caption text-[var(--nomi-ink-45)]">
+        <div className="rounded-nomi-sm border border-dashed border-[var(--nomi-line)] px-3 py-4 text-center text-caption text-[var(--nomi-ink-40)]">
           请选择一条轨迹
         </div>
       ) : (
@@ -333,7 +333,7 @@ export function TrajectoryPanel({
           <div className="flex min-w-0 items-center gap-2 rounded-nomi-sm bg-[var(--nomi-ink-05)] px-2 py-2">
             <span className="size-3 shrink-0 rounded-full" style={{ backgroundColor: activeTrajectory.color }} />
             <span className="min-w-0 flex-1 truncate text-caption font-medium text-[var(--nomi-ink)]">{activeTrajectory.name}</span>
-            <span className="text-micro text-[var(--nomi-ink-45)]">{activeTrajectory.points.length}点 · {activeBinding?.objects.length ?? 0}节点</span>
+            <span className="text-micro text-[var(--nomi-ink-40)]">{activeTrajectory.points.length}点 · {activeBinding?.objects.length ?? 0}节点</span>
           </div>
 
           <label className="grid gap-1">
@@ -428,7 +428,7 @@ export function TrajectoryPanel({
           </div>
 
           <button
-            className="h-8 rounded-nomi-sm bg-[var(--nomi-danger-soft)] text-caption text-[var(--nomi-danger)] hover:opacity-90 disabled:opacity-40"
+            className="h-8 rounded-nomi-sm bg-[var(--workbench-danger-soft)] text-caption text-[var(--workbench-danger)] hover:opacity-90 disabled:opacity-40"
             disabled={readOnly}
             type="button"
             onClick={() => onDeleteTrajectory(activeTrajectory.id)}

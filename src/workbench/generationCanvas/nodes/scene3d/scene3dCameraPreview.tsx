@@ -223,7 +223,7 @@ export function CameraPreview({
           value={lensDepth}
           onChange={(event) => onLensDepthChange(Number(event.currentTarget.value))}
         />
-        <div className="mt-1 grid grid-cols-3 text-micro text-[var(--nomi-ink-45)]">
+        <div className="mt-1 grid grid-cols-3 text-micro text-[var(--nomi-ink-40)]">
           <span>-100%</span>
           <span className="text-center">0</span>
           <span className="text-right">100%</span>
