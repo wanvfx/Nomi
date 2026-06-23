@@ -1,7 +1,7 @@
 // 技能库单卡（画廊式，对齐提示词库的卡片语言）。token-only：颜色/圆角/字号全走设计系统。
 // 用户技能可删；内置技能只读（删除位显「内置 · 只读」）。能力缺口用 ⚠️ 标，点「在创作区用」锁定该技能。
 import React from 'react'
-import { IconAlertTriangle, IconCheck, IconDownload, IconMovie, IconTrash } from '@tabler/icons-react'
+import { IconAlertTriangle, IconCheck, IconDownload, IconLock, IconMovie, IconTrash } from '@tabler/icons-react'
 import { cn } from '../../utils/cn'
 import {
   providerLabel,
@@ -9,6 +9,9 @@ import {
   type SkillListItemDto,
   type SkillProviderKind,
 } from '../api/skillApi'
+
+// App 标准焦点环（accent 色，覆盖 macOS 系统强调色的 outline:auto，见 workbench.css §v0.7.8）。
+const FOCUS_RING = 'focus-visible:outline-2 focus-visible:outline-workbench-focus focus-visible:outline-offset-2'
 
 export function SkillCard({
   skill,
@@ -67,32 +70,38 @@ export function SkillCard({
         <button
           type="button"
           onClick={() => onUse(skill)}
-          className={cn('rounded-nomi-sm px-1.5 py-1 text-caption text-nomi-accent hover:bg-nomi-accent-soft transition-colors')}
+          className={cn('shrink-0 whitespace-nowrap rounded-nomi-sm px-2 py-1 text-caption text-nomi-accent hover:bg-nomi-accent-soft transition-colors', FOCUS_RING)}
         >
           在创作区用
         </button>
+        <span className={cn('flex-1')} />
         <button
           type="button"
           onClick={() => onExport(skill)}
           title="导出技能包"
           aria-label={`导出 ${skill.label}`}
-          className={cn('inline-flex items-center gap-1 rounded-nomi-sm px-1.5 py-1 text-caption text-nomi-ink-60 hover:bg-nomi-ink-05 transition-colors')}
+          className={cn('shrink-0 w-7 h-7 grid place-items-center rounded-nomi-sm text-nomi-ink-60 hover:text-nomi-ink hover:bg-nomi-ink-05 transition-colors', FOCUS_RING)}
         >
-          <IconDownload size={13} stroke={1.7} />导出
+          <IconDownload size={14} stroke={1.7} />
         </button>
-        <span className={cn('flex-1')} />
         {isUser ? (
           <button
             type="button"
             onClick={() => onDelete(skill)}
             title="删除技能"
             aria-label={`删除 ${skill.label}`}
-            className={cn('inline-flex items-center gap-1 rounded-nomi-sm px-1.5 py-1 text-caption text-workbench-danger hover:bg-nomi-ink-05 transition-colors')}
+            className={cn('shrink-0 w-7 h-7 grid place-items-center rounded-nomi-sm text-nomi-ink-60 hover:text-workbench-danger hover:bg-nomi-ink-05 transition-colors', FOCUS_RING)}
           >
-            <IconTrash size={13} stroke={1.7} />删除
+            <IconTrash size={14} stroke={1.7} />
           </button>
         ) : (
-          <span className={cn('px-1.5 py-1 text-micro text-nomi-ink-40')}>内置 · 只读</span>
+          <span
+            title="内置技能 · 只读"
+            aria-label="内置技能，只读"
+            className={cn('shrink-0 w-7 h-7 grid place-items-center text-nomi-ink-30')}
+          >
+            <IconLock size={14} stroke={1.7} />
+          </span>
         )}
       </div>
     </div>
