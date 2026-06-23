@@ -14,7 +14,7 @@ import {
   IconWand,
 } from '@tabler/icons-react'
 import { useWorkbenchStore } from '../workbenchStore'
-import { WorkbenchIconButton } from '../../design'
+import { WorkbenchIconButton } from '../../design/workbenchActions'
 import { cn } from '../../utils/cn'
 import { computeTimelineDuration } from './timelineMath'
 import TimelineTrack from './TimelineTrack'

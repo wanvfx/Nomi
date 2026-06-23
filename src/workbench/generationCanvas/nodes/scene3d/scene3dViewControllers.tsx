@@ -18,12 +18,14 @@ import {
   eulerToArray,
   hasActiveMovementKey,
   isEditableKeyboardTarget,
+  levelEditorCameraRotation,
   isMovementCode,
   pointerCaptureTarget,
   vectorFromArray,
   vectorToArray,
   type CameraPoseSample,
 } from './scene3dMath'
+import { objectGroundFootprint, objectVisualHalfHeight } from './scene3dCrowd'
 import {
   type CaptureApi,
   type Scene3DCamera,
@@ -326,16 +328,16 @@ export function FocusController({
   focusId,
   objects,
   cameras,
-  onTargetChange,
+  onCameraChange,
   onFocusConsumed,
 }: {
   focusId: string
   objects: Scene3DObject[]
   cameras: Scene3DCamera[]
-  onTargetChange: (target: Scene3DVector3) => void
+  onCameraChange: (cameraState: Scene3DState['editorCamera']) => void
   onFocusConsumed: () => void
 }): null {
-  const { camera, invalidate } = useThree()
+  const { camera, controls, invalidate } = useThree()
   const lastFocusRef = React.useRef('')
 
   React.useEffect(() => {
@@ -343,21 +345,69 @@ export function FocusController({
     const targetId = focusId.split(':')[0] || focusId
     const object = objects.find((candidate) => candidate.id === targetId)
     const sceneCamera = cameras.find((candidate) => candidate.id === targetId)
-    const position = object?.position || sceneCamera?.position
-    if (!position) return
+    if (!object && !sceneCamera) return
     lastFocusRef.current = focusId
-    const target = vectorFromArray(position)
-    applyEditorCameraPose(camera, {
-      position: vectorToArray(target.clone().add(new THREE.Vector3(3.5, 2.2, 3.5))),
+    const target = object ? focusTargetForObject(object) : vectorFromArray(sceneCamera!.position)
+    const position = focusCameraPosition(camera, controls, target, object)
+    const editorCamera = {
+      position: vectorToArray(position),
       target: vectorToArray(target),
-    })
-    onTargetChange(vectorToArray(target))
+      rotation: levelEditorCameraRotation(vectorToArray(position), vectorToArray(target)),
+      mode: 'edit',
+    } satisfies Scene3DState['editorCamera']
+    applyEditorCameraPose(camera, editorCamera)
+    syncOrbitControlsTarget(controls, target)
+    onCameraChange(editorCamera)
     onFocusConsumed()
     // demand 下聚焦移动相机走 effect（不走 useFrame），需请求重绘。
     invalidate()
-  }, [camera, cameras, focusId, invalidate, objects, onFocusConsumed, onTargetChange])
+  }, [camera, cameras, controls, focusId, invalidate, objects, onCameraChange, onFocusConsumed])
 
   return null
+}
+
+function focusTargetForObject(object: Scene3DObject): THREE.Vector3 {
+  return vectorFromArray(object.position)
+}
+
+function focusCameraPosition(
+  camera: THREE.Camera,
+  controls: unknown,
+  target: THREE.Vector3,
+  object?: Scene3DObject,
+): THREE.Vector3 {
+  const currentTarget = orbitControlsTarget(controls) ?? target
+  const direction = camera.position.clone().sub(currentTarget)
+  if (direction.lengthSq() < 0.0001) {
+    direction.set(1, 0.62, 1)
+  }
+  direction.normalize()
+  return target.clone().addScaledVector(direction, focusDistance(camera, object))
+}
+
+function focusDistance(camera: THREE.Camera, object?: Scene3DObject): number {
+  if (!object) return 4.5
+  const footprint = objectGroundFootprint(object)
+  const diameter = Math.max(footprint.width, footprint.depth, objectVisualHalfHeight(object) * 2, 0.8)
+  const radius = diameter / 2
+  const fov = camera instanceof THREE.PerspectiveCamera ? THREE.MathUtils.degToRad(camera.fov) : THREE.MathUtils.degToRad(55)
+  const fitDistance = radius / Math.tan(Math.max(0.2, fov / 2))
+  return THREE.MathUtils.clamp(fitDistance * 1.7, 3.5, 28)
+}
+
+function orbitControlsTarget(controls: unknown): THREE.Vector3 | null {
+  return controls && typeof controls === 'object' && 'target' in controls && (controls as { target?: unknown }).target instanceof THREE.Vector3
+    ? (controls as { target: THREE.Vector3 }).target
+    : null
+}
+
+function syncOrbitControlsTarget(controls: unknown, target: THREE.Vector3): void {
+  const controlsTarget = orbitControlsTarget(controls)
+  if (!controlsTarget) return
+  controlsTarget.copy(target)
+  if ('update' in (controls as object) && typeof (controls as { update?: unknown }).update === 'function') {
+    ;(controls as { update: () => void }).update()
+  }
 }
 
 export function CaptureBinder({

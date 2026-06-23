@@ -83,6 +83,10 @@ export type DesktopUpdateEvent =
 
 export type DesktopBridge = {
   platform: string
+  startupProbe?: {
+    enabled: boolean
+    mark: (label: string, payload?: Record<string, unknown>) => void
+  }
   workspace: {
     selectFolder: () => Promise<{ canceled: true } | { canceled: false; rootPath: string }>
     openFolder: (payload: { rootPath: string; initialize?: boolean; name?: string }) => Promise<unknown>
@@ -92,9 +96,12 @@ export type DesktopBridge = {
   }
   projects: {
     list: () => unknown[]
+    listAsync?: () => Promise<unknown[]>
     create: (record: unknown) => unknown
     read: (projectId: string) => unknown | null
+    readAsync?: (projectId: string) => Promise<unknown | null>
     save: (projectId: string, record: unknown) => unknown
+    saveAsync?: (projectId: string, record: unknown) => Promise<unknown>
     delete: (projectId: string) => { id: string; deleted: boolean }
   }
   assets: {
