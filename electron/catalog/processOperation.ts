@@ -13,6 +13,7 @@ import { runDreaminaCli, resolveDreaminaBin } from "./dreaminaCli";
 import { normalizeDreaminaOutput } from "./dreaminaCodec";
 import { renderTemplateValue } from "../ai/requestPipeline";
 import { contentTypeFromPath } from "../assets/assetPaths";
+import { materializeInputFiles } from "./dreaminaInputFiles";
 import type { JsonRecord } from "../jsonUtils";
 
 /** runtime 注入的写资产原语（写本地字节进项目素材，返回含 data.url 的记录）。 */
@@ -46,10 +47,26 @@ export async function executeProcessOperation(input: ProcessOperationInput): Pro
     throw new Error("未找到即梦 CLI（dreamina）。请在「模型设置 · 即梦会员」卡里一键安装，或终端运行 curl -fsSL https://jimeng.jianying.com/cli | bash。");
   }
 
+  // 输入文件吞入：把槽给的资产 URL 物化成本地路径写回 params[expose]（spawn 后清理 temp）。
+  const tempInputs: string[] = [];
+  let inputDir = "";
+  if (input.process.fileParams?.length) {
+    inputDir = mkdtempSync(path.join(os.tmpdir(), "nomi-dreamina-in-"));
+    const reqParams = (((input.context.request as JsonRecord)?.params) ?? {}) as Record<string, unknown>;
+    tempInputs.push(...(await materializeInputFiles(reqParams, input.process.fileParams, input.projectId, inputDir)));
+  }
+
   // 渲染参数（与 HTTP body 同一套 renderTemplateValue）；空值参数（`--flag=`）丢弃 → dreamina 回落该项默认。
-  const args = input.process.args
-    .map((arg) => String(renderTemplateValue(arg, input.context) ?? ""))
-    .filter((arg) => arg && !/=$/.test(arg));
+  // 数组结果（repeat-flag 模式：`["--image=/a","--image=/b"]`）展开成多参数。
+  const args: string[] = [];
+  for (const tpl of input.process.args) {
+    const rendered = renderTemplateValue(tpl, input.context);
+    const items = Array.isArray(rendered) ? rendered : [rendered];
+    for (const item of items) {
+      const s = String(item ?? "");
+      if (s && !/=$/.test(s)) args.push(s);
+    }
+  }
 
   let downloadDir = "";
   if (input.process.appendDownloadDir) {
@@ -97,5 +114,9 @@ export async function executeProcessOperation(input: ProcessOperationInput): Pro
     if (downloadDir) {
       try { rmSync(downloadDir, { recursive: true, force: true }); } catch { /* best-effort */ }
     }
+    if (inputDir) {
+      try { rmSync(inputDir, { recursive: true, force: true }); } catch { /* best-effort */ }
+    }
+    void tempInputs; // temp 输入随 inputDir 整体清理（列表留作未来按文件粒度清理/排错）
   }
 }

@@ -216,12 +216,26 @@ export type HttpOperation = {
    *  - args           ：参数模板数组（如 ["text2video","--prompt={{prompt}}","--duration={{params.duration}}"]）。
    *  - parser         ：stdout 解码器选择子（目前仅 "dreamina-cli"）。未来同形状 vendor 声明各自 parser 即复用。
    *  - appendDownloadDir：true 时追加 `--download_dir=<项目素材临时目录>`，让 CLI 把结果下到本地（取本地文件）。
+   *  - fileParams     ：**输入文件吞入声明**。即梦带图/视频/音频的命令收**本地文件路径**（`--image=./x.png`），
+   *                     而 Nomi 槽给的是资产 URL（nomi-local://http/data）。spawn 前据此把每个输入 URL 物化成
+   *                     本地路径（nomi-local 零拷贝取现成绝对路径；http/data 下到 temp，spawn 后清理），按 mode
+   *                     暴露成 args 模板可读的 expose 参数：single=单路径 / csv=逗号串 / repeat=`flag=path` 数组（spread）。
    */
   process?: {
     bin: string;
     args: string[];
     parser: "dreamina-cli";
     appendDownloadDir?: boolean;
+    fileParams?: Array<{
+      /** request.params 里持有输入资产 URL（string 或 string[]）的键（= 槽 inputKey）。 */
+      param: string;
+      /** 物化后写回 request.params 的键（被 args 模板 `{{request.params.<expose>}}` 引用）。 */
+      expose: string;
+      /** single=取首个路径；csv=逗号连接所有路径；repeat=映射成 `flag=path` 字符串数组（exact 模板 spread 成多参数）。 */
+      mode: "single" | "csv" | "repeat";
+      /** mode=repeat 时的 flag 名（如 "--image"）。 */
+      flag?: string;
+    }>;
   };
   /**
    * 参数翻译表（铁律：模型身份决定参数，与渠道无关）。档案声明**中性 canonical 参数**（全站一致），
