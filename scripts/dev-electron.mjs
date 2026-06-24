@@ -8,6 +8,17 @@ import { fileURLToPath } from "node:url";
 const require = createRequire(import.meta.url);
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
+function configureWindowsConsoleEncoding() {
+  if (process.platform !== "win32" || process.env.NOMI_SKIP_UTF8_CONSOLE === "1") return;
+  const command = process.env.ComSpec || "cmd.exe";
+  spawnSync(command, ["/d", "/s", "/c", "chcp 65001 >nul"], {
+    stdio: "ignore",
+    env: process.env,
+  });
+}
+
+configureWindowsConsoleEncoding();
+
 /**
  * Make the onboarding agent work in `pnpm dev` without manual `export`s.
  *
@@ -128,6 +139,7 @@ await waitForRenderer(rendererUrl);
 const app = startElectron({
   env: electronEnv({
     NOMI_DESKTOP_DEV: "1",
+    ELECTRON_DISABLE_SECURITY_WARNINGS: "true",
     VITE_DEV_SERVER_URL: rendererUrl,
     ...loadOnboardingAgentEnv(),
   }),
