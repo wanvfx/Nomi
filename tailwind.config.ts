@@ -26,6 +26,16 @@ const workbenchBasePlugin = plugin(({ addBase }) => {
       '--nomi-track-video': 'oklch(0.65 0.13 150)',
       '--nomi-snap': 'oklch(0.72 0.18 30)',
       '--nomi-snap-tag': 'oklch(0.45 0.18 30)',
+      // 3D 轴向语义色(X/Y/Z)。主题无关——明暗两模式同色（用户拍板：3D 渲染色不动）。
+      '--nomi-axis-x': '#ef4444',
+      '--nomi-axis-y': '#16a34a',
+      '--nomi-axis-z': '#3b82f6',
+      // 媒体浮层（图上 scrim / 徽章 / 底部标题渐变）。此前仅存于未加载的 nomi-tokens.css → 运行时 undefined，
+      // 现补进真源（live = 本 addBase），消费点：提示词库/技能库/库页 scrim、引导旅途背景。
+      '--nomi-scrim': 'oklch(0.2 0.01 80 / 0.42)',
+      '--nomi-overlay-chip': 'oklch(0.2 0.01 80 / 0.55)',
+      '--nomi-overlay-chip-strong': 'oklch(0.2 0.01 80 / 0.7)',
+      '--nomi-media-veil': 'oklch(0.15 0.01 80 / 0.62)',
       '--nomi-shadow-sm': '0 1px 2px oklch(0 0 0 / 0.04), 0 1px 1px oklch(0 0 0 / 0.03)',
       '--nomi-shadow-md': '0 2px 4px oklch(0 0 0 / 0.04), 0 8px 24px oklch(0 0 0 / 0.06)',
       '--nomi-shadow-lg': '0 4px 8px oklch(0 0 0 / 0.05), 0 20px 50px oklch(0 0 0 / 0.08)',
@@ -108,6 +118,39 @@ const workbenchBasePlugin = plugin(({ addBase }) => {
       '--tc-gen-overlay-body-to': 'rgba(255, 255, 255, 0.35)',
       '--tc-gen-overlay-text': 'rgba(15, 23, 42, 0.72)',
     },
+    // ── 深色主题（暖灰 oklch，与浅色同色相、低明度反转）。token-only → 翻这一组即翻全局。
+    //    3D 轴色(--nomi-axis-*)刻意不覆盖：主题无关的渲染语义色，明暗同色（用户拍板）。
+    ':root[data-mantine-color-scheme="dark"]': {
+      'color-scheme': 'dark',
+      '--nomi-bg': 'oklch(0.18 0.006 80)',
+      '--nomi-paper': 'oklch(0.235 0.007 80)',
+      '--nomi-ink': 'oklch(0.93 0.006 85)',
+      '--nomi-ink-80': 'oklch(0.84 0.006 85)',
+      '--nomi-ink-60': 'oklch(0.70 0.006 85)',
+      '--nomi-ink-40': 'oklch(0.56 0.006 85)',
+      '--nomi-ink-30': 'oklch(0.44 0.006 85)',
+      '--nomi-ink-20': 'oklch(0.36 0.006 85)',
+      '--nomi-ink-10': 'oklch(0.30 0.006 85)',
+      '--nomi-ink-05': 'oklch(0.27 0.006 85)',
+      '--nomi-line': 'oklch(0.36 0.007 80)',
+      '--nomi-line-soft': 'oklch(0.31 0.007 80)',
+      '--nomi-accent': 'oklch(0.70 0.13 250)',
+      '--nomi-accent-soft': 'color-mix(in oklch, var(--nomi-accent) 18%, var(--nomi-paper))',
+      '--nomi-focus': 'color-mix(in srgb, var(--nomi-accent) 50%, transparent)',
+      // 时间轴三轨：暗底提亮以保持可辨（fork 未覆盖，本次补）。
+      '--nomi-track-text': 'oklch(0.75 0.15 305)',
+      '--nomi-track-image': 'oklch(0.72 0.13 200)',
+      '--nomi-track-video': 'oklch(0.70 0.13 150)',
+      '--nomi-snap': 'oklch(0.78 0.18 30)',
+      '--nomi-snap-tag': 'oklch(0.62 0.18 30)',
+      '--nomi-scrim': 'oklch(0.08 0.004 80 / 0.58)',
+      '--nomi-overlay-chip': 'oklch(0.08 0.004 80 / 0.68)',
+      '--nomi-overlay-chip-strong': 'oklch(0.08 0.004 80 / 0.78)',
+      '--nomi-media-veil': 'oklch(0.08 0.004 80 / 0.76)',
+      '--nomi-shadow-sm': '0 1px 2px oklch(0 0 0 / 0.32), 0 1px 1px oklch(0 0 0 / 0.22)',
+      '--nomi-shadow-md': '0 2px 5px oklch(0 0 0 / 0.30), 0 14px 34px oklch(0 0 0 / 0.32)',
+      '--nomi-shadow-lg': '0 4px 10px oklch(0 0 0 / 0.30), 0 24px 64px oklch(0 0 0 / 0.40)',
+    },
     '*': {
       'box-sizing': 'border-box',
     },
@@ -144,6 +187,12 @@ const workbenchBasePlugin = plugin(({ addBase }) => {
       'background-image':
         'radial-gradient(circle at 10% 15%, rgba(59,130,246,0.12), transparent 55%), radial-gradient(circle at 85% -5%, rgba(14,165,233,0.12), transparent 45%), linear-gradient(180deg, #f7f9ff 0%, #ecf2ff 55%, #e4ebfb 100%)',
       color: 'var(--mantine-color-text, #111321)',
+    },
+    // 深色 body：覆盖默认那套旧蓝黑 --tc-color-app-bg 渐变，换成暖灰 --nomi-bg（否则 dark 会掉回休眠旧主题）。
+    ':root[data-mantine-color-scheme="dark"] body': {
+      'background-color': 'var(--nomi-bg)',
+      'background-image': 'linear-gradient(180deg, oklch(0.19 0.006 80) 0%, var(--nomi-bg) 100%)',
+      color: 'var(--mantine-color-text, var(--nomi-ink))',
     },
     '#root': {
       position: 'relative',

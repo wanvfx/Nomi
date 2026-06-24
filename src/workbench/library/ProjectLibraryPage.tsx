@@ -3,6 +3,7 @@ import { IconFolderOpen, IconFolderShare, IconMovie, IconPlayerPlay, IconPlugCon
 import { cn } from '../../utils/cn'
 import { ActionCard, NomiLogoMark, NomiWordmark, DesignEmptyState, DesignSearchInput } from '../../design'
 import { NomiImage } from '../../design/media'
+import { ThemeToggleButton } from '../../ui/theme/ThemeToggleButton'
 import type { LocalProjectSummary } from './localProjectStore'
 import type { ProjectTemplateId } from './projectTemplates'
 
@@ -119,6 +120,7 @@ export default function ProjectLibraryPage({ onOpenProject, onDeleteProject, onN
                 模型接入
               </button>
             ) : null}
+            <ThemeToggleButton className="size-7 rounded-pill" />
           </div>
         </section>
 

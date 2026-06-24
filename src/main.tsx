@@ -7,10 +7,12 @@ import '@fontsource-variable/inter/wght.css'
 import '@fontsource-variable/fraunces/wght.css'
 import './styles/index.css'
 import { NomiAppProviders } from './NomiAppProviders'
+import { NomiColorSchemeProvider } from './theme/NomiColorSchemeProvider'
+import { primeNomiColorScheme } from './theme/colorScheme'
 
-// 浅色单一模式（设计系统原则：光模式）。预渲染钉死 color-scheme 属性，让 tailwind base 层的
-// :root[data-mantine-color-scheme="light"] 选择器即刻命中，避免首帧无样式闪烁。
-document.documentElement.setAttribute('data-mantine-color-scheme', 'light')
+// 预渲染钉死 color-scheme 属性（首次跟随系统偏好、之后用户存储），让 tailwind base 层的
+// [data-mantine-color-scheme="dark|light"] 选择器即刻命中，避免首帧主题闪烁。
+primeNomiColorScheme()
 
 const container = document.getElementById('root')
 if (!container) throw new Error('Root container not found')
@@ -18,8 +20,10 @@ const root = container ? createRoot(container) : null
 
 root?.render(
   <React.StrictMode>
-    <NomiAppProviders>
-      <NomiRouterApp />
-    </NomiAppProviders>
+    <NomiColorSchemeProvider>
+      <NomiAppProviders>
+        <NomiRouterApp />
+      </NomiAppProviders>
+    </NomiColorSchemeProvider>
   </React.StrictMode>
 )
