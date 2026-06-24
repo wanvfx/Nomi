@@ -70,7 +70,7 @@ export default function GroupFrame({ box, onPointerDown }: GroupFrameProps): JSX
         style={{ backgroundColor: groupColor }}
       >
         <span className="min-w-0 truncate">{box.group.name}</span>
-        <span className="inline-grid h-[18px] min-w-[18px] place-items-center rounded-full bg-white/30 px-[5px] text-micro">
+        <span className="inline-grid h-[18px] min-w-[18px] place-items-center rounded-full bg-[var(--workbench-veil-chip)] px-[5px] text-micro">
           {box.memberCount}
         </span>
       </div>
