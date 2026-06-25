@@ -49,9 +49,19 @@
 - `src/workbench/generationCanvas/nodes/scene3d/scene3dMath.ts`：蒙皮最低点落地（R1）。
 - `src/workbench/generationCanvas/nodes/scene3d/scene3dConstants.ts`：sit/squat/single-knee 脚踝与腿角校准（R2）。
 
+## 结构性断言（确定性,补 VLM 人眼审查 —— 2026-06-26 追加）
+VLM 审查是「内容对不对」的人眼判断,但 hero(生产无地面帧)/5 环绕视角(地面+网格+投影)的**渲染结构**
+可以确定性地用像素断言守住,不必靠 VLM 偶发漏判。`staging-pose-shots.walk.mjs` 出图后在浏览器里用 canvas
+零成本采样底部带（背景参考取 hero 角落,避 THREE.Color 线性/sRGB 坑;按饱和度排除彩色假人/人群,只看灰地面）：
+- **每例硬断言**：hero `floorFrac≈0`(无地面/网格)且 `shadowFrac≈0`(无投影)；5 环绕视角 `floorFrac>0.3`(都画出地面/网格)。
+- **整套兜底**：至少一帧 `shadowFrac≥0.03`,证明投影管线在工作（投影是局部小块、宽排/人群场景占比天然很小,
+  故不逐例断言;真实回归是「全局关投影」→ 全场归零,整套兜底即捕获）。
+- 已做破坏性自测：把 hero 不再隐藏地面 → hero floorFrac 1.00 触发;移除 `<Canvas shadows>` → 全场 shadowFrac 归零触发。
+任一结构断言失败 walk 退出码非 0（可进 CI）。`CALIBRATE=1` 打印逐视角度量用于标定阈值。
+
 ## 复跑方式
 ```
-node tests/ux/staging-pose-shots.walk.mjs        # 出 30 例 × 6 视角 PNG 到 tests/ux/_stagingshot/
-# 再用子 agent 逐例读图审查（断肢/悬空/穿插/朝向/落地影子）
+node tests/ux/staging-pose-shots.walk.mjs        # 出 30 例 × 6 视角 PNG + 结构断言(hero/环绕地面网格投影),退出码即结论
+# 再用子 agent 逐例读图审查内容（断肢/悬空/穿插/朝向/落地影子）
 npx vitest run src/workbench/.../scene3d/stagingPoses.test.ts   # 静态不变量(枚举不漂移/骨骼名/角度合理)
 ```
