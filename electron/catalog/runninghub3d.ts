@@ -28,19 +28,18 @@ export const RUNNINGHUB_STATUS_MAPPING: Record<string, string[]> = {
   failed: ["FAILED", "CANCEL", "ERROR", "failed", "cancel", "error"],
 };
 
-// 轮询 op（所有 3D 模型共用）。任务响应是扁平 {taskId,status,results:[{fileUrl}]}（实查官方示例），但标准
-// 模型 API 别处（resource/list）用 {code,data} 信封 → 任务端点是否套信封文档/实测略有出入。故每个 key 给
-// flat + data.* 两条候选（mappingCandidates 支持数组、先命中者胜），真验收(待 key)首跑收敛到一条。
+// 轮询 op（所有 RunningHub 模型共用）。响应**扁平**（2026-06-27 真 API 实测确认，非 {code,data} 信封）：
+// {taskId, status, results:[{fileUrl,fileType}], errorCode, errorMessage}。
 export const RUNNINGHUB_QUERY_OP: HttpOperation = {
   method: "POST",
   path: "/query",
   headers: { Authorization: "Bearer {{user_api_key}}", "Content-Type": "application/json" },
   body: { taskId: "{{providerMeta.task_id}}" },
   response_mapping: {
-    task_id: ["taskId", "data.taskId"],
-    status: ["status", "data.status"],
-    model_url: ["results.0.fileUrl", "data.results.0.fileUrl"],
-    error_message: ["errorMessage", "data.errorMessage"],
+    task_id: "taskId",
+    status: "status",
+    model_url: "results.0.fileUrl",
+    error_message: "errorMessage",
   },
 };
 
