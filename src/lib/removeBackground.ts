@@ -91,9 +91,34 @@ export async function removeBackground(
 }
 
 async function toBlob(url: string): Promise<Blob> {
+  // data: URL 直接解码——renderer CSP 的 connect-src 不含 data:，对其 fetch() 会被拦并刷 CSP 报错。
+  // 节点图在本地持久化失败时会回退成 data: URL（useNodeImageEditing），导入图同理，故这条路真实可达。
+  if (url.startsWith('data:')) {
+    const decoded = dataUrlToBlob(url)
+    if (decoded) return decoded
+  }
   const fetched = await fetchImageBlob(url)
   if (fetched) return fetched
   return imageElementToBlob(url)
+}
+
+function dataUrlToBlob(url: string): Blob | null {
+  const match = /^data:([^;,]*)(;base64)?,(.*)$/s.exec(url)
+  if (!match) return null
+  const mime = match[1] || 'application/octet-stream'
+  const isBase64 = Boolean(match[2])
+  const data = match[3]
+  try {
+    if (isBase64) {
+      const binary = atob(data)
+      const bytes = new Uint8Array(binary.length)
+      for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i)
+      return new Blob([bytes], { type: mime })
+    }
+    return new Blob([decodeURIComponent(data)], { type: mime })
+  } catch {
+    return null
+  }
 }
 
 async function fetchImageBlob(url: string): Promise<Blob | null> {
