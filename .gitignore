@@ -5,21 +5,21 @@ node_modules/
 
 # Build output
 dist/
+dist-electron/
 dist-local/
+release/
+.tmp/
 .turbo/
 coverage/
 test-results/
 playwright-report/
 *.tsbuildinfo
+public/tailwind.generated.css
+src/styles/tailwind.generated.css
 
 # Environment and local secrets
 .env
 .env.*
-apps/**/.env
-apps/**/.env.*
-packages/**/.env
-packages/**/.env.*
-apps/agents-cli/agents.config.json
 
 # Runtime data
 project-data/
@@ -34,6 +34,8 @@ orchestration/
 # OS / editor
 .DS_Store
 *.log
+*.out
+*.err
 .vscode/
 
 # Temporary release and design work
@@ -43,3 +45,21 @@ landing-page-*.html
 
 .tmp
 dist-electron
+
+# Onboarding lab — local secrets + per-trial outputs
+.secrets/
+docs/onboarding-trials/20*/
+
+# UX 走查截图产物（规则13）—— 不入库
+tests/ux/shots/
+tests/ux/__shots__/
+tests/ux/_stagingshot/
+
+# 3D 预设动作校准台的本地输出（pose-lab）
+.pose-lab/
+.pose-lab-vite.log
+
+.tmp/
+
+# 下载量可视化看板：派生产物（pnpm stats:html 按需生成），数据每次都变故不提交
+docs/stats/dashboard.html
