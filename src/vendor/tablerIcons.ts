@@ -8,6 +8,7 @@ export type IconProps = Partial<Omit<ComponentPropsWithoutRef<'svg'>, 'stroke'>>
 export type Icon = ForwardRefExoticComponent<IconProps & RefAttributes<SVGSVGElement>>
 
 export { default as Icon360 } from '@tabler/icons-react/dist/esm/icons/IconView360Arrow.mjs'
+export { default as Icon3dCubeSphere } from '@tabler/icons-react/dist/esm/icons/IconCube3dSphere.mjs'
 export { default as IconAdjustmentsHorizontal } from '@tabler/icons-react/dist/esm/icons/IconAdjustmentsHorizontal.mjs'
 export { default as IconAlertTriangle } from '@tabler/icons-react/dist/esm/icons/IconAlertTriangle.mjs'
 export { default as IconArrowBackUp } from '@tabler/icons-react/dist/esm/icons/IconArrowBackUp.mjs'
@@ -128,6 +129,7 @@ export { default as IconSun } from '@tabler/icons-react/dist/esm/icons/IconSun.m
 export { default as IconTable } from '@tabler/icons-react/dist/esm/icons/IconTable.mjs'
 export { default as IconTag } from '@tabler/icons-react/dist/esm/icons/IconTag.mjs'
 export { default as IconTerminal2 } from '@tabler/icons-react/dist/esm/icons/IconTerminal2.mjs'
+export { default as IconTimeline } from '@tabler/icons-react/dist/esm/icons/IconTimeline.mjs'
 export { default as IconTimelineEventPlus } from '@tabler/icons-react/dist/esm/icons/IconTimelineEventPlus.mjs'
 export { default as IconTool } from '@tabler/icons-react/dist/esm/icons/IconTool.mjs'
 export { default as IconTransform } from '@tabler/icons-react/dist/esm/icons/IconTransform.mjs'
