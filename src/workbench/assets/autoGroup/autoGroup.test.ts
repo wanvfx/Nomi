@@ -9,6 +9,7 @@ import {
   extractJsonObject,
   deriveGroupName,
   groupFilmStacksByCards,
+  buildGroupingPrompt,
   type FindItem,
   type VariantStack,
 } from './autoGroup'
@@ -138,6 +139,40 @@ describe('groupFilmStacksByCards 确定性分组(零模型)', () => {
       mk('d', [chen]), mk('e', [chen]),
     ])
     expect(groups.map((g) => g.name)).toEqual(['林夏', '陈默'])
+  })
+})
+
+describe('autoGroupName 合并(AI 读提示词归的组)', () => {
+  const mk = (id: string, cards: VariantStack['cover']['mounted'], autoGroupName?: string): VariantStack => {
+    const cover = { nodeId: id, title: id, zone: 'film', createdAt: 0, mounted: cards, variantRootId: id, categoryId: 'shots', autoGroupName } as FindItem
+    return { rootId: id, cover, items: [cover] }
+  }
+  const lin = { id: 'lin', kind: 'character' as const, title: '林夏' }
+  it('没连卡但有 AI 组名 → 按 AI 名归组', () => {
+    const { groups } = groupFilmStacksByCards([mk('a', [], '雨夜街头'), mk('b', [], '雨夜街头')])
+    expect(groups).toHaveLength(1)
+    expect(groups[0].name).toBe('雨夜街头')
+  })
+  it('连卡优先于 AI 名(卡是确定事实)', () => {
+    const { groups } = groupFilmStacksByCards([mk('a', [lin], '别的名'), mk('b', [lin], '别的名')])
+    expect(groups[0].name).toBe('林夏')
+  })
+  it('卡组与 AI 组并存', () => {
+    const { groups } = groupFilmStacksByCards([
+      mk('a', [lin]), mk('b', [lin]),
+      mk('c', [], '雨夜'), mk('d', [], '雨夜'),
+    ])
+    expect(groups.map((g) => g.name).sort()).toEqual(['林夏', '雨夜'])
+  })
+})
+
+describe('buildGroupingPrompt', () => {
+  it('含每条 id 与提示词 + JSON 格式', () => {
+    const p = buildGroupingPrompt([{ nodeId: 'n1', prompt: '林夏雪地回头' }, { nodeId: 'n2', title: '咖啡馆' }])
+    expect(p).toContain('id=n1')
+    expect(p).toContain('林夏雪地回头')
+    expect(p).toContain('id=n2')
+    expect(p).toContain('"groups"')
   })
 })
 

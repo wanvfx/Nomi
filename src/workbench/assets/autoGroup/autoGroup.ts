@@ -28,6 +28,8 @@ export type FindItem = {
   /** 变体叠摞用：变体链的根 id（无派生则=自身）。同根的算一摞。 */
   variantRootId: string
   categoryId: string
+  /** 文本大脑读提示词归出的组名（写在 node.meta.autoGroup）；没连卡的镜头靠它归组。 */
+  autoGroupName?: string
 }
 
 const CARD_KINDS = new Set(['character', 'scene', 'prop']) // 设定卡=配料，不进"找素材"网格（它们在制作结构视图 + 充当 who/where 标签）
@@ -87,6 +89,7 @@ export function toFindItems(
     const thumbUrl = thumbOf(node)
     if (!thumbUrl) continue // 还没出图的空节点不进"找"网格
     const mark = typeof node.meta?.mark === 'string' ? node.meta.mark : undefined
+    const autoGroupName = typeof node.meta?.autoGroup === 'string' ? node.meta.autoGroup : undefined
     items.push({
       nodeId: node.id,
       title: node.title || node.prompt?.slice(0, 24) || '未命名',
@@ -98,6 +101,7 @@ export function toFindItems(
       mounted: listMountedCards(node.id, nodes, edges),
       variantRootId: resolveVariantRoot(node, byId),
       categoryId: node.categoryId || 'shots',
+      autoGroupName,
     })
   }
   return items
@@ -151,14 +155,23 @@ export function groupFilmStacksByCards(
   const ungrouped: VariantStack[] = []
   for (const st of stacks) {
     const cards = st.cover.mounted
-    if (cards.length === 0) {
+    let key: string
+    let name: string
+    if (cards.length > 0) {
+      // 连了卡 → 确定性归组（最可靠，优先）
+      key = `card:${cards.map((c) => c.id).sort().join('|')}`
+      name = deriveGroupName(cards)
+    } else if (st.cover.autoGroupName) {
+      // 没连卡但文本大脑读提示词归过组 → 用 AI 组名
+      key = `ai:${st.cover.autoGroupName}`
+      name = st.cover.autoGroupName
+    } else {
       ungrouped.push(st)
       continue
     }
-    const key = cards.map((c) => c.id).sort().join('|')
     const bucket = buckets.get(key)
     if (bucket) bucket.stacks.push(st)
-    else buckets.set(key, { key, name: deriveGroupName(cards), stacks: [st] })
+    else buckets.set(key, { key, name, stacks: [st] })
   }
   const groups: FindGroup[] = []
   for (const bucket of buckets.values()) {
@@ -179,6 +192,20 @@ export type GroupingResult = { groups: ContentGroup[]; ungroupedIds: string[] }
 export const DEFAULT_CONFIDENCE = 0.7
 /** 成组最小张数（单张不成组，落墙）。 */
 export const MIN_GROUP_SIZE = 2
+
+/** 给文本大脑的归组指令：读每条镜头的提示词 → 把画面相近的归命名堆，严格只输出 JSON。 */
+export function buildGroupingPrompt(items: ReadonlyArray<{ nodeId: string; prompt?: string; title?: string }>): string {
+  const lines = items.map((it) => `- id=${it.nodeId}: ${(it.prompt || it.title || '').replace(/\s+/g, ' ').slice(0, 120)}`)
+  return [
+    '你是素材整理助手。下面是一批视频镜头，每条有 id 和它的画面描述。',
+    '请把"画面内容相近"的归成几堆，每堆起一个简短大白话名字（像相册："雪地里的林夏"、"雨夜街头"）。',
+    '规则：① 只把确实相近的（≥2 条）归一堆；② 拿不准的别硬归，留着不分；③ 名字用中文、≤8 字，点出 场景/谁/在干嘛；④ 严格只输出下面格式的 JSON，不要任何解释。',
+    '镜头：',
+    ...lines,
+    '只输出这个 JSON（confidence 0~1，表示这堆归得有多准）：',
+    '{"groups":[{"name":"雪地里的林夏","nodeIds":["id1","id2"],"confidence":0.9}]}',
+  ].join('\n')
+}
 
 type RawGroup = { name?: unknown; nodeIds?: unknown; confidence?: unknown }
 

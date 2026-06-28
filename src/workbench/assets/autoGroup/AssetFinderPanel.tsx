@@ -8,12 +8,14 @@
  * 设计 docs/plan/2026-06-28-canvas-auto-grouping-and-find.md。
  */
 import React from 'react'
-import { IconStar, IconStarFilled, IconMovie, IconPhotoStar, IconLayoutGrid } from '@tabler/icons-react'
+import { IconStar, IconStarFilled, IconMovie, IconPhotoStar, IconLayoutGrid, IconSparkles } from '@tabler/icons-react'
 import { cn } from '../../../utils/cn'
 import { NomiImage } from '../../../design/media'
 import { DesignSearchInput, DesignEmptyState } from '../../../design'
+import { toast } from '../../../ui/toast'
 import { useGenerationCanvasStore } from '../../generationCanvas/store/generationCanvasStore'
 import { toFindItems, stackVariants, groupFilmStacksByCards, type FindZone, type VariantStack } from './autoGroup'
+import { runContentGrouping } from './autoGroupService'
 
 const FOCUS_EVENT = 'nomi-focus-generation-node'
 
@@ -149,6 +151,35 @@ export default function AssetFinderPanel(): JSX.Element {
     [nodes, updateNode],
   )
 
+  // 没连卡但有提示词的镜头 → 可交给文本大脑读提示词归命名组（按需触发，结果写 meta 缓存，省额度）。
+  const [grouping, setGrouping] = React.useState(false)
+  const aiCandidates = React.useMemo(
+    () => (filmGrouped?.ungrouped || []).map((s) => s.cover).filter((c) => Boolean(c.prompt && c.prompt.trim())),
+    [filmGrouped],
+  )
+  const handleAiGroup = React.useCallback(async () => {
+    if (aiCandidates.length < 2 || grouping) return
+    setGrouping(true)
+    try {
+      const res = await runContentGrouping(aiCandidates.map((c) => ({ nodeId: c.nodeId, prompt: c.prompt, title: c.title })))
+      let n = 0
+      for (const g of res.groups) {
+        for (const id of g.nodeIds) {
+          const node = nodes.find((x) => x.id === id)
+          if (!node) continue
+          const meta = (node.meta as Record<string, unknown> | undefined) || {}
+          updateNode(id, { meta: { ...meta, autoGroup: g.name } })
+          n += 1
+        }
+      }
+      toast(n ? `已归好 ${res.groups.length} 组（${n} 张）` : '没找到能确定归类的，已保持未分组', n ? 'success' : 'info')
+    } catch (e) {
+      toast(e instanceof Error ? e.message : 'AI 分组失败', 'error')
+    } finally {
+      setGrouping(false)
+    }
+  }, [aiCandidates, grouping, nodes, updateNode])
+
   const tab = (value: FindZone, label: string, count: number, Icon: typeof IconMovie) => (
     <button
       type="button"
@@ -189,6 +220,22 @@ export default function AssetFinderPanel(): JSX.Element {
         </div>
       </div>
       <div className="flex-1 overflow-y-auto px-2 pb-3">
+        {zone === 'film' && aiCandidates.length >= 2 && !isEmpty ? (
+          <button
+            type="button"
+            onClick={handleAiGroup}
+            disabled={grouping}
+            className={cn(
+              'mb-2 w-full inline-flex items-center justify-center gap-1.5 h-8 rounded-nomi-sm text-caption',
+              'border border-nomi-line bg-nomi-paper text-nomi-ink-80 hover:border-nomi-accent hover:text-nomi-ink',
+              'disabled:opacity-60 disabled:cursor-default',
+            )}
+            title="读没归好那些的提示词，用 AI 归成命名组"
+          >
+            <IconSparkles size={13} stroke={1.6} className="text-nomi-accent" />
+            {grouping ? '正在用 AI 归类…' : `用 AI 整理未分组的 ${aiCandidates.length} 张`}
+          </button>
+        ) : null}
         {isEmpty ? (
           <DesignEmptyState
             density="inline"
