@@ -22,16 +22,13 @@ import {
   type Scene3DCamera,
   type Scene3DCaptureResult,
   type Scene3DControlMode,
-  type Scene3DGeometry,
   type Scene3DObject,
   type Scene3DSelection,
   type Scene3DState,
   type Scene3DTransformMode,
 } from './scene3dTypes'
 import {
-  OBJECT_LIMIT,
   FULLSCREEN_Z_INDEX,
-  type CrowdAddOptions,
 } from './scene3dConstants'
 import { PanelButton, CanvasPanelRestoreButton } from './scene3dToolbar'
 import {
@@ -40,17 +37,14 @@ import {
   applyEditorCameraPose,
   editorCameraFromSceneCamera,
   vectorAlmostEqual,
-  crowdCount,
-  makeObject,
-  makeCrowdObject,
-  makeCamera,
 } from './scene3dMath'
 import { SceneObjectList } from './scene3dInspector'
 import { TrajectoryListPanel } from './scene3dTrajectoryListPanel'
-import { nextAvailableObjectPosition } from './scene3dObjects'
 import { SceneContent } from './scene3dSceneContent'
 import { CharacterPossessButton, Scene3DBottomBar } from './scene3dCharacterActionBar'
 import { useScene3DCharacterDrive } from './useScene3DCharacterDrive'
+import { useScene3DTakeRecorder } from './useScene3DTakeRecorder'
+import { Scene3DTakeSampler } from './Scene3DTakeSampler'
 import { CameraPreview, PlaybackCameraMonitor } from './scene3dCameraPreview'
 import { useScene3DTrajectoryEditing } from './useScene3DTrajectoryEditing'
 import {
@@ -67,6 +61,7 @@ import {
   useScene3DClipboardActions,
   useScene3DTrajectoryModeActions,
   useScene3DKeyboardShortcuts,
+  useScene3DAddActions,
   type Scene3DClipboardItem,
 } from './useScene3DFullscreenActions'
 
@@ -77,6 +72,9 @@ type Scene3DFullscreenProps = {
   onClose: () => void
   onStateChange: (state: Scene3DState) => void
   onScreenshot: (capture: Scene3DCaptureResult) => void
+  // 录 take（S2）：把录制好的（含角色/机位轨迹的）场景交回宿主建 scene3d 节点 + 打捕获标志。
+  // 可选——未传则不出现「录 take」按钮（如样张/只读环境）。
+  onRecordTake?: (recordedState: Scene3DState) => void
 }
 
 export default function Scene3DFullscreen({
@@ -86,6 +84,7 @@ export default function Scene3DFullscreen({
   onClose,
   onStateChange,
   onScreenshot,
+  onRecordTake,
 }: Scene3DFullscreenProps): JSX.Element {
   const [state, setState] = React.useState(() => cloneScene3DState(initialState))
   const [selection, setSelection] = React.useState<Scene3DSelection>(null)
@@ -254,51 +253,14 @@ export default function Scene3DFullscreen({
     setSelection((current) => (current?.type === target.type && current.id === target.id ? null : current))
   }, [readOnly])
 
-  const addObject = React.useCallback((kind: Scene3DGeometry | 'mannequin' | 'light') => {
-    if (readOnly) return
-    if (state.objects.length >= OBJECT_LIMIT) {
-      toast('单个 3D 场景最多支持 100 个对象', 'warning')
-      return
-    }
-    const roleIndex = kind === 'mannequin'
-      ? stateRef.current.objects.reduce((count, object) => {
-        if (object.type === 'mannequin') return count + 1
-        if (object.type === 'mannequinCrowd') return count + crowdCount(object)
-        return count
-      }, 0)
-      : 0
-    const object = makeObject(kind, roleIndex)
-    if (object.type === 'mannequin') {
-      object.position = nextAvailableObjectPosition(object, stateRef.current.objects)
-    }
-    setState((current) => ({ ...current, objects: [...current.objects, object] }))
-    setSelection({ type: 'object', id: object.id })
-    exitTrajectoryMode()
-    setViewLocked(false)
-  }, [exitTrajectoryMode, readOnly, state.objects.length])
-
-  const addCamera = React.useCallback(() => {
-    if (readOnly) return
-    const camera = makeCamera(state.cameras.length)
-    setState((current) => ({ ...current, cameras: [...current.cameras, camera] }))
-    setSelection({ type: 'camera', id: camera.id })
-    exitTrajectoryMode()
-    setViewLocked(false)
-  }, [exitTrajectoryMode, readOnly, state.cameras.length])
-
-  const addCrowd = React.useCallback((options: CrowdAddOptions) => {
-    if (readOnly) return
-    if (state.objects.length >= OBJECT_LIMIT) {
-      toast('单个 3D 场景最多支持 100 个对象', 'warning')
-      return
-    }
-    const crowd = makeCrowdObject(options)
-    crowd.position = nextAvailableObjectPosition(crowd, stateRef.current.objects)
-    setState((current) => ({ ...current, objects: [...current.objects, crowd] }))
-    setSelection({ type: 'object', id: crowd.id })
-    exitTrajectoryMode()
-    setViewLocked(false)
-  }, [exitTrajectoryMode, readOnly, state.objects.length])
+  const { addObject, addCamera, addCrowd } = useScene3DAddActions({
+    readOnly,
+    stateRef,
+    setState,
+    setSelection,
+    setViewLocked,
+    exitTrajectoryMode,
+  })
 
   const { startKeyboardNavigation, stopKeyboardNavigation, copySelection, pasteClipboard } =
     useScene3DClipboardActions({
@@ -452,6 +414,19 @@ export default function Scene3DFullscreen({
     setFocusId,
     exitTrajectoryMode,
     exitCameraViewEdit,
+  })
+
+  const handleRecordTake = React.useCallback((recordedState: Scene3DState) => {
+    onRecordTake?.(recordedState)
+    characterDrive.exitPossess()
+    toast('已录制走位，正在离屏渲染参考视频…', 'success')
+  }, [characterDrive, onRecordTake])
+
+  const takeRecorder = useScene3DTakeRecorder({
+    possessId: characterDrive.possessId,
+    readOnly,
+    stateRef,
+    onRecorded: handleRecordTake,
   })
   const {
     selectTrajectoryForMode,
@@ -645,7 +620,7 @@ export default function Scene3DFullscreen({
           <Canvas
             camera={canvasCamera}
             dpr={[1, 2]}
-            frameloop={trajectory.isPlaying || trajectory.timelineOpen ? 'always' : 'demand'}
+            frameloop={trajectory.isPlaying || trajectory.timelineOpen || takeRecorder.isRecording ? 'always' : 'demand'}
             gl={{ antialias: true, preserveDrawingBuffer: false }}
             onCreated={({ camera }) => applyEditorCameraPose(camera, initialEditorCameraRef.current)}
             onPointerMissed={clearSelection}
@@ -698,6 +673,12 @@ export default function Scene3DFullscreen({
               trajectory={trajectory}
               activeTrajectoryIds={trajectory.activeTrajectoryIds}
             />
+            <Scene3DTakeSampler
+              isRecording={takeRecorder.isRecording}
+              possessedObjectId={characterDrive.possessId}
+              onSampleCharacter={takeRecorder.sampleCharacter}
+              onSampleCamera={takeRecorder.sampleCamera}
+            />
           </Canvas>
           {!leftPanelOpen ? (
             <CanvasPanelRestoreButton side="left" title="显示场景节点" onClick={() => setLeftPanelOpen(true)}>
@@ -747,6 +728,12 @@ export default function Scene3DFullscreen({
             readOnly={readOnly}
             possessedObject={characterDrive.possessedObject}
             activePresetId={characterDrive.activePresetId}
+            recorder={onRecordTake ? {
+              isRecording: takeRecorder.isRecording,
+              elapsedSeconds: takeRecorder.elapsedSeconds,
+              onStart: takeRecorder.startRecording,
+              onStop: takeRecorder.stopRecording,
+            } : undefined}
             onApplyPreset={characterDrive.applyActionPreset}
             onExitPossess={characterDrive.exitPossess}
             onAddObject={addObject}

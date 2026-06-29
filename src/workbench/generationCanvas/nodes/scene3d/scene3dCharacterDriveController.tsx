@@ -2,12 +2,12 @@ import React from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import * as THREE from 'three'
 import {
-  SCENE3D_RUNTIME_ID_KEY,
   type Scene3DMovementCode,
 } from './scene3dConstants'
 import {
   clearMovementKeyState,
   eulerToArray,
+  findSceneObjectByRuntimeId,
   isEditableKeyboardTarget,
   isMovementCode,
 } from './scene3dMath'
@@ -61,10 +61,7 @@ export function CharacterDriveController({
       possessedObject.position[1],
       possessedObject.position[2],
     )
-    groupRef.current = scene.getObjectByProperty(
-      SCENE3D_RUNTIME_ID_KEY,
-      possessedObject.id,
-    ) as THREE.Group | null
+    groupRef.current = findSceneObjectByRuntimeId(scene, possessedObject.id) as THREE.Group | null
   }, [possessedObject.id, possessedObject.position, possessedObject.rotation, scene])
 
   React.useEffect(() => {
@@ -101,7 +98,7 @@ export function CharacterDriveController({
 
   useFrame((state, delta) => {
     const group = groupRef.current
-      ?? (scene.getObjectByProperty(SCENE3D_RUNTIME_ID_KEY, objectIdRef.current) as THREE.Group | null)
+      ?? (findSceneObjectByRuntimeId(scene, objectIdRef.current) as THREE.Group | null)
     groupRef.current = group
 
     const cameraEuler = cameraEulerRef.current.setFromQuaternion(camera.quaternion, 'YXZ')

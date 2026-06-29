@@ -6,6 +6,8 @@ import {
   IconRun,
   IconArmchair,
   IconArrowBarToDown,
+  IconCircleFilled,
+  IconPlayerStopFilled,
   IconX,
 } from '@tabler/icons-react'
 import { cn } from '../../../../utils/cn'
@@ -57,6 +59,57 @@ const ACTION_LIBRARY = ACTION_DEFS.filter((action) =>
   MANNEQUIN_POSE_PRESETS.some((preset) => preset.id === action.presetId),
 )
 
+export type ActionBarRecorder = {
+  isRecording: boolean
+  elapsedSeconds: number
+  onStart: () => void
+  onStop: () => void
+}
+
+function formatElapsed(seconds: number): string {
+  const total = Math.max(0, Math.floor(seconds))
+  const mm = String(Math.floor(total / 60)).padStart(2, '0')
+  const ss = String(total % 60).padStart(2, '0')
+  return `${mm}:${ss}`
+}
+
+// 录制按钮（REC / 停止 + 计时）。录制态下用强调色点 + 秒数；非录制态是「录 take」。
+// 录制中其它动作仍可点（中途切动作=切姿势,S2 不录 pose 随时间,见缺口）。
+function TakeRecordButton({ recorder }: { recorder: ActionBarRecorder }): JSX.Element {
+  if (recorder.isRecording) {
+    return (
+      <button
+        className={cn(
+          'inline-flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-nomi px-2.5 whitespace-nowrap',
+          'border-0 bg-[var(--workbench-danger)] text-caption text-[var(--nomi-paper)]',
+          'transition hover:opacity-90',
+        )}
+        type="button"
+        title="停止录制并生成参考视频"
+        onClick={recorder.onStop}
+      >
+        <IconPlayerStopFilled size={14} />
+        <span className="tabular-nums">{formatElapsed(recorder.elapsedSeconds)}</span>
+      </button>
+    )
+  }
+  return (
+    <button
+      className={cn(
+        'inline-flex h-8 min-w-8 shrink-0 items-center justify-center gap-1.5 rounded-nomi px-2 whitespace-nowrap',
+        'border-0 bg-transparent text-caption text-[var(--nomi-ink-60)] transition',
+        'hover:bg-[var(--nomi-ink-05)] hover:text-[var(--nomi-ink)]',
+      )}
+      type="button"
+      title="录 take：把这段走位 + 机位录成参考视频喂给镜头"
+      onClick={recorder.onStart}
+    >
+      <IconCircleFilled size={12} className="text-[var(--workbench-danger)]" />
+      <span>录 take</span>
+    </button>
+  )
+}
+
 // 操控态底部动作库工具栏。点动作 → 把对应预设的 pose 应用到被操控假人。
 // className 风格照搬 SceneAddToolbar 底部条。
 export function CharacterActionBar({
@@ -64,11 +117,13 @@ export function CharacterActionBar({
   activePresetId,
   onApplyPreset,
   onExit,
+  recorder,
 }: {
   characterName: string
   activePresetId?: string
   onApplyPreset: (presetId: string) => void
   onExit: () => void
+  recorder?: ActionBarRecorder
 }): JSX.Element {
   return (
     <div
@@ -110,6 +165,12 @@ export function CharacterActionBar({
             </button>
           )
         })}
+        {recorder ? (
+          <>
+            <span className="h-5 w-px shrink-0 bg-[var(--workbench-border)]" />
+            <TakeRecordButton recorder={recorder} />
+          </>
+        ) : null}
         <span className="h-5 w-px shrink-0 bg-[var(--workbench-border)]" />
         <button
           className={cn(
@@ -126,7 +187,9 @@ export function CharacterActionBar({
         </button>
       </div>
       <div className="mt-1.5 text-center text-micro text-[var(--nomi-ink-60)]">
-        WASD 走位 · 自动面向 · 点动作切换姿势
+        {recorder?.isRecording
+          ? '录制中 · WASD 走位、绕看摆机位都会录进参考视频 · 点停止出片'
+          : 'WASD 走位 · 自动面向 · 点动作切换姿势 · 点「录 take」录成参考视频'}
       </div>
     </div>
   )
@@ -138,6 +201,7 @@ export function Scene3DBottomBar({
   readOnly,
   possessedObject,
   activePresetId,
+  recorder,
   onApplyPreset,
   onExitPossess,
   onAddObject,
@@ -151,6 +215,7 @@ export function Scene3DBottomBar({
   readOnly: boolean
   possessedObject?: Scene3DObject
   activePresetId?: string
+  recorder?: ActionBarRecorder
   onApplyPreset: (presetId: string) => void
   onExitPossess: () => void
   onAddObject: (kind: Scene3DGeometry | 'mannequin' | 'light') => void
@@ -168,6 +233,7 @@ export function Scene3DBottomBar({
         activePresetId={activePresetId}
         onApplyPreset={onApplyPreset}
         onExit={onExitPossess}
+        recorder={recorder}
       />
     )
   }
