@@ -30,6 +30,7 @@ import {
 } from './scene3dViewControllers'
 import { CameraStateRecorder } from './CameraStateRecorder'
 import { CharacterDriveController } from './scene3dCharacterDriveController'
+import { Scene3DPossessPrompt } from './scene3dPossessPrompt'
 import { TrajectoryRenderer } from './trajectory'
 
 export function SceneContent({
@@ -45,6 +46,7 @@ export function SceneContent({
   possessedObject,
   possessedLocomotionClip,
   onLocomotionChange,
+  onPossess,
   onSelect,
   onFocus,
   onObjectPatch,
@@ -85,6 +87,8 @@ export function SceneContent({
   // 被操控假人当前的 locomotion clip（idle/walk/run），由控制器算速度上抛、驱动该假人迈腿动画。
   possessedLocomotionClip?: string
   onLocomotionChange?: (clip: string) => void
+  // 画布内「操控」浮层入口的点击回调（#6）。缺省 = 不显浮层（如只读）。
+  onPossess?: (objectId: string) => void
   onSelect: (selection: Scene3DSelection) => void
   onFocus: (id: string) => void
   onObjectPatch: (id: string, patch: Partial<Scene3DObject>) => void
@@ -146,6 +150,15 @@ export function SceneContent({
   const gridCellColor = state.environment.darkMode ? DARK_GRID_CELL_COLOR : GRID_CELL_COLOR
   const gridSectionColor = state.environment.darkMode ? DARK_GRID_SECTION_COLOR : GRID_SECTION_COLOR
 
+  // 画布内「操控」浮层只在「选中单个假人、未在操控该假人、非只读、非轨迹/取景态」时贴它头顶出现（#6）。
+  const possessPromptObject =
+    onPossess && !readOnly && !trajectoryMode && !cameraViewEditing && selection?.type === 'object'
+      ? state.objects.find(
+          (object) =>
+            object.id === selection.id && object.type === 'mannequin' && object.id !== possessedObject?.id,
+        )
+      : undefined
+
   return (
     <>
       <Scene3DEnvironmentLayer environment={state.environment} />
@@ -204,6 +217,9 @@ export function SceneContent({
           onTransform={(patch) => onObjectPatch(object.id, patch)}
         />
       ))}
+      {possessPromptObject && onPossess ? (
+        <Scene3DPossessPrompt object={possessPromptObject} onPossess={onPossess} />
+      ) : null}
       {!cameraViewEditing ? state.cameras.map((camera) => (
         <CameraHelperView
           key={camera.id}

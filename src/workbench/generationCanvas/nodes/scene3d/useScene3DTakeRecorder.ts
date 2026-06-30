@@ -118,6 +118,9 @@ export function useScene3DTakeRecorder({
     if (!isRecording) return
     clearTick()
     setIsRecording(false)
+    // 即时反馈（用户反馈 #11）：点停止后按钮瞬间变回「录 take」，用户以为白录。先即时确认「已停止」，
+    // 出片是异步的，结果状态由画布上「录制走位参考」节点的徽标接力（生成中 → 已生成 ✓，见 Scene3DEditor）。
+    toast('已停止录制，正在生成参考视频…', 'success')
     const endMs = performance.now()
     const objectId = possessId
     const characterSamples = characterSamplesRef.current

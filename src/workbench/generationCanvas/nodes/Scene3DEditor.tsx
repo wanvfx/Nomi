@@ -1,10 +1,12 @@
 import React from 'react'
-import { IconCube, IconMaximize } from '@tabler/icons-react'
+import { IconCube, IconMaximize, IconMovie } from '@tabler/icons-react'
 import { lazyWithChunkBoundary } from '../../../ui/chunkBoundary'
 import { cn } from '../../../utils/cn'
 import { EmptyStateLauncher } from './render/CardCommon'
+import { NomiLoadingMark } from '../../../design'
 import { toast } from '../../../ui/toast'
 import { persistActiveWorkbenchProjectNow } from '../../project/workbenchProjectSession'
+import { useWorkbenchStore } from '../../workbenchStore'
 import type { GenerationCanvasNode } from '../model/generationCanvasTypes'
 import { useGenerationCanvasStore } from '../store/generationCanvasStore'
 import { cloneScene3DState, normalizeScene3DState } from './scene3d/scene3dSerializer'
@@ -76,11 +78,54 @@ function persistableScene3DState(state: Scene3DState): Scene3DState {
   return cloneScene3DState(normalizeScene3DState(state))
 }
 
+// 录 take 闭环状态徽标（用户反馈 #1）：「录制走位参考」节点在出片期间/出片后无任何反馈，
+// 用户不知道成没成。读节点 meta 上 AI 运镜管线本就写的两个标志，复用同一套状态语义：
+//   - cameraMoveAutoCapture 仍在 → 离屏渲染中（CameraMoveCaptureHost 处理完会清掉）
+//   - cameraMoveVideo 已写回 → 出片完成（{ url } 是 mp4 素材）
+export function readTakeCaptureStatus(node: GenerationCanvasNode): 'generating' | 'done' | null {
+  const meta = node.meta as Record<string, unknown> | undefined
+  if (!meta) return null
+  if (meta.cameraMoveAutoCapture && typeof meta.cameraMoveAutoCapture === 'object') return 'generating'
+  const video = meta.cameraMoveVideo
+  if (video && typeof video === 'object' && typeof (video as { url?: unknown }).url === 'string') return 'done'
+  return null
+}
+
+function Scene3DTakeStatusOverlay({ status }: { status: 'generating' | 'done' }): JSX.Element {
+  if (status === 'generating') {
+    return (
+      <div
+        className={cn(
+          'pointer-events-none absolute inset-x-0 bottom-0 z-[2] flex items-center justify-center gap-2',
+          'bg-nomi-ink/[0.62] px-3 py-1.5 text-caption font-medium text-nomi-paper backdrop-blur-[3px]',
+        )}
+        aria-live="polite"
+      >
+        <NomiLoadingMark size={16} />
+        <span>参考视频生成中…</span>
+      </div>
+    )
+  }
+  return (
+    <div
+      className={cn(
+        'pointer-events-none absolute inset-x-0 bottom-0 z-[2] flex items-center justify-center gap-1.5',
+        'bg-nomi-accent/[0.92] px-3 py-1.5 text-caption font-medium text-nomi-paper',
+      )}
+      aria-live="polite"
+    >
+      <IconMovie size={14} stroke={1.9} />
+      <span>参考视频已生成 ✓</span>
+    </div>
+  )
+}
+
 function Scene3DEditor({ node, width, height, readOnly = false }: Scene3DEditorProps): JSX.Element {
   const [fullscreen, setFullscreen] = React.useState(false)
   const updateNode = useGenerationCanvasStore((state) => state.updateNode)
   const addNode = useGenerationCanvasStore((state) => state.addNode)
   const connectNodes = useGenerationCanvasStore((state) => state.connectNodes)
+  const requestCanvasFit = useWorkbenchStore((state) => state.requestCanvasFit)
   const sceneState = React.useMemo(() => readScene3DState(node), [node.id, node.meta?.scene3dState])
   const sceneStateKey = React.useMemo(() => scene3DStateKey(sceneState), [sceneState])
   const persistedSceneStateKeyRef = React.useRef(sceneStateKey)
@@ -160,7 +205,11 @@ function Scene3DEditor({ node, width, height, readOnly = false }: Scene3DEditorP
         },
       },
     })
-  }, [addNode, height, node.id, node.position.x, node.position.y, updateNode])
+    // 闭环可见性（用户反馈 #1）：新建的「录制走位参考」节点默认落在原节点正下方、常在视口外，
+    // addNode 已自动选中它，这里再请画布「适应视图」一次，把它带进视口（fitView 框全部节点，含新节点）。
+    // 不关编辑器也无妨——画布在编辑器浮层之下、节点已就位，关掉即见到带「生成中→已生成」状态的参考视频节点。
+    requestCanvasFit()
+  }, [addNode, height, node.id, node.position.x, node.position.y, requestCanvasFit, updateNode])
 
   const handleScreenshot = React.useCallback(async (capture: Scene3DCaptureResult) => {
     try {
@@ -221,9 +270,12 @@ function Scene3DEditor({ node, width, height, readOnly = false }: Scene3DEditorP
     }
   }, [addNode, connectNodes, node.id, node.meta, node.position.x, node.position.y, updateNode, width])
 
+  const takeCaptureStatus = readTakeCaptureStatus(node)
+
   return (
     <>
       <div className="group relative w-full h-full overflow-hidden">
+        {takeCaptureStatus ? <Scene3DTakeStatusOverlay status={takeCaptureStatus} /> : null}
         {thumbnailUrl ? (
           <>
             <img
@@ -317,6 +369,10 @@ export default React.memo(Scene3DEditor, (previous, next) => (
   previous.node.id === next.node.id &&
   previous.node.title === next.node.title &&
   previous.node.meta?.scene3dState === next.node.meta?.scene3dState &&
+  // 录 take 状态徽标（#1）随这两个标志变化重渲染：CaptureHost 出片后清 cameraMoveAutoCapture、写 cameraMoveVideo，
+  // 而 scene3dState 引用不变——只比 scene3dState 会漏掉状态切换、徽标永远停在「生成中」。
+  previous.node.meta?.cameraMoveAutoCapture === next.node.meta?.cameraMoveAutoCapture &&
+  previous.node.meta?.cameraMoveVideo === next.node.meta?.cameraMoveVideo &&
   previous.node.position.x === next.node.position.x &&
   previous.node.position.y === next.node.position.y &&
   previous.width === next.width &&

@@ -418,9 +418,10 @@ export default function Scene3DFullscreen({
   })
 
   const handleRecordTake = React.useCallback((recordedState: Scene3DState) => {
+    // 停止时已即时 toast「已停止录制，正在生成参考视频…」（useScene3DTakeRecorder），这里不重复弹；
+    // 出片状态由画布「录制走位参考」节点徽标接力（#1 / #11 同一条状态链）。
     onRecordTake?.(recordedState)
     characterDrive.exitPossess()
-    toast('已录制走位，正在离屏渲染参考视频…', 'success')
   }, [characterDrive, onRecordTake])
 
   const takeRecorder = useScene3DTakeRecorder({
@@ -649,6 +650,7 @@ export default function Scene3DFullscreen({
               possessedObject={characterDrive.possessedObject}
               possessedLocomotionClip={characterDrive.locomotionClip}
               onLocomotionChange={characterDrive.setLocomotionClip}
+              onPossess={readOnly ? undefined : characterDrive.enterPossess}
               onSelect={selectSceneItem}
               onFocus={focusSceneItem}
               onObjectPatch={patchObject}
