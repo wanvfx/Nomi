@@ -69,6 +69,7 @@ export function taskTemplateParams(request: TaskParamsInput): JsonRecord {
   // 导致 body 的 duration 为空（实测）。数字原样保留，字符串走 trim，缺省 ""。
   const durationRaw = extras.duration ?? extras.durationSeconds ?? extras.videoDuration;
   const duration = typeof durationRaw === "number" ? durationRaw : firstString(durationRaw);
+  const refInput = referenceInputParams(extras);
   return {
     ...extras,
     size,
@@ -83,7 +84,19 @@ export function taskTemplateParams(request: TaskParamsInput): JsonRecord {
     duration,
     image_url: firstReferenceImage(request),
     // 参考输入（单图首/尾帧 + 多参考数组）—— 构建逻辑在 electron/catalog/archetypeInput（M5）。
-    ...referenceInputParams(extras),
+    ...refInput,
+    // chat/completions 多模态图生图（通用中转 gemini/nano-banana 系）：参考图 → content 里的 image_url 项数组。
+    // 声明式模板展不开变长数组，故在此把 reference_images 建成 parts 数组；op body 用整 token 引用，
+    // renderTemplateValue 会把它摊平进 content（见 requestPipeline flatMap）。空数组 → content 只剩 text 项。
+    chat_image_parts: chatImageParts(refInput.reference_images),
     max_tokens: extras.maxTokens ?? extras.max_tokens,
   };
+}
+
+/** 参考图 URL 数组 → chat/completions content 的 image_url 项数组。非字符串/空 URL 剔除。 */
+export function chatImageParts(referenceImages: unknown): Array<{ type: "image_url"; image_url: { url: string } }> {
+  if (!Array.isArray(referenceImages)) return [];
+  return referenceImages
+    .filter((u): u is string => typeof u === "string" && u.trim() !== "")
+    .map((url) => ({ type: "image_url", image_url: { url } }));
 }
