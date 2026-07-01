@@ -391,15 +391,16 @@ export const MANNEQUIN_POSE_PRESETS: MannequinPosePreset[] = [
   {
     // 游戏式操控 C 键专用「半蹲」（区别于上面的点击式深蹲 squat，两者是不同动作，P1/P4 各有一份数据源）。
     // 目标：髋/膝屈到大约一半、上身**基本直立**、脚掌**踩平**、重心稳、看着「随时能走/起身」——不是压在膝上的深蹲。
-    // 多视角截图 + 独立 VLM 审查校准（tests/ux/staging-pose-shots.walk.mjs CASES=31-crouch）得到的关键规律：
-    //  ① 上身直立要靠脊柱**后仰**(Spine −8)抵消屈髋带来的前倾——只给正前倾会整体折成「深鞠躬」(VLM 抓到过)；
+    // 多视角侧视校准（pose-lab side view）得到的关键规律：
+    //  ① 上身要**略前倾**(Spine +12)——肩膀落在脚上方偏前才像自然半蹲/预备姿势；后仰(负值)会变「往后坐要摔倒」(用户实测「蹲反了」)、
+    //     大幅前倾(如深蹲 +26)又会折成「深鞠躬」。+12 是「直立带一点前倾」的中间态。
     //  ② 膝屈(Leg 78) 明显大于髋屈(UpLeg 46)：把重心压低而不是把臀往后坐；
-    //  ③ 膝一弯小腿前倾，脚必须大幅**背屈**(Foot −34，脚轴向 +跖屈/−背屈)才能整只脚掌踩平——背屈不够就踮脚尖(VLM 抓到过)；
+    //  ③ 膝一弯小腿前倾，脚必须大幅**背屈**(Foot −34，脚轴向 +跖屈/−背屈)才能整只脚掌踩平——背屈不够就踮脚尖；
     //  ④ Hips 不动（它是骨架根，动了整体歪身，蹲会变成坐/后仰）。蒙皮最低点自动落地(scene3dMath)。
     id: 'crouch',
     label: '半蹲',
     pose: makePoseOffset({
-      mixamorigSpine: [-8, 0, 0],
+      mixamorigSpine: [12, 0, 0],
       mixamorigLeftUpLeg: [46, 5, 0],
       mixamorigRightUpLeg: [46, -5, 0],
       mixamorigLeftLeg: [78, 0, 0],
