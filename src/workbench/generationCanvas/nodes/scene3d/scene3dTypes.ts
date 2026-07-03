@@ -62,6 +62,9 @@ export type Scene3DCamera = {
   lensDepth: number
   near: number
   far: number
+  // 手持抖动强度 0-100（0/缺省 = 关）。播放/离屏采帧时在 cameraWithPlaybackPosition 叠
+  // 确定性多频正弦噪声（纯播放头 t 的函数，逐帧可重现），经运镜小片 video_ref 真传进成片。
+  shakeAmplitude?: number
 }
 
 export type Scene3DTrajectoryPoint = {

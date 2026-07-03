@@ -132,6 +132,7 @@ export function CameraPreview({
   onAspectChange,
   onFovChange,
   onLensDepthChange,
+  onShakeAmplitudeChange,
   onToggleViewEdit,
   onLevelCamera,
   onScreenshot,
@@ -145,6 +146,7 @@ export function CameraPreview({
   onAspectChange: (aspectRatio: Scene3DAspectRatio) => void
   onFovChange: (fov: number) => void
   onLensDepthChange: (lensDepth: number) => void
+  onShakeAmplitudeChange: (shakeAmplitude: number) => void
   onToggleViewEdit: () => void
   onLevelCamera: () => void
   onScreenshot: () => void
@@ -156,6 +158,7 @@ export function CameraPreview({
   )
   const previewStyle = React.useMemo(() => cameraPreviewViewportStyle(camera.aspectRatio), [camera.aspectRatio])
   const lensDepth = camera.lensDepth ?? 0
+  const shakeAmplitude = camera.shakeAmplitude ?? 0
   // 相机预览黑窗可收起（用户反馈 #10）：操控/编辑时这个小黑窗会糊在画面中央角色身上挡视线。
   // 收起后只留一条标题栏（仍可截图/取景/展开），不破坏预览本身功能。纯 UI 态，不持久化。
   const [collapsed, setCollapsed] = React.useState(false)
@@ -288,6 +291,27 @@ export function CameraPreview({
               <span>-100%</span>
               <span className="text-center">0</span>
               <span className="text-right">100%</span>
+            </div>
+          </div>
+          <div className="mt-3 rounded-nomi-sm border border-[var(--nomi-line-soft)] bg-[var(--nomi-ink-05)] px-2 py-2">
+            <div className="mb-1 flex items-center justify-between gap-2 text-micro text-[var(--nomi-ink-60)]">
+              <span>手持抖动</span>
+              <span className="font-medium text-[var(--nomi-ink)]">{shakeAmplitude > 0 ? `${Math.round(shakeAmplitude)}%` : '关'}</span>
+            </div>
+            <input
+              className="block h-1.5 w-full accent-[var(--nomi-ink)]"
+              disabled={readOnly}
+              max={100}
+              min={0}
+              step={1}
+              type="range"
+              value={shakeAmplitude}
+              onChange={(event) => onShakeAmplitudeChange(Number(event.currentTarget.value))}
+            />
+            <div className="mt-1 grid grid-cols-3 text-micro text-[var(--nomi-ink-40)]">
+              <span>关</span>
+              <span className="text-center">微晃</span>
+              <span className="text-right">剧烈</span>
             </div>
           </div>
         </>

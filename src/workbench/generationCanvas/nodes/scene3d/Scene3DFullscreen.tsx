@@ -711,6 +711,7 @@ export default function Scene3DFullscreen({
               onAspectChange={(aspectRatio) => patchCamera(selectedCamera.id, { aspectRatio })}
               onFovChange={(fov) => patchCamera(selectedCamera.id, { fov })}
               onLensDepthChange={(lensDepth) => patchCamera(selectedCamera.id, { lensDepth })}
+              onShakeAmplitudeChange={(shakeAmplitude) => patchCamera(selectedCamera.id, { shakeAmplitude })}
               onToggleViewEdit={toggleCameraViewEdit}
               onLevelCamera={levelSelectedCamera}
               onScreenshot={captureSelectedCamera}

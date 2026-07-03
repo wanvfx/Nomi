@@ -105,6 +105,40 @@ describe('bindingFovAtPlayhead · FOV 渐变', () => {
   })
 })
 
+describe('cameraWithPlaybackPosition · 手持抖动', () => {
+  const noTraj = { objects: [], trajectories: [], trajectoryBindings: [] }
+
+  it('关（缺省/0）= 恒等：位姿与静态相机逐位相同', () => {
+    const plain = cameraWithPlaybackPosition(noTraj, camera(), 3.7)
+    expect(plain.position).toEqual([0, 1.45, 5])
+    expect(plain.target).toEqual([0, 1.35, 0])
+  })
+
+  it('开抖动：位姿偏移非零、同 t 确定性重现（离屏采帧与预览必须一致）', () => {
+    const shaky = camera({ shakeAmplitude: 60 })
+    const first = cameraWithPlaybackPosition(noTraj, shaky, 3.7)
+    const second = cameraWithPlaybackPosition(noTraj, shaky, 3.7)
+    expect(first.position).toEqual(second.position)
+    expect(first.target).toEqual(second.target)
+    expect(first.position).not.toEqual([0, 1.45, 5])
+    const later = cameraWithPlaybackPosition(noTraj, shaky, 4.1)
+    expect(later.position).not.toEqual(first.position)
+  })
+
+  it('幅度越大偏移越大，且始终有界（100% ≤ 3.5cm 平移量级）', () => {
+    const offset = (amplitude: number, t: number) => {
+      const moved = cameraWithPlaybackPosition(noTraj, camera({ shakeAmplitude: amplitude }), t)
+      return Math.hypot(moved.position[0] - 0, moved.position[1] - 1.45, moved.position[2] - 5)
+    }
+    // 取多个采样点比较平均量级（单点可能撞噪声过零点）。
+    const times = [0.3, 1.1, 2.6, 3.9, 5.2]
+    const meanSmall = times.reduce((sum, t) => sum + offset(20, t), 0) / times.length
+    const meanLarge = times.reduce((sum, t) => sum + offset(100, t), 0) / times.length
+    expect(meanLarge).toBeGreaterThan(meanSmall)
+    times.forEach((t) => expect(offset(100, t)).toBeLessThanOrEqual(0.05))
+  })
+})
+
 describe('cameraWithPlaybackPosition · 播放中 fov', () => {
   const trajectory = {
     id: 't1',

@@ -112,6 +112,49 @@ export function cameraAimBindingId(cameraId: string): string {
   return `${cameraId}${CAMERA_AIM_BINDING_SUFFIX}`
 }
 
+// ── 手持抖动：确定性多频正弦噪声。纯播放头 t 的函数、无随机源——预览逐帧与离屏采帧
+// （Scene3DTrajectoryCapture 同走本文件）必须严格一致，mp4 才可重现。──
+const SHAKE_MAX_AIM_RAD = 0.028 // 满幅 ±1.6° 注视点摆动（手持感主要来自转动微晃）
+const SHAKE_MAX_OFFSET = 0.035 // 满幅 ±3.5cm 机位平移
+
+function shakeNoise(t: number, phase: number): number {
+  return (
+    0.5 * Math.sin(t * 2 * Math.PI * 0.9 + phase) +
+    0.3 * Math.sin(t * 2 * Math.PI * 2.3 + phase * 1.7) +
+    0.2 * Math.sin(t * 2 * Math.PI * 4.7 + phase * 2.9)
+  )
+}
+
+function withCameraShake(
+  position: Scene3DVector3,
+  target: Scene3DVector3,
+  amplitude: number,
+  playheadSeconds: number,
+): { position: Scene3DVector3; target: Scene3DVector3 } {
+  const ratio = Math.min(100, Math.max(0, amplitude)) / 100
+  if (ratio <= 0) return { position, target }
+  const positionVector = new THREE.Vector3(...position)
+  const targetVector = new THREE.Vector3(...target)
+  const forward = targetVector.clone().sub(positionVector)
+  const distance = forward.length()
+  if (distance < 0.001) return { position, target }
+  forward.normalize()
+  const right = forward.clone().cross(new THREE.Vector3(0, 1, 0))
+  if (right.lengthSq() < 1e-6) right.set(1, 0, 0)
+  right.normalize()
+  const up = right.clone().cross(forward).normalize()
+
+  const t = playheadSeconds
+  const positionJitter = right.clone().multiplyScalar(shakeNoise(t, 0.7) * SHAKE_MAX_OFFSET * ratio)
+    .addScaledVector(up, shakeNoise(t, 2.1) * SHAKE_MAX_OFFSET * ratio)
+  const aimJitter = right.clone().multiplyScalar(shakeNoise(t, 4.2) * SHAKE_MAX_AIM_RAD * distance * ratio)
+    .addScaledVector(up, shakeNoise(t, 5.6) * SHAKE_MAX_AIM_RAD * distance * ratio)
+  return {
+    position: vectorToArray(positionVector.add(positionJitter)),
+    target: vectorToArray(targetVector.add(aimJitter)),
+  }
+}
+
 // binding 上的 FOV 渐变：按段时间进度线性插值（fovFrom 始终对应 startTime，与 direction/offset 无关）。
 // 两端点任一缺省 → 用相机静态 fov 补位；都缺省 → 返回 null（老行为，完全不碰 fov）。
 export function bindingFovAtPlayhead(
@@ -147,11 +190,12 @@ export function cameraWithPlaybackPosition(
     : sceneObjectCameraTargetPosition(state, camera.followTargetId, playheadSeconds, activeTrajectoryIds)
       ?? camera.target
       ?? CAMERA_DEFAULT_TARGET
+  const shaken = withCameraShake(position, target, camera.shakeAmplitude ?? 0, playheadSeconds)
   return {
     ...camera,
-    position,
-    target,
-    rotation: cameraLookAtRotation(position, target),
+    position: shaken.position,
+    target: shaken.target,
+    rotation: cameraLookAtRotation(shaken.position, shaken.target),
     fov: playbackFov ?? camera.fov,
   }
 }

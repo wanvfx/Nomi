@@ -231,6 +231,10 @@ function normalizeCamera(value: unknown, index: number): Scene3DCamera | null {
     lensDepth: Math.min(100, Math.max(-100, finiteNumber(raw.lensDepth, 0))),
     near: Math.max(0.01, finiteNumber(raw.near, 0.1)),
     far: Math.max(1, finiteNumber(raw.far, 200)),
+    // 手持抖动 0-100；0/缺省不落字段（老快照字节不变）。
+    ...(finiteNumber(raw.shakeAmplitude, 0) > 0
+      ? { shakeAmplitude: Math.min(100, Math.max(0, finiteNumber(raw.shakeAmplitude, 0))) }
+      : {}),
   }
 }
 
