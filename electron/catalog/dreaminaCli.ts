@@ -28,6 +28,38 @@ function extraPathDirs(): string[] {
     : [path.join(home, ".local", "bin"), "/usr/local/bin", "/opt/homebrew/bin", path.join(home, "bin")];
 }
 
+/** 出站代理环境变量名（大小写各一份）。dreamina 子进程要抹掉这些 → 见 buildDreaminaEnv。 */
+const PROXY_ENV_KEYS = [
+  "HTTP_PROXY", "http_proxy",
+  "HTTPS_PROXY", "https_proxy",
+  "ALL_PROXY", "all_proxy",
+] as const;
+
+/**
+ * dreamina 子进程的 env：补 PATH 兜底 + **强制直连**（抹掉继承来的出站代理变量 + NO_PROXY=*）。
+ *
+ * 病根：dreamina 是 Go 程序，HTTP 栈只认环境变量代理（HTTP(S)_PROXY / NO_PROXY，见其内置
+ * golang.org/x/net/http/httpproxy）；而即梦（jimeng.jianying.com）是中国大陆服务、按来源 IP 认会员。
+ * 用户为访问海外 AI API 开的梯子若把 HTTP(S)_PROXY 泄进本子进程，dreamina 的 user_credit / login /
+ * 生成就会经代理出站——代理只要把即梦分流到海外（就是青阳机器上 clash 的行为），即梦即当成非本土
+ * 流量 → 会员识别失败 / 静默拒绝（现象：得关掉梯子才能用）。app 自身 fetch 该走代理（systemProxy.ts
+ * 管，为的是海外 API）；即梦 CLI 恰恰相反——永远直连。故给子进程一份抹掉代理的 env。
+ *
+ * 实测（2026-07-04，本机 clash 开着、把代理指向死端口验证）：带代理 →
+ * `proxyconnect tcp ... connection refused` 直接挂；删掉代理变量 或 NO_PROXY=* → user_credit 正常返回。
+ * 两条都灵，这里双保险（删变量治「梯子经 env 泄进来」，NO_PROXY=* 兜底「代理从别处冒出来」）。
+ * 注：clash「TUN / 增强模式」在网络层透明改道，env 层拦不住——那种只能在梯子里给
+ * jimeng.jianying.com 配直连分流规则，非本进程能修。
+ */
+export function buildDreaminaEnv(base: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
+  const mergedPath = [...extraPathDirs(), base.PATH || ""].filter(Boolean).join(path.delimiter);
+  const env: NodeJS.ProcessEnv = { ...base, PATH: mergedPath };
+  for (const key of PROXY_ENV_KEYS) delete env[key];
+  env.NO_PROXY = "*";
+  env.no_proxy = "*";
+  return env;
+}
+
 /**
  * 解析 dreamina 真实可执行路径：env 覆盖 → 已知安装位逐个探。返回 "" 表示未安装（调用方负责引导安装）。
  * 不做 `which`（GUI PATH 不可靠），直接探文件存在性。
@@ -59,9 +91,8 @@ export function runDreaminaCli(args: string[], opts: { timeoutMs?: number; bin?:
     );
   }
   const timeoutMs = opts.timeoutMs ?? 120_000;
-  const mergedPath = [...extraPathDirs(), process.env.PATH || ""].filter(Boolean).join(path.delimiter);
   return new Promise<DreaminaRunResult>((resolve, reject) => {
-    const child = spawn(bin, args, { windowsHide: true, env: { ...process.env, PATH: mergedPath } });
+    const child = spawn(bin, args, { windowsHide: true, env: buildDreaminaEnv() });
     let stdout = "";
     let stderr = "";
     let settled = false;

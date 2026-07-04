@@ -75,7 +75,8 @@ export function dreaminaInstall(): Promise<DreaminaInstallResult> {
     return Promise.resolve({ ok: false, message: "Windows 暂请在 WSL 或手动安装即梦 CLI（curl -fsSL https://jimeng.jianying.com/cli | bash）。" });
   }
   return new Promise<DreaminaInstallResult>((resolve) => {
-    const child = spawn("/bin/bash", ["-lc", "curl -fsSL https://jimeng.jianying.com/cli | bash"], { windowsHide: true });
+    // 即梦是国内服务：curl 强制 --noproxy '*' 直连，别让梯子把安装源分流到海外（与 dreaminaCli.buildDreaminaEnv 同理）。
+    const child = spawn("/bin/bash", ["-lc", "curl --noproxy '*' -fsSL https://jimeng.jianying.com/cli | bash"], { windowsHide: true });
     let out = "";
     const timer = setTimeout(() => { try { child.kill("SIGKILL"); } catch { /* gone */ } resolve({ ok: false, message: "安装超时，请稍后重试或终端手动安装。" }); }, 120_000);
     child.stdout?.on("data", (c) => { out += String(c); });
