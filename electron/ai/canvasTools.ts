@@ -230,6 +230,23 @@ export const cameraMoveParamsSchema = z.object({
     ])
     .optional()
     .describe("Optional body-pose preset id for the subject mannequin the camera moves around (e.g. standing / sit / walk). Default standing."),
+  // 灰模布景（走站位/UI 同一套 builder）：让运镜小片的参考里带上环境/尺度背景。相机仍绕主体运镜。
+  sceneTemplate: z
+    .enum(["street", "room"])
+    .optional()
+    .describe("Optional gray-model backdrop under the subject: street (road/buildings/trees/cars) or room (walls/furniture). Use when the camera move should read as happening in an environment (e.g. 'push in on a person standing on a street'). The camera still orbits/pushes the subject at origin."),
+  props: z
+    .array(
+      z.object({
+        kind: z.enum(["car", "building", "tree", "streetlamp", "wall"]),
+        position: z.array(z.number()).length(2).optional().describe("[x, z] ground position in meters. Subject is at origin; omit to auto-spread props to its right."),
+        rotationY: z.number().optional().describe("Yaw in degrees."),
+        scale: z.number().optional().describe("Uniform scale (0.1–10, default 1)."),
+      }),
+    )
+    .max(12)
+    .optional()
+    .describe("Optional individual gray-model props placed in the move's scene (a car beside the subject, a tree behind). Prefer sceneTemplate for a full backdrop."),
 });
 
 export const canvasToolNames = [
@@ -355,7 +372,8 @@ export const canvasTools = {
       "WHEN NOT: a static / locked-off / fixed-tripod shot, or a simple single talking-head — these have no camera motion to lock, so do NOT call it.\n" +
       "Pick the SINGLE dominant move that matches the intent. On models with a reference-video slot (e.g. Seedance 2.0 全能参考) the model copies ONLY the camera movement (content stays driven by the character refs + prompt); on models without one it degrades to a structured camera-move prompt directive.\n" +
       "Tiered rule: the `move` enum is the PRECISE first choice (deterministic 3D camera-path render). If the intended move is OUTSIDE the enum (dolly-zoom/vertigo, whip-pan, handheld follow, a compound/sequenced move, or 'match this reference video'), do NOT force the nearest wrong enum — leave move empty and use customMove (prompt-guided into the video node's prompt, no 3D render, honest about lower fidelity). Never force-map a clearly-different intent into a wrong enum value.\n" +
-      "shotClientId MUST point to the shot's VIDEO node (the node that actually generates the clip) — NOT its keyframe image, and NOT a text/shot note. For an image-first storyboard that is the shot's video node downstream of the keyframe. If no video node exists for the shot yet, create it first; never aim this at an image node.",
+      "shotClientId MUST point to the shot's VIDEO node (the node that actually generates the clip) — NOT its keyframe image, and NOT a text/shot note. For an image-first storyboard that is the shot's video node downstream of the keyframe. If no video node exists for the shot yet, create it first; never aim this at an image node.\n" +
+      "Optional gray-model backdrop: add sceneTemplate (street/room) and/or props when the move should read as happening in an environment (a camera pushing in on a person on a street). The backdrop lays under the subject; the camera path is unchanged (still orbits/pushes the subject).",
     parameters: cameraMoveParamsSchema,
   }),
 } as const;
