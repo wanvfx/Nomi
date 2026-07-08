@@ -3,24 +3,11 @@ import { createPortal } from 'react-dom'
 import { Canvas } from '@react-three/fiber'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
-  IconArrowsMove,
-  IconCube,
-  IconListTree,
-  IconPhoto,
-  IconPlayerPause,
-  IconPlayerPlay,
-  IconRoute,
-  IconRotate,
-  IconSettings,
-  IconWorld,
-  IconX,
+  IconArrowsMove, IconCube, IconListTree, IconPhoto, IconPlayerPause, IconPlayerPlay,
+  IconRoute, IconRotate, IconSettings, IconWorld, IconX,
 } from '@tabler/icons-react'
 import { toast } from '../../../../ui/toast'
-import { NomiBrand } from '../../../../design'
-import { WindowControls } from '../../../../ui/app-shell/WindowControls'
-
-// 仅 win32 自绘标题栏：mac/Linux 原生 chrome 自带窗口控制，不自绘不重复（同 WorkbenchShell 平台分流）。
-const isWindows = window.nomiDesktop?.platform === 'win32'
+import { Scene3DWindowBar } from './Scene3DWindowBar'
 import { cloneScene3DState } from './scene3dSerializer'
 import {
   type CaptureApi,
@@ -521,15 +508,7 @@ export default function Scene3DFullscreen({
       onPointerDown={(event) => event.stopPropagation()}
       onWheel={(event) => event.stopPropagation()}
     >
-      {isWindows ? (
-        <div className="app-drag relative z-[2] flex h-8 w-full shrink-0 items-center border-b border-[var(--workbench-border)] bg-[var(--workbench-surface-solid)]">
-          <div className="app-no-drag inline-flex h-full items-center pl-4 pr-3">
-            <NomiBrand markSize={18} wordSize={14} />
-          </div>
-          <div className="h-full min-w-0 flex-1" aria-hidden="true" />
-          <WindowControls className="app-no-drag" />
-        </div>
-      ) : null}
+      <Scene3DWindowBar />
       <header className="relative z-[2] flex min-h-[52px] shrink-0 items-center gap-3 border-b border-[var(--workbench-border)] bg-[var(--workbench-surface-solid)] px-4 shadow-nomi-sm">
         <div className="flex min-w-0 flex-1 items-center gap-2">
           <IconCube size={18} className="shrink-0 text-[var(--workbench-muted)]" />
