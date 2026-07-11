@@ -36,7 +36,10 @@ describe('buildDependencyWaves', () => {
   it('文本→图片/视频 prompt 上下文边不参与参考依赖调度', () => {
     const txt = { ...node('文本'), kind: 'text' as const, contentJson: { type: 'doc' as const, content: [] } }
     const img = node('图片')
-    const plan = buildDependencyWaves(['图片'], { nodes: [txt, img], edges: [edge('文本', '图片')] })
+    const plan = buildDependencyWaves(['图片'], {
+      nodes: [txt, img],
+      edges: [edge('文本', '图片', 'reference')],
+    })
     expect(plan.waves).toEqual([['图片']])
     expect(plan.blocked).toEqual([])
     expect(plan.edgesUsed).toEqual([])

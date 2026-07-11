@@ -24,12 +24,17 @@ function textNode(id: string, text: string): GenerationCanvasNode {
   } as GenerationCanvasNode
 }
 
-function edge(source: string, target: string, order: number): GenerationCanvasEdge {
-  return { id: `${source}-${target}`, source, target, mode: 'reference', order } as GenerationCanvasEdge
+function edge(
+  source: string,
+  target: string,
+  order: number,
+  mode: GenerationCanvasEdge['mode'] = 'reference',
+): GenerationCanvasEdge {
+  return { id: `${source}-${target}-${mode}`, source, target, mode, order } as GenerationCanvasEdge
 }
 
 describe('connected text prompt context', () => {
-  it('appends linked text node bodies to an image prompt by edge order without mutating the node', () => {
+  it('按边顺序把文本节点正文附加到图片 prompt，且不修改原节点', () => {
     const target = imageNode('img', 'base frame')
     const first = textNode('t1', 'first text block')
     const second = textNode('t2', 'second text block')
@@ -44,12 +49,17 @@ describe('connected text prompt context', () => {
     expect(target.prompt).toBe('base frame')
   })
 
-  it('uses linked text bodies for video nodes and ignores non-text edges', () => {
+  it('视频节点同样读取文本正文，并忽略非文本边与非 reference 文本边', () => {
     const target = videoNode('vid', '')
     const text = textNode('t1', 'camera move description')
+    const ignoredText = textNode('t2', 'must not append')
     const image = imageNode('img', 'not appended')
-    const nodes = [target, text, image]
-    const edges = [edge('img', 'vid', 0), edge('t1', 'vid', 1)]
+    const nodes = [target, text, ignoredText, image]
+    const edges = [
+      edge('img', 'vid', 0),
+      edge('t1', 'vid', 1),
+      edge('t2', 'vid', 2, 'character_ref'),
+    ]
 
     expect(withConnectedTextPrompts(target, { nodes, edges }).prompt).toBe('camera move description')
   })

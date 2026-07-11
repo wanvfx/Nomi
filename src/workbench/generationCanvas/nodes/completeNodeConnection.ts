@@ -8,7 +8,8 @@
 // 旧的权宜 toast「已作为参考图添加（不画连线）」随 meta-only 路径一并删除（P1：不留并行版）。
 //
 // 连边能力校验（validateReferenceEdge）仍在 connectToNode 里做总闸——错配参考槽等盲连
-// 在创建期就拦；文本→图/视频作为 prompt 上下文边放行。本函数只负责把校验失败的人话反馈给手动连线的用户。
+// 在创建期就拦；文本→图/视频的通用 reference 边作为 prompt 上下文放行。
+// 本函数只负责把校验失败的人话反馈给手动连线的用户。
 import { useGenerationCanvasStore } from '../store/generationCanvasStore'
 import { showInfoToast } from '../../../utils/showInfoToast'
 import { isTextPromptEdge } from '../agent/referenceEdgeCapability'
@@ -33,7 +34,10 @@ export function completeNodeConnection(targetNodeId: string): void {
     const { nodes, edges } = useGenerationCanvasStore.getState()
     const source = nodes.find((n) => n.id === sourceNodeId)
     const target = nodes.find((n) => n.id === targetNodeId)
-    if (source && target && isTextPromptEdge(source, target)) return
+    const hasPromptEdge = source && target && edges.some(
+      (edge) => edge.source === sourceNodeId && edge.target === targetNodeId && isTextPromptEdge(source, target, edge.mode),
+    )
+    if (hasPromptEdge) return
     if (target) {
       const slots = resolveReferenceSlots(target, nodes, edges)
       const landed = slots.some((s) => s.fills.some((f) => f.origin.type === 'edge' && f.origin.sourceNodeId === sourceNodeId))

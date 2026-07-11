@@ -45,7 +45,7 @@ export function buildDependencyWaves(
     if (!selection.has(edge.target)) continue
     const sourceNode = nodesById.get(edge.source)
     const targetNode = nodesById.get(edge.target)
-    if (sourceNode && targetNode && isTextPromptEdge(sourceNode, targetNode)) continue
+    if (sourceNode && targetNode && isTextPromptEdge(sourceNode, targetNode, edge.mode)) continue
     if (selection.has(edge.source)) {
       internalDeps.get(edge.target)?.add(edge.source)
       edgesUsed.push(edge)

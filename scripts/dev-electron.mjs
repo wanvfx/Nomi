@@ -112,6 +112,11 @@ async function waitForRenderer(
   const startedAt = Date.now();
   let nextProgressLogMs = 15000;
   while (Date.now() - startedAt < timeoutMs) {
+    if (rendererProcess?.nomiExit?.exited) {
+      throw new Error(
+        `Renderer process exited before becoming ready${describeChildExit(rendererProcess.nomiExit)}: ${url}`,
+      );
+    }
     if (await canConnect(hostname, numericPort)) return;
     if (rendererProcess?.nomiExit?.exited) {
       throw new Error(

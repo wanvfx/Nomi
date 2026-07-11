@@ -34,7 +34,7 @@ export function collectConnectedTextPromptParts(
   for (const edge of sortEdgesByOrder([...edges])) {
     if (edge.target !== node.id || seenSources.has(edge.source)) continue
     const source = nodesById.get(edge.source)
-    if (!source || !isTextPromptEdge(source, node)) continue
+    if (!source || !isTextPromptEdge(source, node, edge.mode)) continue
     const text = textNodePlainContent(source)
     if (!text) continue
     seenSources.add(source.id)

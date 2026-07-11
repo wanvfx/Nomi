@@ -37,7 +37,7 @@ describe('referenceAssetKindForNode — 源能给哪种可参考资产', () => {
 })
 
 describe('validateReferenceEdge — 参考边能力校验', () => {
-  it('文本→图片/视频作为 prompt 上下文边放行，但不变成参考资产', () => {
+  it('文本→图片/视频的通用 reference 边作为 prompt 上下文放行，但不变成参考资产', () => {
     const text = node('t', 'text')
     const image = node('i', 'image', 'imagen-4')
     const video = node('v', 'video', 'seedance-2')
@@ -48,8 +48,12 @@ describe('validateReferenceEdge — 参考边能力校验', () => {
     expect(validateReferenceEdge(text, video, 'reference')).toEqual({ ok: true })
   })
 
-  it('文本→非图片/视频生成节点仍拒绝(source_not_referenceable)', () => {
-    const verdict = validateReferenceEdge(node('t', 'text'), node('a', 'audio'), 'reference')
+  it('文本→非图片/视频或非 reference 语义仍拒绝(source_not_referenceable)', () => {
+    expect(validateReferenceEdge(node('t', 'text'), node('a', 'audio'), 'reference')).toEqual({
+      ok: false,
+      reason: 'source_not_referenceable',
+    })
+    const verdict = validateReferenceEdge(node('t', 'text'), node('i', 'image'), 'character_ref')
     expect(verdict).toEqual({ ok: false, reason: 'source_not_referenceable' })
   })
 

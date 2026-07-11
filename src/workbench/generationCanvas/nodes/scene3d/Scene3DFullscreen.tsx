@@ -3,19 +3,11 @@ import { createPortal } from 'react-dom'
 import { Canvas } from '@react-three/fiber'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
-  IconArrowsMove,
-  IconCube,
-  IconListTree,
-  IconPhoto,
-  IconPlayerPause,
-  IconPlayerPlay,
-  IconRoute,
-  IconRotate,
-  IconSettings,
-  IconWorld,
-  IconX,
+  IconArrowsMove, IconCube, IconListTree, IconPhoto, IconPlayerPause, IconPlayerPlay,
+  IconRoute, IconRotate, IconSettings, IconWorld, IconX,
 } from '@tabler/icons-react'
 import { toast } from '../../../../ui/toast'
+import { Scene3DWindowBar } from './Scene3DWindowBar'
 import { cloneScene3DState } from './scene3dSerializer'
 import {
   type CaptureApi,
@@ -65,7 +57,6 @@ import {
   useScene3DMoveFrameExport,
   type Scene3DClipboardItem,
 } from './useScene3DFullscreenActions'
-import { Scene3DWindowBar } from './Scene3DWindowBar'
 type Scene3DFullscreenProps = {
   initialState: Scene3DState
   nodeTitle: string

@@ -33,7 +33,7 @@ export function collectUngeneratedReferenceAncestors(
       const source = edge.source
       if (collected.has(source)) continue
       const sourceNode = byId.get(source)
-      if (sourceNode && targetNode && isTextPromptEdge(sourceNode, targetNode)) continue
+      if (sourceNode && targetNode && isTextPromptEdge(sourceNode, targetNode, edge.mode)) continue
       if (hasUsableResult(sourceNode)) continue // 已出图 = 已满足，不纳入（不重复生成）
       collected.add(source)
       stack.push(source) // 该上游也没图 → 它自己的参考也要先备齐（传递闭包）
