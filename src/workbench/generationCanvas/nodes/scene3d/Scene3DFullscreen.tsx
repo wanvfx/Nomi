@@ -8,6 +8,7 @@ import {
 } from '@tabler/icons-react'
 import { toast } from '../../../../ui/toast'
 import { Scene3DWindowBar } from './Scene3DWindowBar'
+import { Scene3DCoachMarks, hasSeenScene3DCoach } from './Scene3DCoachMarks'
 import { cloneScene3DState } from './scene3dSerializer'
 import {
   type CaptureApi,
@@ -83,6 +84,8 @@ export default function Scene3DFullscreen({
 }: Scene3DFullscreenProps): JSX.Element {
   const [state, setState] = React.useState(() => cloneScene3DState(initialState))
   const [selection, setSelection] = React.useState<Scene3DSelection>(null)
+  // 首次进入的三步教练标注（方案 A，2026-07-11 拍板）；只出现一次，localStorage 记忆。
+  const [showCoach, setShowCoach] = React.useState(() => !hasSeenScene3DCoach())
   const [transformMode, setTransformMode] = React.useState<Scene3DTransformMode>('translate')
   const [viewLocked, setViewLocked] = React.useState(false)
   const controlMode: Scene3DControlMode = viewLocked ? 'edit' : 'fly'
@@ -785,6 +788,7 @@ export default function Scene3DFullscreen({
           ) : null}
         </AnimatePresence>
       </main>
+      {showCoach && !readOnly ? <Scene3DCoachMarks onDone={() => setShowCoach(false)} /> : null}
     </div>
   )
 
