@@ -44,6 +44,10 @@ export async function configureBrowserSession(viewSession: Session): Promise<voi
   viewSession.setUserAgent(STANDARD_CHROME_UA, BROWSER_ACCEPT_LANGUAGE);
   if (!configuredBrowserSessions.has(viewSession)) {
     configuredBrowserSessions.add(viewSession);
+    // 不可信内容面基线（与 referenceCaptureWindow M0 对齐）：权限 request+check 双拒——
+    // 摄像头/麦克风/地理位置等一律 deny，网页内容拿不到系统能力（PR#36 合入时补齐）。
+    viewSession.setPermissionRequestHandler((_wc, _permission, callback) => callback(false));
+    viewSession.setPermissionCheckHandler(() => false);
     viewSession.webRequest.onBeforeSendHeaders((details, callback) => {
       if (!/^https?:\/\//i.test(details.url)) {
         callback({});
