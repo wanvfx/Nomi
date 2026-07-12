@@ -8,7 +8,6 @@ import {
   IconLayoutSidebarLeftExpand,
   IconPlus,
   IconTags,
-  IconWorld,
 } from '@tabler/icons-react'
 import { cn } from '../../utils/cn'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../../design'
@@ -186,7 +185,7 @@ export default function ProjectExplorerSidebar({ categories, projectId = null }:
                       aria-pressed={active}
                       onClick={() => selectTab(item.id)}
                     >
-                      <Icon size={20} stroke={1.85} aria-hidden="true" />
+                      <Icon size={18} stroke={1.8} aria-hidden="true" />
                       <span className="text-micro leading-none">{item.railLabel ?? item.label}</span>
                     </button>
                   </TooltipTrigger>
@@ -208,7 +207,7 @@ export default function ProjectExplorerSidebar({ categories, projectId = null }:
                       aria-pressed={active}
                       onClick={() => selectTab(item.id)}
                     >
-                      <Icon size={20} stroke={1.85} aria-hidden="true" />
+                      <Icon size={18} stroke={1.8} aria-hidden="true" />
                       <span className="text-micro leading-none">{item.railLabel ?? item.label}</span>
                     </button>
                   </TooltipTrigger>
@@ -227,9 +226,9 @@ export default function ProjectExplorerSidebar({ categories, projectId = null }:
                 aria-label={collapsed ? '展开侧栏' : '收起侧栏'}
               >
                 {collapsed ? (
-                  <IconLayoutSidebarLeftExpand size={20} stroke={1.85} aria-hidden="true" />
+                  <IconLayoutSidebarLeftExpand size={18} stroke={1.8} aria-hidden="true" />
                 ) : (
-                  <IconLayoutSidebarLeftCollapse size={20} stroke={1.85} aria-hidden="true" />
+                  <IconLayoutSidebarLeftCollapse size={18} stroke={1.8} aria-hidden="true" />
                 )}
               </button>
               </TooltipTrigger>
@@ -245,27 +244,7 @@ export default function ProjectExplorerSidebar({ categories, projectId = null }:
                   <h2 className="m-0 min-w-0 flex-1 truncate text-body-sm font-bold leading-none text-nomi-ink">
                     {panelTitle}
                   </h2>
-                  {/* 「网页捕捞」入口保留在素材库瘦头（找素材心智的门），但引擎已收敛到应用内
-                      浏览器（方案A 2026-07-12 拍板，M0 独立捕捞窗退役）——一个引擎两扇门。 */}
-                  {tab === 'asset-library' ? (
-                    <button
-                      type="button"
-                      className={cn(
-                        'mr-1 inline-flex h-7 shrink-0 items-center gap-1.5 rounded-full border border-nomi-line bg-nomi-paper px-3',
-                        'cursor-pointer text-caption font-semibold text-nomi-ink transition-[background] duration-[var(--nomi-transition-fast)]',
-                        'hover:bg-nomi-ink-05 disabled:cursor-not-allowed disabled:opacity-40',
-                      )}
-                      disabled={!projectId}
-                      aria-label="网页捕捞"
-                      title="打开浏览器找参考：悬停图片点「捕捞」或直接拖进来"
-                      onClick={() => {
-                        window.dispatchEvent(new CustomEvent('nomi-open-browser'))
-                      }}
-                    >
-                      <IconWorld size={13} stroke={2} aria-hidden="true" />
-                      网页捕捞
-                    </button>
-                  ) : null}
+                  {/* 「网页捕捞」入口已删（方案一 2026-07-12）：顶栏「浏览器」是唯一上网门。 */}
                   {tab === 'categories' ? (
                     <Tooltip>
                       <TooltipTrigger asChild>
@@ -275,7 +254,7 @@ export default function ProjectExplorerSidebar({ categories, projectId = null }:
                           className={PANEL_ICON_BUTTON_CLASS}
                           aria-label="新建分类"
                         >
-                          <IconPlus size={18} stroke={1.85} aria-hidden="true" />
+                          <IconPlus size={18} stroke={1.8} aria-hidden="true" />
                         </button>
                       </TooltipTrigger>
                       <TooltipContent side="bottom">新建分类</TooltipContent>
@@ -289,7 +268,7 @@ export default function ProjectExplorerSidebar({ categories, projectId = null }:
                         className={PANEL_ICON_BUTTON_CLASS}
                         aria-label="收起侧栏"
                       >
-                        <IconLayoutSidebarLeftCollapse size={18} stroke={1.85} aria-hidden="true" />
+                        <IconLayoutSidebarLeftCollapse size={18} stroke={1.8} aria-hidden="true" />
                       </button>
                     </TooltipTrigger>
                     <TooltipContent side="bottom">收起侧栏</TooltipContent>

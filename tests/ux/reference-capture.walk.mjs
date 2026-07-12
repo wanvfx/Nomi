@@ -134,18 +134,21 @@ try {
   }
   await snapPage(win, 'canvas')
 
-  // —— ① 素材库瘦头 → 「网页捕捞」入口 ——
+  // —— ① 唯一门断言（方案一）：顶栏「浏览器」在；素材库头无「网页捕捞」；顶栏无「素材盒」 ——
   const assetRail = win.locator('button,[role="button"]', { hasText: '素材库' }).first()
   await assetRail.click({ timeout: 4000 }).catch(() => {})
   await win.waitForTimeout(600)
-  const captureEntry = win.locator('button[aria-label="网页捕捞"]').first()
-  const entryPresent = (await captureEntry.count()) > 0
+  const browserEntry = win.locator('button[aria-label="打开浏览器"]').first()
+  const noLegacyCaptureEntry = (await win.locator('button[aria-label="网页捕捞"]').count()) === 0
+  const noTopbarAssetBox = (await win.locator('button[aria-label="打开素材盒"]').count()) === 0
+  const entryPresent = (await browserEntry.count()) > 0 && noLegacyCaptureEntry && noTopbarAssetBox
+  console.log(`  唯一门: browser=${(await browserEntry.count()) > 0} 无网页捕捞=${noLegacyCaptureEntry} 顶栏无素材盒=${noTopbarAssetBox}`)
   await snapPage(win, 'asset-panel-entry')
 
-  // —— ② 点开应用内浏览器 ——
+  // —— ② 顶栏打开应用内浏览器 ——
   let browserOpen = false
   if (entryPresent) {
-    await captureEntry.click({ timeout: 3000 })
+    await browserEntry.click({ timeout: 3000 })
     await win.waitForTimeout(1800)
     browserOpen = (await win.locator('input[aria-label="地址栏"]').count()) > 0
   }
@@ -189,6 +192,7 @@ try {
 
   // —— ④ 捕捞：素材盒开 → 捕捞模式开 → 悬停图片 → Ctrl+C（与真实手势同一产路）——
   let captured = false
+  let companionShowsAsset = false
   let sidecarLeak = false
   let capturedFile = ''
   let browserViewId = null
@@ -253,17 +257,18 @@ try {
       await win.waitForTimeout(2500)
       const captureEvents = await win.evaluate(() => window.__walkCaptureEvents || [])
       console.log('  capture events:', JSON.stringify(captureEvents).slice(0, 400))
-      // overlay 窗口若被捕捞事件带起：拍照留证 + 探它的活跃项目上下文（跨窗靠 localStorage 回退）。
+      // overlay 窗口若被捕捞事件带起：拍照留证 + 断言伴生素材盒里出现捕捞素材（方案一
+      // 顶栏徽章已删，「捕捞可见性」由伴生弹层承担）。
       const overlayPage = app.windows().find((p) => p.url().includes('browser-asset-overlay')) || null
       if (overlayPage) {
+        await overlayPage.waitForTimeout(1500)
         await overlayPage.screenshot({ path: path.join(shotsDir, '00-overlay-after-capture.png') }).catch(() => {})
-        const overlayCtx = await overlayPage.evaluate(() => ({
-          activeProject: window.localStorage.getItem('nomi-workbench-last-active-project-v1') || '',
-          hasImportMedia: typeof window.nomiDesktop?.browser?.importMedia,
-        })).catch(() => null)
-        console.log('  overlay ctx:', JSON.stringify(overlayCtx))
+        companionShowsAsset = await overlayPage.evaluate(() =>
+          document.body.innerText.includes('hero-ref') ||
+          Boolean(document.querySelector('[title*="hero-ref"], img[alt*="hero-ref"]')),
+        ).catch(() => false)
       }
-      console.log('  overlay after capture:', overlayPage ? 'found' : 'missing')
+      console.log('  overlay after capture:', overlayPage ? 'found' : 'missing', 'companionShowsAsset:', companionShowsAsset)
     }
     for (let i = 0; i < 16 && !captured; i++) {
       await win.waitForTimeout(500)
@@ -291,9 +296,8 @@ try {
     await snapPage(win, 'after-capture')
   }
 
-  // —— ⑥ 关浏览器 → 主窗素材库回流（写入层广播）+ 顶栏徽章 ——
+  // —— ⑥ 关浏览器 → 主窗素材库回流（写入层广播）——
   let mainSeesAsset = false
-  let badgeShows = false
   if (captured) {
     await win.locator('button[aria-label="关闭浏览器"]').first().click({ timeout: 3000 }).catch(() => {})
     await win.waitForTimeout(1200)
@@ -304,19 +308,18 @@ try {
       const panel = document.querySelector('[aria-label="素材库"]')
       return Boolean(panel && panel.querySelector('img'))
     })
-    badgeShows = (await win.locator('[aria-label$="个素材"]').count()) > 0
     await snapPage(win, 'main-asset-panel-after-capture')
   }
 
   console.log('\n===== 捕捞面收敛走查判定 =====')
-  console.log(`  ① 素材库有「网页捕捞」入口:   ${entryPresent ? 'PASS' : 'FAIL'}`)
+  console.log(`  ① 浏览器唯一门(无旧入口/顶栏无素材盒): ${entryPresent ? 'PASS' : 'FAIL'}`)
   console.log(`  ② 应用内浏览器打开:           ${browserOpen ? 'PASS' : 'FAIL'}`)
   console.log(`  ③ 地址栏导航本地页:           ${navigated ? 'PASS' : 'FAIL'}`)
   console.log(`  ④ 悬停+Ctrl+C 捕捞落 imported: ${captured ? `PASS (${capturedFile})` : 'FAIL'}`)
   console.log(`     sidecar originalUrl 恒 null(不进信任窗): ${captured && !sidecarLeak ? 'PASS' : 'FAIL'}`)
   console.log(`  ⑤ 权限 deny-by-default:       ${permission.startsWith('denied') ? `PASS (${permission})` : `FAIL (${permission})`}`)
   console.log(`  ⑥ 主窗素材库回流可见:         ${mainSeesAsset ? 'PASS' : 'FAIL'}`)
-  console.log(`     顶栏素材盒徽章出数:         ${badgeShows ? 'PASS' : 'FAIL'}`)
+  console.log(`     伴生素材盒出现捕捞素材:     ${companionShowsAsset ? 'PASS' : 'FAIL'}`)
   console.log(`  console errors: ${consoleErrors.length}`)
   if (consoleErrors.length) console.log('   ' + consoleErrors.slice(0, 8).join('\n   '))
   allPassed =
@@ -327,7 +330,7 @@ try {
     !sidecarLeak &&
     permission.startsWith('denied') &&
     mainSeesAsset &&
-    badgeShows &&
+    companionShowsAsset &&
     consoleErrors.length === 0
   console.log(`  总判定: ${allPassed ? 'PASS' : 'FAIL'}`)
   console.log(`\n截图在 ${shotsDir}`)

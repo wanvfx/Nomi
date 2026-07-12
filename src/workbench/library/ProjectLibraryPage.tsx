@@ -10,18 +10,12 @@ import {
   IconSparkles,
   IconTrash,
 } from '@tabler/icons-react'
-import { IconBox } from '@tabler/icons-react'
 import { cn } from '../../utils/cn'
 import { ActionCard, NomiLogoMark, NomiWordmark, DesignEmptyState, DesignSearchInput } from '../../design'
 import { NomiImage } from '../../design/media'
 import { ThemeToggleButton } from '../../ui/theme/ThemeToggleButton'
 import { WindowControls } from '../../ui/app-shell/WindowControls'
 import { handleWindowTitlebarDoubleClick } from '../../ui/app-shell/windowTitlebarDoubleClick'
-import {
-  dispatchContextualAssetPopoverOpen,
-  getGlobalAssetPopoverAnchorRect,
-} from '../../ui/browser/overlay/globalAssetPopoverEvents'
-import { useGlobalBrowserAssetCount } from '../../ui/browser/assets/useGlobalBrowserAssets'
 import type { LocalProjectSummary } from './localProjectStore'
 import type { ProjectTemplateId } from './projectTemplates'
 
@@ -90,7 +84,6 @@ export default function ProjectLibraryPage({
 }: Props): JSX.Element {
   const [query, setQuery] = React.useState('')
   const [sourceFilter, setSourceFilter] = React.useState<'all' | 'native' | 'folder'>('all')
-  const assetCount = useGlobalBrowserAssetCount()
   const normalizedQuery = query.trim().toLowerCase()
   const searchedProjects = normalizedQuery
     ? projects.filter((project) => project.name.toLowerCase().includes(normalizedQuery))
@@ -136,7 +129,7 @@ export default function ProjectLibraryPage({
           data-replay-splash="true"
           aria-label="看看 Nomi 能做什么"
         >
-          <IconSparkles size={14} stroke={1.6} aria-hidden="true" />
+          <IconSparkles size={14} stroke={1.8} aria-hidden="true" />
           看看 Nomi
         </button>
       ) : null}
@@ -150,7 +143,7 @@ export default function ProjectLibraryPage({
           )}
           aria-label="模型接入"
         >
-          <IconPlugConnected size={14} stroke={1.6} aria-hidden="true" />
+          <IconPlugConnected size={14} stroke={1.8} aria-hidden="true" />
           模型接入
         </button>
       ) : null}
@@ -163,31 +156,9 @@ export default function ProjectLibraryPage({
         )}
         aria-label="打开浏览器"
       >
-        <IconBrowser size={14} stroke={1.6} aria-hidden="true" />
+        {/* 素材盒常驻入口已删（方案一 2026-07-12）：只作浏览器伴生收件箱。 */}
+        <IconBrowser size={14} stroke={1.8} aria-hidden="true" />
         浏览器
-      </button>
-      <button
-        type="button"
-        onClick={(event) => {
-          dispatchContextualAssetPopoverOpen(true, getGlobalAssetPopoverAnchorRect(event.currentTarget))
-        }}
-        className={cn(
-          'inline-flex items-center gap-1.5 h-7 px-2 rounded-pill border-0 bg-transparent cursor-pointer font-inherit',
-          'text-caption text-nomi-ink-60 transition-colors hover:text-nomi-ink',
-        )}
-        aria-label="打开素材盒"
-        title="素材盒"
-      >
-        <IconBox size={14} stroke={1.6} aria-hidden="true" />
-        素材盒
-        {assetCount > 0 ? (
-          <span
-            className="inline-flex h-[16px] min-w-[16px] items-center justify-center rounded-pill bg-nomi-accent-soft px-1.5 text-micro font-semibold leading-none text-nomi-accent"
-            aria-label={`${assetCount} 个素材`}
-          >
-            {assetCount > 99 ? '99+' : assetCount}
-          </span>
-        ) : null}
       </button>
       <ThemeToggleButton className="size-7 rounded-pill" />
     </div>

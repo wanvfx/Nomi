@@ -5,6 +5,7 @@ import { IconCamera } from '@tabler/icons-react'
 import {
   IconArrowLeft,
   IconArrowRight,
+  IconBox,
   IconExternalLink,
   IconPencil,
   IconPlus,
@@ -316,6 +317,24 @@ export function NomiBrowserDialogView({
                 onClick={openBrowserScreenshotPromptModePicker}
               >
                 <IconCamera size={17} strokeWidth={1.8} aria-hidden="true" />
+              </button>
+              {/* 素材盒唯一入口（方案一 2026-07-12）：伴生收件箱只在浏览器语境出现，
+                  顶栏常驻入口已删——找素材=浏览器，存素材=素材库。 */}
+              <button
+                type="button"
+                className={cn(
+                  'inline-flex h-8 shrink-0 items-center gap-1.5 rounded-nomi-sm border-0 bg-transparent px-2',
+                  'cursor-pointer text-caption font-semibold text-nomi-ink-60 transition-[background,color] duration-[var(--nomi-transition-fast)]',
+                  'hover:bg-nomi-ink-05 hover:text-nomi-ink',
+                  browserAssetPopoverOpen && 'bg-nomi-ink-05 text-nomi-ink',
+                )}
+                aria-label={browserAssetPopoverOpen ? '收起素材盒' : '打开素材盒'}
+                aria-pressed={browserAssetPopoverOpen}
+                title="素材盒：捕捞收件箱，可多选拖上画布"
+                onClick={() => handleBrowserAssetPopoverOpenChange(!browserAssetPopoverOpen)}
+              >
+                <IconBox size={16} stroke={1.8} aria-hidden="true" />
+                <span className="whitespace-nowrap">素材盒</span>
               </button>
             </div>
           </form>

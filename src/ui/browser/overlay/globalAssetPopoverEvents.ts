@@ -1,20 +1,10 @@
-const GLOBAL_ASSET_POPOVER_EVENT = 'nomi-global-asset-popover-open'
-const CONTEXTUAL_ASSET_POPOVER_EVENT = 'nomi-contextual-asset-popover-open'
+// 素材盒事件（方案一 2026-07-12 收敛后）：素材盒只作浏览器伴生弹层，
+// 全局浮窗/contextual 路由已删——这里只剩浏览器弹层开合 + 拖上画布两组事件。
 const BROWSER_ASSET_POPOVER_EVENT = 'nomi-browser-asset-popover-open'
 const BROWSER_ASSET_IMPORT_TO_CANVAS_EVENT = 'nomi-browser-asset-import-to-canvas'
 
-export type GlobalAssetPopoverAnchorRect = {
-  left: number
-  top: number
-  right: number
-  bottom: number
-  width: number
-  height: number
-}
-
-export type GlobalAssetPopoverEventDetail = {
+export type BrowserAssetPopoverEventDetail = {
   opened: boolean
-  anchorRect?: GlobalAssetPopoverAnchorRect | null
 }
 
 export type BrowserAssetCanvasImportItem = {
@@ -30,42 +20,9 @@ export type BrowserAssetCanvasImportEventDetail = {
   assets: BrowserAssetCanvasImportItem[]
 }
 
-export function getGlobalAssetPopoverAnchorRect(element: HTMLElement | null): GlobalAssetPopoverAnchorRect | null {
-  if (!element) return null
-  const rect = element.getBoundingClientRect()
-  return {
-    left: rect.left,
-    top: rect.top,
-    right: rect.right,
-    bottom: rect.bottom,
-    width: rect.width,
-    height: rect.height,
-  }
-}
-
-export function dispatchGlobalAssetPopoverOpen(
-  opened: boolean,
-  anchorRect?: GlobalAssetPopoverAnchorRect | null,
-): void {
-  window.dispatchEvent(
-    new CustomEvent<GlobalAssetPopoverEventDetail>(GLOBAL_ASSET_POPOVER_EVENT, { detail: { opened, anchorRect } }),
-  )
-}
-
-export function dispatchContextualAssetPopoverOpen(
-  opened: boolean,
-  anchorRect?: GlobalAssetPopoverAnchorRect | null,
-): void {
-  window.dispatchEvent(
-    new CustomEvent<GlobalAssetPopoverEventDetail>(CONTEXTUAL_ASSET_POPOVER_EVENT, {
-      detail: { opened, anchorRect },
-    }),
-  )
-}
-
 export function dispatchBrowserAssetPopoverOpen(opened: boolean): void {
   window.dispatchEvent(
-    new CustomEvent<GlobalAssetPopoverEventDetail>(BROWSER_ASSET_POPOVER_EVENT, { detail: { opened } }),
+    new CustomEvent<BrowserAssetPopoverEventDetail>(BROWSER_ASSET_POPOVER_EVENT, { detail: { opened } }),
   )
 }
 
@@ -77,34 +34,12 @@ export function dispatchBrowserAssetsImportToCanvas(assets: readonly BrowserAsse
   )
 }
 
-export function subscribeGlobalAssetPopoverOpen(
-  callback: (opened: boolean, detail: GlobalAssetPopoverEventDetail) => void,
-): () => void {
-  const listener = (event: Event): void => {
-    const detail = (event as CustomEvent<GlobalAssetPopoverEventDetail>).detail
-    callback(Boolean(detail?.opened), { opened: Boolean(detail?.opened), anchorRect: detail?.anchorRect ?? null })
-  }
-  window.addEventListener(GLOBAL_ASSET_POPOVER_EVENT, listener)
-  return () => window.removeEventListener(GLOBAL_ASSET_POPOVER_EVENT, listener)
-}
-
-export function subscribeContextualAssetPopoverOpen(
-  callback: (opened: boolean, detail: GlobalAssetPopoverEventDetail) => void,
-): () => void {
-  const listener = (event: Event): void => {
-    const detail = (event as CustomEvent<GlobalAssetPopoverEventDetail>).detail
-    callback(Boolean(detail?.opened), { opened: Boolean(detail?.opened), anchorRect: detail?.anchorRect ?? null })
-  }
-  window.addEventListener(CONTEXTUAL_ASSET_POPOVER_EVENT, listener)
-  return () => window.removeEventListener(CONTEXTUAL_ASSET_POPOVER_EVENT, listener)
-}
-
 export function subscribeBrowserAssetPopoverOpen(
-  callback: (opened: boolean, detail: GlobalAssetPopoverEventDetail) => void,
+  callback: (opened: boolean, detail: BrowserAssetPopoverEventDetail) => void,
 ): () => void {
   const listener = (event: Event): void => {
-    const detail = (event as CustomEvent<GlobalAssetPopoverEventDetail>).detail
-    callback(Boolean(detail?.opened), { opened: Boolean(detail?.opened), anchorRect: null })
+    const detail = (event as CustomEvent<BrowserAssetPopoverEventDetail>).detail
+    callback(Boolean(detail?.opened), { opened: Boolean(detail?.opened) })
   }
   window.addEventListener(BROWSER_ASSET_POPOVER_EVENT, listener)
   return () => window.removeEventListener(BROWSER_ASSET_POPOVER_EVENT, listener)

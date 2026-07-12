@@ -11,7 +11,7 @@
 import React from 'react'
 import { Portal } from '@mantine/core'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { IconFilter, IconPhoto, IconPlus, IconTrash, IconWorld, IconX } from '@tabler/icons-react'
+import { IconFilter, IconPhoto, IconPlus, IconTrash, IconX } from '@tabler/icons-react'
 import { cn } from '../../utils/cn'
 import { getDesktopBridge } from '../../desktop/bridge'
 import { useAssetPool } from './useAssetPool'
@@ -561,25 +561,9 @@ export function AssetLibraryContent({
           <div className={cn('flex items-center gap-2 px-4 pt-3.5 pb-3 border-b border-nomi-line')}>
             <b className={cn('text-title font-bold text-nomi-ink')}>素材库</b>
             <span className={cn('text-caption text-nomi-ink-40')}>· {sourceFilteredAssets.length}</span>
+            {/* 「网页捕捞」入口已删（方案一 2026-07-12）：顶栏「浏览器」是唯一上网门，
+                双门牌被用户体感为重复。 */}
             <span className={cn('flex-1')} />
-            <button
-              type="button"
-              className={cn(
-                'inline-flex h-7 items-center gap-1.5 rounded-full border border-nomi-line bg-nomi-paper px-3',
-                'cursor-pointer text-caption font-semibold text-nomi-ink transition-[background] duration-[var(--nomi-transition-fast)]',
-                'hover:bg-nomi-ink-05 disabled:cursor-not-allowed disabled:opacity-40',
-              )}
-              disabled={!projectId}
-              aria-label="网页捕捞"
-              title="打开浏览器找参考：悬停图片点「捕捞」或直接拖进来"
-              onClick={() => {
-                // 引擎收敛到应用内浏览器（方案A 2026-07-12），入口保留在素材库=找素材的门。
-                window.dispatchEvent(new CustomEvent('nomi-open-browser'))
-              }}
-            >
-              <IconWorld size={13} stroke={2} aria-hidden="true" />
-              网页捕捞
-            </button>
             {onClose ? (
               <button
                 type="button"
