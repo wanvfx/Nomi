@@ -63,6 +63,14 @@ try {
     await win.waitForTimeout(700)
   }
 
+  // — 重看引导按钮：点 ? → 5 步引导复现 → 跳过 —
+  await win.locator('[title="重看新手引导"]').first().click()
+  await win.waitForTimeout(700)
+  if ((await win.getByText('第 1 步', { exact: false }).count()) > 0) ok('重看引导可用（第 1 步复现）')
+  else fail('点重看引导没有复现引导')
+  await win.getByRole('button', { name: '跳过', exact: true }).first().click().catch(() => {})
+  await win.waitForTimeout(500)
+
   // — 默认态：出片主按钮在场；时间轴默认收起（否则盖住底部「添加」，2026-07-20 用户真机反馈）—
   const exportBtn = win.locator('[data-coach="export-button"]')
   if ((await exportBtn.count()) > 0) ok('顶栏「出片」主按钮在场')
@@ -120,6 +128,25 @@ try {
   if ((await win.getByText('进入操控', { exact: false }).count()) > 0) ok('整运镜>录take：一键进操控在场')
   else fail('整运镜>录take内容缺席')
   await shot('07c-hub-take.png')
+
+  // — 录 take 链路走到底：一键进操控 → 底部录制条(●REC)就位 → 退出 —
+  await win.getByRole('button', { name: /进入操控/ }).first().click()
+  await win.waitForTimeout(900)
+  const recBtn = await win.locator('[title^="录 take"]').count()
+  const exitPossess = await win.locator('[title^="退出操控"]').count()
+  if (recBtn > 0 && exitPossess > 0) ok('录take链路通：进操控后底部 ●REC 与退出在场')
+  else fail(`录take链路断（REC=${recBtn}, 退出=${exitPossess}）`)
+  await shot('07d-take-possess.png')
+  await win.locator('[title^="退出操控"]').first().click()
+  await win.waitForTimeout(600)
+
+  // — 假人侧接控条：选假人 → 右栏出「操控该角色」 —
+  await win.getByText('假人', { exact: true }).first().click()
+  await win.waitForTimeout(600)
+  if ((await win.locator('[title^="操控该角色"]').count()) > 0) ok('选假人后右栏接控条=操控该角色')
+  else fail('假人侧接控条缺席')
+  await win.getByText('相机1', { exact: true }).first().click()
+  await win.waitForTimeout(600)
   await win.getByRole('button', { name: '预设', exact: true }).first().click()
   await win.waitForTimeout(500)
   await shot('07-camera-selected.png')
@@ -133,6 +160,19 @@ try {
   if ((await playheadHandle.count()) > 0) ok('时间轴在第一段运镜诞生时自动出现')
   else fail('落预设后时间轴没自动打开')
   await shot('08-preset-applied-toast.png')
+
+  // — 手动轨迹路：整运镜>轨迹 → 新建 → 列表增行 —
+  await win.getByRole('button', { name: '轨迹', exact: true }).first().click()
+  await win.waitForTimeout(500)
+  const rowsBefore = await win.getByText('轨迹 ', { exact: false }).count()
+  await win.getByRole('button', { name: '新建', exact: true }).first().click().catch(() => fail('找不到「新建」轨迹按钮'))
+  await win.waitForTimeout(700)
+  const rowsAfter = await win.getByText('轨迹 ', { exact: false }).count()
+  if (rowsAfter > rowsBefore) ok(`手动轨迹可建（列表 ${rowsBefore}→${rowsAfter}）`)
+  else fail('新建轨迹后列表没增行')
+  await shot('08b-manual-trajectory.png')
+  await win.getByRole('button', { name: '预设', exact: true }).first().click().catch(() => {})
+  await win.waitForTimeout(400)
 
   // — 暂停态拖播放头：3D 视口要跟着更新（frameloop demand 回归检查）—
   const handleBox = await playheadHandle.first().boundingBox().catch(() => null)
@@ -156,6 +196,14 @@ try {
   if (readyText > 0) ok('出片面板：参考视频显示就绪态（轨迹/绑定计数）')
   else fail('出片面板就绪态缺席')
   await shot('10-export-panel.png')
+
+  // — 出片面板>截图路：视口截图 → toast 证图片节点已建 —
+  await win.getByRole('button', { name: '视口截图', exact: true }).first().click()
+  await win.waitForTimeout(900)
+  if ((await win.getByText('已创建图片节点', { exact: false }).count()) > 0) ok('出片面板>视口截图通（图片节点已建）')
+  else fail('视口截图后没见「已创建图片节点」toast')
+  await exportBtn.first().click()
+  await win.waitForTimeout(700)
 
   // — 出片：参考视频 → 产物卡片 + take 节点（frameCount 已裁剪）—
   await win.getByRole('button', { name: /参考视频/ }).first().click()
