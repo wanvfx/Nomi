@@ -331,8 +331,8 @@ export function TrajectoryTimeline({
           </div>
           <div className="mt-2 grid max-h-[calc(34vh-54px)] gap-1 overflow-auto pr-1">
             {rows.length === 0 ? (
-              <div className="grid h-12 place-items-center rounded-nomi-sm border border-dashed border-[var(--nomi-line-soft)] text-micro text-[var(--nomi-ink-40)]">
-                暂无轨迹
+              <div className="grid h-12 place-items-center rounded-nomi-sm border border-dashed border-[var(--nomi-line-soft)] px-2 text-center text-micro leading-relaxed text-[var(--nomi-ink-40)]">
+                还没运镜——选中相机点「运镜预设」，或在场景里画一条轨迹
               </div>
             ) : rows.map((row) => {
               if (row.type !== 'group') {
@@ -428,7 +428,7 @@ export function TrajectoryTimeline({
             className="relative mt-2 grid max-h-[calc(34vh-54px)] min-w-0 gap-1 overflow-auto pr-1"
           >
             {rows.length === 0 ? (
-              <div className="grid h-12 place-items-center text-micro text-[var(--nomi-ink-40)]">暂无绑定区间</div>
+              <div className="grid h-12 place-items-center text-micro text-[var(--nomi-ink-40)]">整运镜后这里能拖着预览效果</div>
             ) : rows.map((row) => row.type === 'group' ? (
               <div key={row.id} className="h-7 rounded-nomi-sm bg-[var(--nomi-paper)]/70" />
             ) : (

@@ -63,14 +63,28 @@ try {
     await win.waitForTimeout(700)
   }
 
-  // — 默认态：出片主按钮 + 时间轴默认显示 —
+  // — 默认态：出片主按钮在场；时间轴默认收起（否则盖住底部「添加」，2026-07-20 用户真机反馈）—
   const exportBtn = win.locator('[data-coach="export-button"]')
   if ((await exportBtn.count()) > 0) ok('顶栏「出片」主按钮在场')
   else fail('顶栏「出片」主按钮缺席')
   const playheadHandle = win.locator('[title="拖动播放头"]')
-  if ((await playheadHandle.count()) > 0) ok('时间轴默认显示（播放头在场）')
-  else fail('时间轴默认没显示')
+  if ((await playheadHandle.count()) === 0) ok('时间轴默认收起（不盖底部添加工具栏）')
+  else fail('时间轴默认展开——会盖住底部「添加」，旅程第 1 步被挡')
+  const addBtn = win.locator('[data-coach="add-button"]')
+  if ((await addBtn.first().isVisible().catch(() => false))) ok('底部「添加」工具栏进门可见')
+  else fail('底部「添加」进门不可见')
   await shot('06-editor-default.png')
+
+  // — 真走旅程第 1 步：添加 → 场景模板 → 城市街道（此步之前漏走，正是时间轴冲突漏网的原因）—
+  await addBtn.first().click()
+  await win.waitForTimeout(600)
+  await win.getByText('场景模板', { exact: true }).first().click().catch(() => fail('添加菜单里找不到「场景模板」'))
+  await win.waitForTimeout(600)
+  await shot('06b-add-menu.png')
+  await win.getByText('城市街道', { exact: true }).first().click().catch(() => fail('场景模板里找不到「城市街道」'))
+  await win.waitForTimeout(1000)
+  ok('已套用「城市街道」场景模板（旅程第 1 步可达）')
+  await shot('06c-scene-template.png')
 
   // — 选中相机 → 右侧运镜预设第一屏可见 —
   await win.getByText('相机1', { exact: true }).first().click()
@@ -80,12 +94,14 @@ try {
   else fail('选中相机后「运镜预设」不可见')
   await shot('07-camera-selected.png')
 
-  // — 应用预设 → 落轨迹 + 500ms 接力 toast —
+  // — 应用预设 → 落轨迹 + 时间轴此刻自动出现 + 500ms 接力 toast —
   await win.getByRole('button', { name: '推近', exact: true }).first().click()
   await win.waitForTimeout(1200)
   const relayToast = await win.getByText('运镜就绪', { exact: false }).count()
   if (relayToast > 0) ok('接力 toast「运镜就绪 → 出片」已出')
   else fail('接力 toast 没出')
+  if ((await playheadHandle.count()) > 0) ok('时间轴在第一段运镜诞生时自动出现')
+  else fail('落预设后时间轴没自动打开')
   await shot('08-preset-applied-toast.png')
 
   // — 暂停态拖播放头：3D 视口要跟着更新（frameloop demand 回归检查）—

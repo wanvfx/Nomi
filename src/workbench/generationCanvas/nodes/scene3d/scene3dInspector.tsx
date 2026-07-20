@@ -653,11 +653,19 @@ export function PropertyPanel({
           {/* CameraMovePanel 已移到上方（P2 运镜预设第一屏可见） */}
         </div>
       ) : (
-        <Scene3DEnvironmentPanel
-          environment={state.environment}
-          readOnly={readOnly}
-          onEnvironmentPatch={onEnvironmentPatch}
-        />
+        <>
+          {/* 未选中时右栏首屏是环境开关，对新手不是下一步——顶部给一条旅程指路（P1-7 空态） */}
+          {!readOnly ? (
+            <div className="rounded-nomi border border-dashed border-[var(--nomi-line-soft)] bg-[var(--nomi-ink-05)] p-3 text-caption leading-relaxed text-[var(--nomi-ink-60)]">
+              选中左侧假人/相机调姿势和运镜；底部「添加」摆场景。整完运镜点顶部「出片」出参考视频。
+            </div>
+          ) : null}
+          <Scene3DEnvironmentPanel
+            environment={state.environment}
+            readOnly={readOnly}
+            onEnvironmentPatch={onEnvironmentPatch}
+          />
+        </>
       )}
     </section>
   )
