@@ -21,7 +21,7 @@ import {
   IconWall,
   type Icon,
 } from '@tabler/icons-react'
-import { IconArrowsMove, IconRotate, IconWorld } from '@tabler/icons-react'
+import { IconArrowsMove, IconRotate, IconZoomScan } from '@tabler/icons-react'
 import { cn } from '../../../../utils/cn'
 import { type Scene3DGeometry, type Scene3DPropKind, type Scene3DTransformMode } from './scene3dTypes'
 import { CROWD_MAX_AXIS, type CrowdAddOptions } from './scene3dConstants'
@@ -577,46 +577,35 @@ export function SceneAddToolbar({
   )
 }
 
-/** 视口左上角变换工具（IA 重排二期：贴近操作对象，顶栏减负——docs/plan/2026-07-20-scene3d-ia-redesign.md §4） */
+/** 视口左上角工具（IA 重排：变换贴近操作对象 + 看全场一键回家；只读态只留看全场）。
+ * 速度滑杆已移入接控/录制条（只在真开 WASD 时出现）；XYZ 静态徽标已删（用户 2026-07-20：没用还挡地方）。 */
 export function Scene3DViewportToolPill({
+  readOnly,
   transformMode,
   onTransformModeChange,
+  onFitView,
 }: {
+  readOnly: boolean
   transformMode: Scene3DTransformMode
   onTransformModeChange: (mode: Scene3DTransformMode) => void
+  onFitView: () => void
 }): JSX.Element {
   return (
     <div className="pointer-events-auto absolute left-4 top-4 z-[3] flex items-center gap-1 rounded-nomi border border-[var(--nomi-line-soft)] bg-[var(--nomi-paper)] p-0.5 shadow-[var(--nomi-shadow-md)]">
-      <PanelButton title="移动（拖拽把手挪位置）" active={transformMode === 'translate'} onClick={() => onTransformModeChange('translate')}>
-        <IconArrowsMove size={15} />
-      </PanelButton>
-      <PanelButton title="旋转（拖拽圆环转朝向）" active={transformMode === 'rotate'} onClick={() => onTransformModeChange('rotate')}>
-        <IconRotate size={15} />
+      {!readOnly ? (
+        <>
+          <PanelButton title="移动（拖拽把手挪位置）" active={transformMode === 'translate'} onClick={() => onTransformModeChange('translate')}>
+            <IconArrowsMove size={15} />
+          </PanelButton>
+          <PanelButton title="旋转（拖拽圆环转朝向）" active={transformMode === 'rotate'} onClick={() => onTransformModeChange('rotate')}>
+            <IconRotate size={15} />
+          </PanelButton>
+          <span className="h-5 w-px shrink-0 bg-[var(--workbench-border)]" />
+        </>
+      ) : null}
+      <PanelButton title="看全场（迷路一键回家：把假人和相机都框回画面）" onClick={onFitView}>
+        <IconZoomScan size={15} />
       </PanelButton>
     </div>
-  )
-}
-
-/** 视口左下角飞行速度（IA 重排二期：速度只在 WASD 飞行时有意义，从顶栏归位视口） */
-export function Scene3DViewportSpeedPill({
-  flySpeed,
-  onFlySpeedChange,
-}: {
-  flySpeed: number
-  onFlySpeedChange: (speed: number) => void
-}): JSX.Element {
-  return (
-    <label className="pointer-events-auto absolute bottom-4 left-28 z-[3] inline-flex h-8 items-center gap-2 rounded-nomi border border-[var(--nomi-line-soft)] bg-[var(--nomi-paper)] px-2 text-caption text-[var(--workbench-muted)] shadow-[var(--nomi-shadow-md)]" title="WASD 飞行速度">
-      <IconWorld size={14} />
-      <input
-        className="h-1.5 w-20 accent-[var(--nomi-ink)]"
-        max={16}
-        min={1}
-        step={0.5}
-        type="range"
-        value={flySpeed}
-        onChange={(event) => onFlySpeedChange(Number(event.currentTarget.value))}
-      />
-    </label>
   )
 }

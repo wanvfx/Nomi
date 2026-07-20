@@ -19,7 +19,8 @@ import {
   type Scene3DTransformMode,
 } from './scene3dTypes'
 import { FULLSCREEN_Z_INDEX } from './scene3dConstants'
-import { CanvasPanelRestoreButton, Scene3DViewportSpeedPill, Scene3DViewportToolPill } from './scene3dToolbar'
+import { CanvasPanelRestoreButton, Scene3DViewportToolPill } from './scene3dToolbar'
+import { SCENE_FIT_FOCUS_ID } from './scene3dFitView'
 import {
   levelEditorCameraRotation,
   applyEditorCameraPose,
@@ -96,6 +97,7 @@ export default function Scene3DFullscreen({
   const [rightPanelOpen, setRightPanelOpen] = React.useState(true)
   const canvasFocusMode = !leftPanelOpen || !rightPanelOpen
   const [focusId, setFocusId] = React.useState('')
+  const fitNonceRef = React.useRef(0)
   const [cameraViewEditId, setCameraViewEditId] = React.useState<string | null>(null)
   const captureApiRef = React.useRef<CaptureApi | null>(null)
   const initialEditorCameraRef = React.useRef<Scene3DState['editorCamera']>({
@@ -185,6 +187,8 @@ export default function Scene3DFullscreen({
     }
   }, [])
 
+  // 点对象=退出轨迹模式+选中（exitTrajectoryMode 一直在这，此前被 SceneContent 的
+  // interactionDisabled 拦住点击进不来——模式陷阱的真根因，2026-07-20 用户反馈）
   const selectSceneItem = React.useCallback((nextSelection: Scene3DSelection) => {
     exitTrajectoryMode()
     setSelection(nextSelection)
@@ -692,17 +696,15 @@ export default function Scene3DFullscreen({
           {cameraViewEditCamera && !characterDrive.cameraPossessId ? (
             <Scene3DCameraViewBanner cameraName={cameraViewEditCamera.name} onExit={exitCameraViewEdit} />
           ) : null}
-          {!readOnly ? (
-            <Scene3DViewportToolPill transformMode={transformMode} onTransformModeChange={setTransformMode} />
-          ) : null}
-          <Scene3DViewportSpeedPill flySpeed={flySpeed} onFlySpeedChange={setFlySpeed} />
-          <div className="pointer-events-none absolute bottom-4 left-4 grid size-20 place-items-center rounded-nomi border border-[var(--nomi-line-soft)] bg-[var(--nomi-paper)] text-micro text-[var(--nomi-ink-60)] shadow-[var(--nomi-shadow-md)]">
-            <div className="grid gap-1">
-              <span className="text-[var(--nomi-axis-x)]">X</span>
-              <span className="text-[var(--nomi-axis-y)]">Y</span>
-              <span className="text-[var(--nomi-axis-z)]">Z</span>
-            </div>
-          </div>
+          <Scene3DViewportToolPill
+            readOnly={readOnly}
+            transformMode={transformMode}
+            onTransformModeChange={setTransformMode}
+            onFitView={() => {
+              fitNonceRef.current += 1
+              setFocusId(`${SCENE_FIT_FOCUS_ID}:${fitNonceRef.current}`)
+            }}
+          />
           <Scene3DBottomBar
             readOnly={readOnly}
             possessedObject={characterDrive.possessedObject}
@@ -717,6 +719,7 @@ export default function Scene3DFullscreen({
             onApplyPreset={handleApplyActionPreset}
             onExitPossess={characterDrive.exitPossess}
             onExitCameraPossess={characterDrive.exitCameraPossess}
+            speed={{ value: flySpeed, onChange: setFlySpeed }}
             onAddObject={addObject}
             onAddProp={addProp}
             onAddCrowd={addCrowd}

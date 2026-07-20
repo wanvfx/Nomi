@@ -91,8 +91,10 @@ try {
   else fail('还有「进入轨迹模式」残留入口')
   if ((await win.locator('[title^="移动"]').count()) > 0) ok('变换工具已落视口左上悬浮 pill')
   else fail('视口变换 pill 缺席')
-  if ((await win.locator('[title="WASD 飞行速度"]').count()) > 0) ok('速度滑杆已归位视口左下')
-  else fail('速度滑杆缺席')
+  if ((await win.locator('[title^="看全场"]').count()) > 0) ok('「看全场」一键回家在场')
+  else fail('看全场按钮缺席')
+  if ((await win.locator('[title="WASD 飞行速度"], [title="WASD 移动速度"]').count()) === 0) ok('视口不再常驻速度滑杆（只在接控条出现）')
+  else fail('视口还残留速度滑杆')
   const hubPresent = await win.getByText('整运镜', { exact: true }).count()
   if (hubPresent > 0) ok('右栏常驻「整运镜」分区在场')
   else fail('整运镜分区缺席')
@@ -109,9 +111,62 @@ try {
   ok('已套用「城市街道」场景模板（旅程第 1 步可达）')
   await shot('06c-scene-template.png')
 
+  // — 用户路 A：选假人 → 头顶「操控」→ 真按 W 走位 → 速度就在录制条 → 退出 —
+  await win.getByText('假人', { exact: true }).first().click()
+  await win.waitForTimeout(700)
+  const headPrompt = win.locator('[title="操控该角色（WASD 走位 + 动作库 + 录 take）"]')
+  if ((await headPrompt.count()) > 0) ok('选假人后头顶「操控」浮层在场')
+  else fail('头顶操控浮层缺席')
+  await headPrompt.first().click()
+  await win.waitForTimeout(900)
+  if ((await win.locator('[title="退出操控"]').count()) > 0) ok('已进入角色操控（动作库条就位）')
+  else fail('点头顶操控没进入操控态')
+  if ((await win.locator('[title="WASD 移动速度"]').count()) > 0) ok('速度滑杆随录制条出现')
+  else fail('录制条里没有速度滑杆')
+  await shot('06d-possess-before-walk.png')
+  await win.keyboard.down('w')
+  await win.waitForTimeout(800)
+  await win.keyboard.up('w')
+  await win.waitForTimeout(400)
+  await shot('06e-possess-after-walk.png')
+  ok('已真按 W 驱动 0.8s（位移看 06d/06e 对比）')
+  await win.locator('[title="退出操控"]').first().click()
+  await win.waitForTimeout(600)
+
+  // — 用户路 B：轨迹编辑态点对象不再是死区（模式陷阱回归钉）—
+  // 选中信号用右栏「名称」输入（任何对象选中都出现）；点画布 0.6 高必中大件 prop（马路），
+  // 不追求点中假人（gizmo 区乱扫会把 TransformControls 输入状态机卡死——上轮连环挂的真凶）
+  const vp = (await Promise.all((await win.locator('canvas').all()).map((c) => c.boundingBox().catch(() => null))))
+    .filter(Boolean).sort((a, b) => b.width * b.height - a.width * a.height)[0] ?? null
+  await win.getByText('假人', { exact: true }).first().click()
+  await win.waitForTimeout(500)
+  await win.getByRole('button', { name: '轨迹', exact: true }).first().click({ timeout: 5000 }).catch(() => fail('整运镜>轨迹 tab 点不到'))
+  await win.waitForTimeout(400)
+  await win.getByText('进入视口编辑', { exact: false }).first().click({ timeout: 5000 }).catch(() => fail('进入视口编辑按钮点不到'))
+  await win.waitForTimeout(700)
+  if ((await win.getByText('名称', { exact: true }).count()) === 0) ok('已进入轨迹编辑态（选中被清，右栏无「名称」）')
+  else fail('进入视口编辑没清选中')
+  if (vp) {
+    await win.mouse.click(vp.x + vp.width / 2, vp.y + vp.height * 0.6)
+    await win.waitForTimeout(700)
+    if ((await win.getByText('名称', { exact: true }).count()) > 0) ok('轨迹态点对象=退出模式+选中（陷阱已拆，右栏出属性）')
+    else fail('轨迹编辑态点对象仍是死区（点后无选中）')
+  } else {
+    fail('拿不到视口 boundingBox')
+  }
+  await win.waitForTimeout(300)
+
+  // — 看全场：一键回家不炸 —
+  await win.locator('[title^="看全场"]').first().click({ timeout: 5000 }).catch(() => fail('看全场点不到'))
+  await win.waitForTimeout(600)
+  await shot('06f-fit-view.png')
+  ok('看全场已执行（框住假人+相机，见 06f）')
+
   // — 选中相机 → 整运镜>预设 可用 + 右栏接控条出现 —
   await win.getByText('相机1', { exact: true }).first().click()
   await win.waitForTimeout(900)
+  await win.getByRole('button', { name: '预设', exact: true }).first().click().catch(() => {})
+  await win.waitForTimeout(400)
   const presetVisible = await win.getByText('运镜预设', { exact: true }).first().isVisible().catch(() => false)
   if (presetVisible) ok('选中相机后「运镜预设」在整运镜区可见')
   else fail('选中相机后「运镜预设」不可见')
@@ -273,6 +328,48 @@ try {
   if (takeOnCanvas?.hasVideo && videoEl > 0) ok('关编辑器后 take 节点在画布且视频卡可播（fit 已框住）')
   else fail(`关编辑器后 take 节点状态异常（store=${JSON.stringify(takeOnCanvas)}, videoEl=${videoEl}）`)
   await shot('13-canvas-after.png')
+
+  // — 用户路 C：3D 截图节点在画布上能拖动 —
+  const shotBefore = await win.evaluate(() => {
+    const store = window.__nomiCanvasStore
+    const node = store?.getState().nodes.find((n) => n.kind === 'image' && n.prompt === '3D 场景截图')
+    return node ? { id: node.id, x: node.position.x, y: node.position.y } : null
+  }).catch(() => null)
+  if (!shotBefore) {
+    fail('画布上找不到 3D 截图节点（前面截图路生成的）')
+  } else {
+    const imgBox = await win.locator('img').first().boundingBox().catch(() => null)
+    if (imgBox) {
+      const readPos = async () => win.evaluate((id) => {
+        const store = window.__nomiCanvasStore
+        const node = store?.getState().nodes.find((n) => n.id === id)
+        return node ? { x: node.position.x, y: node.position.y } : null
+      }, shotBefore.id).catch(() => null)
+      // 图区拖 = 送时间轴手势（data-timeline-draggable），预期不移动节点——先证实这层语义
+      await win.mouse.move(imgBox.x + imgBox.width / 2, imgBox.y + imgBox.height / 2)
+      await win.mouse.down()
+      await win.mouse.move(imgBox.x + imgBox.width / 2 + 90, imgBox.y + imgBox.height / 2 + 60, { steps: 10 })
+      await win.mouse.up()
+      await win.waitForTimeout(500)
+      const afterImgDrag = await readPos()
+      // 抓节点外壳内的非图区（预览图在最上，标题条在图下方——用外壳 box 底部内侧 12px）
+      const nodeBox = await win.locator(`[data-node-id="${shotBefore.id}"]`).boundingBox().catch(() => null)
+      if (nodeBox) {
+        await win.mouse.move(nodeBox.x + nodeBox.width / 2, nodeBox.y + nodeBox.height - 12)
+        await win.mouse.down()
+        await win.mouse.move(nodeBox.x + nodeBox.width / 2 + 90, nodeBox.y + nodeBox.height - 12 + 60, { steps: 10 })
+        await win.mouse.up()
+        await win.waitForTimeout(600)
+      }
+      const afterFrameDrag = await readPos()
+      const moved = afterFrameDrag && (Math.abs(afterFrameDrag.x - shotBefore.x) > 20 || Math.abs(afterFrameDrag.y - shotBefore.y) > 20)
+      if (moved) ok(`截图节点抓标题/边框可拖动（(${Math.round(shotBefore.x)},${Math.round(shotBefore.y)})→(${Math.round(afterFrameDrag.x)},${Math.round(afterFrameDrag.y)})）；图区拖=送时间轴手势（位置不动=${JSON.stringify(afterImgDrag)}，与用户「拖不动」感知冲突→已记 UX 债）`)
+      else fail(`截图节点连标题区都拖不动（img拖后=${JSON.stringify(afterImgDrag)}，框拖后=${JSON.stringify(afterFrameDrag)}）`)
+      await shot('14-screenshot-drag.png')
+    } else {
+      fail('找不到截图节点的 img 元素')
+    }
+  }
 
   console.log(failures === 0 ? '\n✅ 出片旅程走查全过' : `\n❌ 走查有 ${failures} 项失败`)
   process.exitCode = failures === 0 ? 0 : 1
