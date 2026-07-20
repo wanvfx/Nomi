@@ -1,31 +1,11 @@
-// 3D 导演台顶部工具栏（从 Scene3DFullscreen.tsx 抽出，防巨壳 R9，JSX 逐字迁移）。
-// 左：节点标题；右操作簇：变换（移动/旋转）→ 截图 → 轨迹+播放预览 → 操控 → 飞行速度
-// → 出片主按钮（P0-1，旅程终点显式化）→ 重看引导（P1）→ 关闭。
+// 3D 导演台顶部工具栏（IA 重排后 = 身份与出口：标题 ｜ 出片 · 重看引导 · 关闭）。
+// 10→4 的去处（docs/plan/2026-07-20-scene3d-ia-redesign.md §4）：截图/播放/轨迹 toggle=重复入口删；
+// 移动/旋转→视口左上悬浮 pill；速度→视口左下；接控→右栏随选中出现。
 import React from 'react'
-import {
-  IconArrowsMove, IconCube, IconHelp, IconPhoto, IconPlayerPause, IconPlayerPlay,
-  IconRoute, IconRotate, IconUpload, IconWorld, IconX,
-} from '@tabler/icons-react'
-import { toast } from '../../../../ui/toast'
-import { PanelButton } from './scene3dToolbar'
-import { CharacterPossessButton } from './scene3dCharacterActionBar'
-import type { Scene3DTransformMode } from './scene3dTypes'
+import { IconCube, IconHelp, IconUpload, IconX } from '@tabler/icons-react'
 
 type Scene3DFullscreenHeaderProps = {
   nodeTitle: string
-  readOnly: boolean
-  transformMode: Scene3DTransformMode
-  onTransformModeChange: (mode: Scene3DTransformMode) => void
-  onCaptureViewport: () => void
-  trajectoryMode: boolean
-  onToggleTrajectoryMode: () => void
-  /** 运镜就绪（isCameraMoveReady）：未就绪时播放按钮只提示不播放 */
-  moveReady: boolean
-  isPlaying: boolean
-  onRequestPlayChange: (playing: boolean) => void
-  characterDrive: React.ComponentProps<typeof CharacterPossessButton>['drive']
-  flySpeed: number
-  onFlySpeedChange: (speed: number) => void
   onOpenExportPanel: () => void
   onReplayCoach: () => void
   onClose: () => void
@@ -33,18 +13,6 @@ type Scene3DFullscreenHeaderProps = {
 
 export function Scene3DFullscreenHeader({
   nodeTitle,
-  readOnly,
-  transformMode,
-  onTransformModeChange,
-  onCaptureViewport,
-  trajectoryMode,
-  onToggleTrajectoryMode,
-  moveReady,
-  isPlaying,
-  onRequestPlayChange,
-  characterDrive,
-  flySpeed,
-  onFlySpeedChange,
   onOpenExportPanel,
   onReplayCoach,
   onClose,
@@ -55,60 +23,7 @@ export function Scene3DFullscreenHeader({
         <IconCube size={18} className="shrink-0 text-[var(--workbench-muted)]" />
         <div className="min-w-0 truncate text-body-sm font-medium text-[var(--workbench-ink)]">{nodeTitle}</div>
       </div>
-      <div className="ml-auto flex min-w-0 max-w-[72vw] items-center gap-2 overflow-x-auto">
-        <div className="flex items-center gap-1 rounded-nomi border border-[var(--nomi-line-soft)] bg-[var(--nomi-paper)] p-0.5">
-          <PanelButton title="移动" active={transformMode === 'translate'} onClick={() => onTransformModeChange('translate')}>
-            <IconArrowsMove size={15} />
-          </PanelButton>
-          <PanelButton title="旋转" active={transformMode === 'rotate'} onClick={() => onTransformModeChange('rotate')}>
-            <IconRotate size={15} />
-          </PanelButton>
-        </div>
-        <div className="flex items-center gap-1 rounded-nomi border border-[var(--nomi-line-soft)] bg-[var(--nomi-paper)] p-0.5">
-          <PanelButton title="当前视口截图" onClick={onCaptureViewport}>
-            <IconPhoto size={15} />
-            <span>截图</span>
-          </PanelButton>
-        </div>
-        <div className="flex items-center gap-1 rounded-nomi border border-[var(--nomi-line-soft)] bg-[var(--nomi-paper)] p-0.5">
-          <PanelButton title={trajectoryMode ? '退出轨迹模式' : '进入轨迹模式'} active={trajectoryMode} onClick={onToggleTrajectoryMode}>
-            <IconRoute size={15} />
-            <span>轨迹</span>
-          </PanelButton>
-          <PanelButton
-            title={
-              !moveReady
-                ? '整运镜后才能播放预览'
-                : isPlaying
-                  ? '暂停轨迹播放'
-                  : '播放轨迹预览'
-            }
-            active={isPlaying}
-            onClick={() => {
-              if (!moveReady) {
-                toast('先整运镜（轨迹 + 绑定）才能播放预览', 'warning')
-                return
-              }
-              onRequestPlayChange(!isPlaying)
-            }}
-          >
-            {isPlaying ? <IconPlayerPause size={15} /> : <IconPlayerPlay size={15} />}
-          </PanelButton>
-        </div>
-        {!readOnly ? <CharacterPossessButton drive={characterDrive} /> : null}
-        <label className="inline-flex h-8 shrink-0 items-center gap-2 rounded-nomi border border-[var(--nomi-line-soft)] bg-[var(--nomi-paper)] px-2 text-caption text-[var(--workbench-muted)]">
-          <IconWorld size={14} />
-          <span>速度</span>
-          <input
-            className="h-1.5 w-24 accent-[var(--nomi-ink)]"
-            max={16}
-            min={1}
-            step={0.5}
-            type="range"
-            value={flySpeed}
-            onChange={(event) => onFlySpeedChange(Number(event.currentTarget.value))}
-          />
-        </label>
+      <div className="ml-auto flex min-w-0 items-center gap-2">
         {/* 出片主按钮（P0-1）：顶部工具栏最右，显眼的主色调 */}
         <button
           type="button"

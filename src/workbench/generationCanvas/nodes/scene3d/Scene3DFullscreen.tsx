@@ -19,7 +19,7 @@ import {
   type Scene3DTransformMode,
 } from './scene3dTypes'
 import { FULLSCREEN_Z_INDEX } from './scene3dConstants'
-import { CanvasPanelRestoreButton } from './scene3dToolbar'
+import { CanvasPanelRestoreButton, Scene3DViewportSpeedPill, Scene3DViewportToolPill } from './scene3dToolbar'
 import {
   levelEditorCameraRotation,
   applyEditorCameraPose,
@@ -29,7 +29,7 @@ import { SceneObjectList } from './scene3dInspector'
 import { TrajectoryListPanel } from './scene3dTrajectoryListPanel'
 import { SceneContent } from './scene3dSceneContent'
 import { attachWebGLContextRecovery } from './scene3dContextRecovery'
-import { Scene3DBottomBar } from './scene3dCharacterActionBar'
+import { CharacterPossessButton, Scene3DBottomBar } from './scene3dCharacterActionBar'
 import { useScene3DCharacterDrive } from './useScene3DCharacterDrive'
 import { useScene3DCameraViewEdit } from './useScene3DCameraViewEdit'
 import { useScene3DTakeRecorder } from './useScene3DTakeRecorder'
@@ -44,10 +44,10 @@ import {
   Scene3DCameraViewBanner,
   Scene3DRightPanelBody,
   Scene3DTrajectoryTimelineBar,
-  type Scene3DRightPanelTab,
 } from './scene3dTrajectorySurfaces'
+import type { Scene3DMoveHubTab } from './scene3dMoveHub'
 import { removeTrajectoryBindingsForNode } from './scene3dTrajectoryState'
-import { cameraWithPlaybackPosition, isCameraMoveReady } from './scene3dPlayback'
+import { cameraWithPlaybackPosition } from './scene3dPlayback'
 import type { Scene3DReferenceTargetSummary } from './scene3dReferenceDirector'
 import {
   useScene3DClipboardActions,
@@ -120,12 +120,13 @@ export default function Scene3DFullscreen({
   const cameraViewEditCamera = cameraViewEditId
     ? state.cameras.find((camera) => camera.id === cameraViewEditId)
     : undefined
-  const [rightPanelTab, setRightPanelTab] = React.useState<Scene3DRightPanelTab>('properties')
+  // 整运镜分区（IA 重排一期）：预设/轨迹/录 take 三 tab，替代原右栏顶层「属性/轨迹」两 tab
+  const [moveHubTab, setMoveHubTab] = React.useState<Scene3DMoveHubTab>('preset')
   const trajectory = useScene3DTrajectoryEditing({ state, setState, readOnly })
   const trajectoryMode = trajectory.trajectoryEditMode
   const enterTrajectoryPanel = React.useCallback(() => {
     setRightPanelOpen(true)
-    setRightPanelTab('trajectory')
+    setMoveHubTab('trajectory')
   }, [])
   const enterTrajectoryMode = React.useCallback((showTimeline = true) => {
     trajectory.setTrajectoryEditMode(true)
@@ -139,13 +140,6 @@ export default function Scene3DFullscreen({
     trajectory.setTrajectoryEditMode(false)
     trajectory.setIsPlaying(false)
   }, [trajectory])
-  const toggleTrajectoryMode = React.useCallback(() => {
-    if (trajectory.trajectoryEditMode) {
-      exitTrajectoryMode()
-      return
-    }
-    enterTrajectoryMode()
-  }, [enterTrajectoryMode, exitTrajectoryMode, trajectory.trajectoryEditMode])
 
   React.useEffect(() => {
     stateRef.current = state
@@ -537,18 +531,6 @@ export default function Scene3DFullscreen({
       <Scene3DWindowBar />
       <Scene3DFullscreenHeader
         nodeTitle={nodeTitle}
-        readOnly={readOnly}
-        transformMode={transformMode}
-        onTransformModeChange={setTransformMode}
-        onCaptureViewport={captureViewport}
-        trajectoryMode={trajectoryMode}
-        onToggleTrajectoryMode={toggleTrajectoryMode}
-        moveReady={isCameraMoveReady(state)}
-        isPlaying={trajectory.isPlaying}
-        onRequestPlayChange={requestTrajectoryPlayChange}
-        characterDrive={characterDrive}
-        flySpeed={flySpeed}
-        onFlySpeedChange={setFlySpeed}
         onOpenExportPanel={() => setExportPanelOpen(true)}
         onReplayCoach={() => {
           resetScene3DCoachSeen()
@@ -710,6 +692,10 @@ export default function Scene3DFullscreen({
           {cameraViewEditCamera && !characterDrive.cameraPossessId ? (
             <Scene3DCameraViewBanner cameraName={cameraViewEditCamera.name} onExit={exitCameraViewEdit} />
           ) : null}
+          {!readOnly ? (
+            <Scene3DViewportToolPill transformMode={transformMode} onTransformModeChange={setTransformMode} />
+          ) : null}
+          <Scene3DViewportSpeedPill flySpeed={flySpeed} onFlySpeedChange={setFlySpeed} />
           <div className="pointer-events-none absolute bottom-4 left-4 grid size-20 place-items-center rounded-nomi border border-[var(--nomi-line-soft)] bg-[var(--nomi-paper)] text-micro text-[var(--nomi-ink-60)] shadow-[var(--nomi-shadow-md)]">
             <div className="grid gap-1">
               <span className="text-[var(--nomi-axis-x)]">X</span>
@@ -736,12 +722,10 @@ export default function Scene3DFullscreen({
             onAddCrowd={addCrowd}
             onAddCamera={addCamera}
             onApplySceneTemplate={applySceneTemplate}
-            trajectoryMode={trajectoryMode}
-            onToggleTrajectoryMode={toggleTrajectoryMode}
             canvasFocusMode={canvasFocusMode}
             onToggleCanvasFocusMode={toggleCanvasFocusMode}
           />
-          <Scene3DTrajectoryTimelineBar trajectory={trajectory} readOnly={readOnly} />
+          <Scene3DTrajectoryTimelineBar trajectory={trajectory} readOnly={readOnly} onRequestPlayChange={requestTrajectoryPlayChange} />
         </div>
 
         <AnimatePresence initial={false}>
@@ -755,13 +739,18 @@ export default function Scene3DFullscreen({
               style={{ transformOrigin: 'top right' }}
               transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
             >
+              {!readOnly && (characterDrive.possessedObject || characterDrive.possessedCamera || selection?.type === 'camera' || (selection?.type === 'object' && state.objects.find((object) => object.id === selection.id)?.type === 'mannequin')) ? (
+                <div className="flex shrink-0 items-center border-b border-[var(--workbench-border)] px-3 py-2">
+                  <CharacterPossessButton drive={characterDrive} />
+                </div>
+              ) : null}
               <Scene3DRightPanelBody
                 state={state}
                 trajectory={trajectory}
                 selection={selection}
                 readOnly={readOnly}
-                tab={rightPanelTab}
-                onTabChange={setRightPanelTab}
+                hubTab={moveHubTab}
+                onHubTabChange={setMoveHubTab}
                 onObjectPatch={patchObject}
                 onCameraPatch={patchCamera}
                 onEnvironmentPatch={(patch) => setState((current) => ({
@@ -771,6 +760,14 @@ export default function Scene3DFullscreen({
                 onApplyCameraMove={applyCameraMove}
                 onExportCameraMoveFrames={(cameraId) => { void exportCameraMoveFrames(cameraId) }}
                 referenceTarget={referenceTarget}
+                onPickCamera={(cameraId) => setSelection({ type: 'camera', id: cameraId })}
+                onEnterTrajectoryMode={enterTrajectoryMode}
+                canRecordTake={Boolean(onRecordTake) && !readOnly}
+                onPossessTarget={(target) => {
+                  setSelection(target.kind === 'camera' ? { type: 'camera', id: target.id } : { type: 'object', id: target.id })
+                  if (target.kind === 'camera') characterDrive.enterCameraPossess(target.id)
+                  else characterDrive.enterPossess(target.id)
+                }}
               />
             </motion.aside>
           ) : null}

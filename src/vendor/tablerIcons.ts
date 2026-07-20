@@ -135,6 +135,7 @@ export { default as IconPin } from '@tabler/icons-react/dist/esm/icons/IconPin.m
 export { default as IconPinFilled } from '@tabler/icons-react/dist/esm/icons/IconPinFilled.mjs'
 export { default as IconPlane } from '@tabler/icons-react/dist/esm/icons/IconPlane.mjs'
 export { default as IconPlayerPause } from '@tabler/icons-react/dist/esm/icons/IconPlayerPause.mjs'
+export { default as IconPlayerRecord } from '@tabler/icons-react/dist/esm/icons/IconPlayerRecord.mjs'
 export { default as IconPlayerPlay } from '@tabler/icons-react/dist/esm/icons/IconPlayerPlay.mjs'
 export { default as IconPlayerPlayFilled } from '@tabler/icons-react/dist/esm/icons/IconPlayerPlayFilled.mjs'
 export { default as IconPlayerSkipBack } from '@tabler/icons-react/dist/esm/icons/IconPlayerSkipBack.mjs'

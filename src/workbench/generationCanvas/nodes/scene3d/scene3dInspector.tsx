@@ -46,9 +46,6 @@ import {
   numberInputValue,
 } from './scene3dMath'
 import { Scene3DEnvironmentPanel } from './scene3dEnvironmentPanel'
-import { CameraMovePanel } from './scene3dCameraMovePanel'
-import type { CameraMovePresetSpec } from './cameraMovePreset'
-import type { Scene3DReferenceTargetSummary } from './scene3dReferenceDirector'
 
 function VectorInputs({
   label,
@@ -446,9 +443,6 @@ export function PropertyPanel({
   onObjectPatch,
   onCameraPatch,
   onEnvironmentPatch,
-  onApplyCameraMove,
-  onExportCameraMoveFrames,
-  referenceTarget,
 }: {
   state: Scene3DState
   selection: Scene3DSelection
@@ -456,9 +450,6 @@ export function PropertyPanel({
   onObjectPatch: (id: string, patch: Partial<Scene3DObject>) => void
   onCameraPatch: (id: string, patch: Partial<Scene3DCamera>) => void
   onEnvironmentPatch: (patch: Partial<Scene3DState['environment']>) => void
-  onApplyCameraMove: (cameraId: string, spec: CameraMovePresetSpec) => void
-  onExportCameraMoveFrames: (cameraId: string) => void
-  referenceTarget?: Scene3DReferenceTargetSummary
 }): JSX.Element {
   const selectedObject = selection?.type === 'object'
     ? state.objects.find((object) => object.id === selection.id)
@@ -599,15 +590,7 @@ export function PropertyPanel({
               onChange={(event) => onCameraPatch(selectedCamera.id, { name: event.currentTarget.value })}
             />
           </label>
-          {/* P2：运镜预设提到相机属性最顶（原来是最底部，用户找不到） */}
-          <div data-coach="camera-move-panel">
-            <CameraMovePanel
-              readOnly={readOnly}
-              onApply={(spec) => onApplyCameraMove(selectedCamera.id, spec)}
-              onExportFrames={() => onExportCameraMoveFrames(selectedCamera.id)}
-              referenceTarget={referenceTarget}
-            />
-          </div>
+          {/* 运镜预设已迁入右栏下方常驻「整运镜」区（scene3dMoveHub，IA 重排一期） */}
           <VectorInputs
             label="相机位置 XYZ"
             value={selectedCamera.position}
@@ -650,7 +633,6 @@ export function PropertyPanel({
               </label>
             ))}
           </div>
-          {/* CameraMovePanel 已移到上方（P2 运镜预设第一屏可见） */}
         </div>
       ) : (
         <>

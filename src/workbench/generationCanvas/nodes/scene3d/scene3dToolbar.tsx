@@ -15,15 +15,15 @@ import {
   IconPackage,
   IconPlane,
   IconPlus,
-  IconRoute,
   IconSphere,
   IconTrees,
   IconUser,
   IconWall,
   type Icon,
 } from '@tabler/icons-react'
+import { IconArrowsMove, IconRotate, IconWorld } from '@tabler/icons-react'
 import { cn } from '../../../../utils/cn'
-import { type Scene3DGeometry, type Scene3DPropKind } from './scene3dTypes'
+import { type Scene3DGeometry, type Scene3DPropKind, type Scene3DTransformMode } from './scene3dTypes'
 import { CROWD_MAX_AXIS, type CrowdAddOptions } from './scene3dConstants'
 import { PROP_KINDS, propKindLabel } from './scene3dPropSpecs'
 import { SCENE_TEMPLATES, SCENE_TEMPLATE_LABEL, type Scene3DSceneTemplate } from './scene3dSceneTemplates'
@@ -127,8 +127,6 @@ export function SceneAddToolbar({
   onAddCrowd,
   onAddCamera,
   onApplySceneTemplate,
-  trajectoryMode,
-  onToggleTrajectoryMode,
   canvasFocusMode,
   onToggleCanvasFocusMode,
 }: {
@@ -137,8 +135,6 @@ export function SceneAddToolbar({
   onAddCrowd: (options: CrowdAddOptions) => void
   onAddCamera: () => void
   onApplySceneTemplate: (template: Scene3DSceneTemplate) => void
-  trajectoryMode: boolean
-  onToggleTrajectoryMode: () => void
   canvasFocusMode: boolean
   onToggleCanvasFocusMode: () => void
 }): JSX.Element {
@@ -564,17 +560,7 @@ export function SceneAddToolbar({
           <IconChevronUp size={13} className={cn('transition', addMenuOpen && 'rotate-180')} />
         </button>
         <span className="h-5 w-px shrink-0 bg-[var(--workbench-border)]" />
-        <SceneAddButton
-          active={trajectoryMode}
-          title={trajectoryMode ? '退出轨迹模式' : '进入轨迹模式'}
-          onClick={() => {
-            closeAddMenu()
-            onToggleTrajectoryMode()
-          }}
-        >
-          <IconRoute size={15} />
-          <span>轨迹</span>
-        </SceneAddButton>
+        {/* 底部「轨迹」钮已删：入口收进右栏整运镜>轨迹（IA 重排一期，同一功能一个家 P1） */}
         <SceneAddButton
           active={canvasFocusMode}
           title={canvasFocusMode ? '退出全屏画布' : '全屏画布'}
@@ -588,5 +574,49 @@ export function SceneAddToolbar({
         </SceneAddButton>
       </div>
     </div>
+  )
+}
+
+/** 视口左上角变换工具（IA 重排二期：贴近操作对象，顶栏减负——docs/plan/2026-07-20-scene3d-ia-redesign.md §4） */
+export function Scene3DViewportToolPill({
+  transformMode,
+  onTransformModeChange,
+}: {
+  transformMode: Scene3DTransformMode
+  onTransformModeChange: (mode: Scene3DTransformMode) => void
+}): JSX.Element {
+  return (
+    <div className="pointer-events-auto absolute left-4 top-4 z-[3] flex items-center gap-1 rounded-nomi border border-[var(--nomi-line-soft)] bg-[var(--nomi-paper)] p-0.5 shadow-[var(--nomi-shadow-md)]">
+      <PanelButton title="移动（拖拽把手挪位置）" active={transformMode === 'translate'} onClick={() => onTransformModeChange('translate')}>
+        <IconArrowsMove size={15} />
+      </PanelButton>
+      <PanelButton title="旋转（拖拽圆环转朝向）" active={transformMode === 'rotate'} onClick={() => onTransformModeChange('rotate')}>
+        <IconRotate size={15} />
+      </PanelButton>
+    </div>
+  )
+}
+
+/** 视口左下角飞行速度（IA 重排二期：速度只在 WASD 飞行时有意义，从顶栏归位视口） */
+export function Scene3DViewportSpeedPill({
+  flySpeed,
+  onFlySpeedChange,
+}: {
+  flySpeed: number
+  onFlySpeedChange: (speed: number) => void
+}): JSX.Element {
+  return (
+    <label className="pointer-events-auto absolute bottom-4 left-28 z-[3] inline-flex h-8 items-center gap-2 rounded-nomi border border-[var(--nomi-line-soft)] bg-[var(--nomi-paper)] px-2 text-caption text-[var(--workbench-muted)] shadow-[var(--nomi-shadow-md)]" title="WASD 飞行速度">
+      <IconWorld size={14} />
+      <input
+        className="h-1.5 w-20 accent-[var(--nomi-ink)]"
+        max={16}
+        min={1}
+        step={0.5}
+        type="range"
+        value={flySpeed}
+        onChange={(event) => onFlySpeedChange(Number(event.currentTarget.value))}
+      />
+    </label>
   )
 }

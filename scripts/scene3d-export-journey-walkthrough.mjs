@@ -73,6 +73,21 @@ try {
   const addBtn = win.locator('[data-coach="add-button"]')
   if ((await addBtn.first().isVisible().catch(() => false))) ok('底部「添加」工具栏进门可见')
   else fail('底部「添加」进门不可见')
+
+  // — IA 重排断言：顶栏 10→4（重复入口全删），工具在语义区就位 —
+  const headerClutter = await win.locator('header [title="当前视口截图"], header [title*="播放"], header [title*="轨迹模式"], header [title*="操控"], header input[type="range"]').count()
+  if (headerClutter === 0) ok('顶栏已瘦身：无截图/播放/轨迹/接控/速度（只剩出片·引导·关闭）')
+  else fail(`顶栏还残留 ${headerClutter} 个应迁出的控件`)
+  const trajToggleAnywhere = await win.locator('[title="进入轨迹模式"]').count()
+  if (trajToggleAnywhere === 0) ok('「轨迹模式」重复入口已全删（收进整运镜>轨迹）')
+  else fail('还有「进入轨迹模式」残留入口')
+  if ((await win.locator('[title^="移动"]').count()) > 0) ok('变换工具已落视口左上悬浮 pill')
+  else fail('视口变换 pill 缺席')
+  if ((await win.locator('[title="WASD 飞行速度"]').count()) > 0) ok('速度滑杆已归位视口左下')
+  else fail('速度滑杆缺席')
+  const hubPresent = await win.getByText('整运镜', { exact: true }).count()
+  if (hubPresent > 0) ok('右栏常驻「整运镜」分区在场')
+  else fail('整运镜分区缺席')
   await shot('06-editor-default.png')
 
   // — 真走旅程第 1 步：添加 → 场景模板 → 城市街道（此步之前漏走，正是时间轴冲突漏网的原因）—
@@ -86,12 +101,27 @@ try {
   ok('已套用「城市街道」场景模板（旅程第 1 步可达）')
   await shot('06c-scene-template.png')
 
-  // — 选中相机 → 右侧运镜预设第一屏可见 —
+  // — 选中相机 → 整运镜>预设 可用 + 右栏接控条出现 —
   await win.getByText('相机1', { exact: true }).first().click()
   await win.waitForTimeout(900)
   const presetVisible = await win.getByText('运镜预设', { exact: true }).first().isVisible().catch(() => false)
-  if (presetVisible) ok('选中相机后「运镜预设」第一屏可见')
+  if (presetVisible) ok('选中相机后「运镜预设」在整运镜区可见')
   else fail('选中相机后「运镜预设」不可见')
+  if ((await win.locator('[title^="操控该镜头"]').count()) > 0) ok('接控入口随选中出现在右栏')
+  else fail('右栏接控入口没出现')
+  // Hub 三 tab 逐个可用
+  await win.getByRole('button', { name: '轨迹', exact: true }).first().click()
+  await win.waitForTimeout(500)
+  if ((await win.getByText('进入视口编辑', { exact: false }).count()) > 0) ok('整运镜>轨迹：列表+进入视口编辑在场')
+  else fail('整运镜>轨迹内容缺席')
+  await shot('07b-hub-trajectory.png')
+  await win.getByRole('button', { name: '录 take', exact: true }).first().click()
+  await win.waitForTimeout(500)
+  if ((await win.getByText('进入操控', { exact: false }).count()) > 0) ok('整运镜>录take：一键进操控在场')
+  else fail('整运镜>录take内容缺席')
+  await shot('07c-hub-take.png')
+  await win.getByRole('button', { name: '预设', exact: true }).first().click()
+  await win.waitForTimeout(500)
   await shot('07-camera-selected.png')
 
   // — 应用预设 → 落轨迹 + 时间轴此刻自动出现 + 500ms 接力 toast —

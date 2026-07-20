@@ -313,8 +313,6 @@ export function Scene3DBottomBar({
   onAddCrowd,
   onAddCamera,
   onApplySceneTemplate,
-  trajectoryMode,
-  onToggleTrajectoryMode,
   canvasFocusMode,
   onToggleCanvasFocusMode,
 }: {
@@ -331,8 +329,6 @@ export function Scene3DBottomBar({
   onAddCrowd: (options: CrowdAddOptions) => void
   onAddCamera: () => void
   onApplySceneTemplate: (template: Scene3DSceneTemplate) => void
-  trajectoryMode: boolean
-  onToggleTrajectoryMode: () => void
   canvasFocusMode: boolean
   onToggleCanvasFocusMode: () => void
 }): JSX.Element | null {
@@ -364,8 +360,6 @@ export function Scene3DBottomBar({
       onAddCrowd={onAddCrowd}
       onAddCamera={onAddCamera}
       onApplySceneTemplate={onApplySceneTemplate}
-      trajectoryMode={trajectoryMode}
-      onToggleTrajectoryMode={onToggleTrajectoryMode}
       canvasFocusMode={canvasFocusMode}
       onToggleCanvasFocusMode={onToggleCanvasFocusMode}
     />
