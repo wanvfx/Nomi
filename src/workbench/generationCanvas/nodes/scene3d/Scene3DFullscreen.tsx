@@ -57,6 +57,7 @@ import {
   useScene3DCameraMoveAction,
   useScene3DMoveFrameExport,
   useScene3DExportActions,
+  toastPickCameraFirst,
   type Scene3DClipboardItem,
 } from './useScene3DFullscreenActions'
 type Scene3DFullscreenProps = {
@@ -287,7 +288,7 @@ export default function Scene3DFullscreen({
 
   const captureSelectedCamera = React.useCallback(() => {
     if (!selectedCamera) {
-      toast('请先在左侧列表选中一个相机', 'warning')
+      toastPickCameraFirst(stateRef.current.cameras[0], (cameraId) => setSelection({ type: 'camera', id: cameraId }))
       return
     }
     const captureCamera = cameraWithPlaybackPosition(
@@ -308,8 +309,8 @@ export default function Scene3DFullscreen({
   const {
     exportPanelOpen,
     setExportPanelOpen,
-    exportingVideo,
-    setExportingVideo,
+    exportCard,
+    dismissExportCard,
     handleExportReferenceVideo,
     handleExportScreenshotViewport,
     handleExportScreenshotCamera,
@@ -320,6 +321,7 @@ export default function Scene3DFullscreen({
     readOnly,
     selectedCamera,
     onRecordTake,
+    onPickCamera: (cameraId) => setSelection({ type: 'camera', id: cameraId }),
     captureViewport,
     captureSelectedCamera,
     exportCameraMoveFrames,
@@ -775,8 +777,8 @@ export default function Scene3DFullscreen({
         </AnimatePresence>
       </main>
       {showCoach && !readOnly ? <Scene3DCoachMarks onDone={() => setShowCoach(false)} /> : null}
-      {/* P0-4：出片后右下角产物卡片（生成中提示） */}
-      <Scene3DExportingCard open={exportingVideo} onDismiss={() => setExportingVideo(false)} />
+      {/* P0-4/P3-14：出片产物卡片（渲染中→完成+去向；回画布查看=关编辑器，fit+高亮已排队） */}
+      <Scene3DExportingCard card={exportCard} onGoCanvas={handleClose} onDismiss={dismissExportCard} />
       {/* 出片面板（P0-2）：右侧滑出，三选项 */}
       <Scene3DExportPanel
         open={exportPanelOpen}

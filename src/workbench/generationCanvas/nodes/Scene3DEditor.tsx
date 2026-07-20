@@ -197,7 +197,8 @@ function Scene3DEditor({ node, width, height, readOnly = false }: Scene3DEditorP
   // 整条出 mp4 + 喂目标镜头 video_ref 复用 AI 运镜常驻 Host（CameraMoveCaptureHost），不另起接缝（P1）。
   // 另建节点而非覆写本节点 → 非破坏：用户原本编排好的 3D 场景保持原样。
   // 目标镜头 = 本 scene3d 节点下游连到的视频节点（无则只出 mp4 留痕，不挂）。
-  const handleRecordTake = React.useCallback((recordedState: Scene3DState) => {
+  // 返回 take 节点 id：出片产物卡靠它盯 meta.cameraMoveVideo 等渲染完成（P3-14）。
+  const handleRecordTake = React.useCallback((recordedState: Scene3DState): string => {
     const store = useGenerationCanvasStore.getState()
     const downstreamVideoTarget = store.edges
       .filter((edge) => edge.source === node.id)
@@ -238,6 +239,7 @@ function Scene3DEditor({ node, width, height, readOnly = false }: Scene3DEditorP
     // 闭环可见性（#1）：标记本次录过 take；真正的画布 fit + 高亮推迟到关闭编辑器后（handleCloseFullscreen），
     // 因为此刻全屏编辑器盖着画布、fit 是白跑。关掉后画布可见再 fit + select，把新「录制走位参考」节点带进视口。
     pendingFitNodeIdRef.current = takeNode.id
+    return takeNode.id
   }, [addNode, height, node.id, node.position.x, node.position.y, updateNode])
 
   const handleScreenshot = React.useCallback(async (capture: Scene3DCaptureResult) => {

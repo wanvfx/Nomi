@@ -2,7 +2,8 @@
 // 自包含逻辑——剪贴板/键盘导航、轨迹模式动作包装、全局快捷键监听、添加对象/相机/群众——
 // 行为 100% 等价于原内联实现，仅做位置迁移（无并行版 P1）。
 import React from 'react'
-import { toast } from '../../../../ui/toast'
+import { toast, useToastStore } from '../../../../ui/toast'
+import { useGenerationCanvasStore } from '../../store/generationCanvasStore'
 import {
   type CaptureApi,
   type Scene3DCamera,
@@ -35,6 +36,26 @@ import { CAMERA_MOVE_LABEL } from './cameraMoveVocab'
 import { cameraWithPlaybackPosition, isCameraMoveReady } from './scene3dPlayback'
 import { makePropObject } from './scene3dPropSpecs'
 import { buildSceneTemplateObjects, SCENE_TEMPLATE_LABEL, type Scene3DSceneTemplate } from './scene3dSceneTemplates'
+
+// 对象上限文案单源（4 个加对象入口共用）；数字随 OBJECT_LIMIT derive，不各自硬编码。
+const OBJECT_LIMIT_MESSAGE = `场景满了（上限 ${OBJECT_LIMIT} 个对象）——删掉不用的再加新的`
+
+/** 「相机截图但没选相机」的一键跳转报错（顶栏截图与出片面板共用单源，P3-15） */
+export function toastPickCameraFirst(
+  firstCamera: Scene3DCamera | undefined,
+  onPickCamera: (cameraId: string) => void,
+): void {
+  if (firstCamera) {
+    useToastStore.getState().push({
+      message: '相机截图要先选中一个相机',
+      type: 'warning',
+      actionLabel: `点此选中「${firstCamera.name}」`,
+      onAction: () => onPickCamera(firstCamera.id),
+    })
+  } else {
+    toast('先加个相机才能相机截图', 'warning')
+  }
+}
 
 export type Scene3DClipboardItem =
   | { type: 'object'; item: Scene3DObject; pasteCount: number }
@@ -120,7 +141,7 @@ export function useScene3DClipboardActions({
     if (clipboard.type === 'object') {
       const current = stateRef.current
       if (current.objects.length >= OBJECT_LIMIT) {
-        toast('单个 3D 场景最多支持 100 个对象', 'warning')
+        toast(OBJECT_LIMIT_MESSAGE, 'warning')
         return true
       }
       const object = makePastedObject(clipboard.item, pasteCount)
@@ -268,12 +289,18 @@ export function useScene3DTrajectoryModeActions({
 
   const requestTrajectoryPlayChange = React.useCallback((playing: boolean) => {
     if (playing && !trajectory.hasPlayableBinding) {
-      toast('请先为轨迹绑定对象或相机', 'warning')
+      // P3-15：错误提示带一键跳转——点 toast 直接进轨迹面板去绑定
+      useToastStore.getState().push({
+        message: '轨迹要先绑定对象或相机才能播放',
+        type: 'warning',
+        actionLabel: '去轨迹面板绑定',
+        onAction: () => enterTrajectoryMode(true),
+      })
       return
     }
     trajectory.setIsPlaying(playing)
     if (playing) trajectory.setTimelineOpen(true)
-  }, [trajectory])
+  }, [enterTrajectoryMode, trajectory])
 
   return {
     selectTrajectoryForMode,
@@ -388,7 +415,7 @@ export function useScene3DAddActions({
   const addProp = React.useCallback((kind: Scene3DPropKind) => {
     if (readOnly) return
     if (stateRef.current.objects.length >= OBJECT_LIMIT) {
-      toast('单个 3D 场景最多支持 100 个对象', 'warning')
+      toast(OBJECT_LIMIT_MESSAGE, 'warning')
       return
     }
     const object = makePropObject(kind)
@@ -402,7 +429,7 @@ export function useScene3DAddActions({
   const addObject = React.useCallback((kind: Scene3DGeometry | 'mannequin' | 'light') => {
     if (readOnly) return
     if (stateRef.current.objects.length >= OBJECT_LIMIT) {
-      toast('单个 3D 场景最多支持 100 个对象', 'warning')
+      toast(OBJECT_LIMIT_MESSAGE, 'warning')
       return
     }
     const roleIndex = kind === 'mannequin'
@@ -434,7 +461,7 @@ export function useScene3DAddActions({
   const addCrowd = React.useCallback((options: CrowdAddOptions) => {
     if (readOnly) return
     if (stateRef.current.objects.length >= OBJECT_LIMIT) {
-      toast('单个 3D 场景最多支持 100 个对象', 'warning')
+      toast(OBJECT_LIMIT_MESSAGE, 'warning')
       return
     }
     const crowd = makeCrowdObject(options)
@@ -537,15 +564,22 @@ export function useScene3DCameraMoveAction({
   }, [readOnly, setState, stateRef, trajectory])
 }
 
+/** 出片产物卡状态（P3-14）：盯 take 节点 meta.cameraMoveVideo 从「渲染中」推进到「已生成 + 去向」 */
+export type Scene3DExportCard = {
+  phase: 'rendering' | 'slow' | 'done'
+  /** done 时：mp4 是否已自动喂给下游镜头（cameraMoveVideo.targetNodeId） */
+  fedDownstream: boolean
+}
+
 // 出片动作（2026-07-20 出片旅程 P0）：出片面板开关、四个导出 handler、
-// 运镜就绪接力 toast（P0-5）、产物卡片生成中状态（P0-4）。
-// 行为等价自 Scene3DFullscreen 内联实现迁移（R9 防巨壳）。
+// 运镜就绪接力 toast（P0-5）、产物卡片（P0-4 生成中 → P3-14 完成态+去向）。
 export function useScene3DExportActions({
   state,
   stateRef,
   readOnly,
   selectedCamera,
   onRecordTake,
+  onPickCamera,
   captureViewport,
   captureSelectedCamera,
   exportCameraMoveFrames,
@@ -554,15 +588,38 @@ export function useScene3DExportActions({
   stateRef: React.MutableRefObject<Scene3DState>
   readOnly: boolean
   selectedCamera: Scene3DCamera | undefined
-  onRecordTake?: (recordedState: Scene3DState) => void
+  onRecordTake?: (recordedState: Scene3DState) => string | void
+  /** 报错「先选中相机」时的一键跳转（P3-15） */
+  onPickCamera?: (cameraId: string) => void
   captureViewport: () => void
   captureSelectedCamera: () => void
   exportCameraMoveFrames: (cameraId: string) => Promise<void>
 }) {
   const [exportPanelOpen, setExportPanelOpen] = React.useState(false)
-  // P0-4：出片后右下角产物卡片（生成中提示）
-  const [exportingVideo, setExportingVideo] = React.useState(false)
+  // P3-14：正在出片的 take 节点 id——产物卡盯它的 meta.cameraMoveVideo 等渲染完成
+  const [exportingTakeId, setExportingTakeId] = React.useState<string | null>(null)
+  // 渲染超过 60s 还没出结果 → 卡片降级为「渲染较慢」提示（捕获宿主自带 watchdog+重试，这里只管告知）
+  const [slowHint, setSlowHint] = React.useState(false)
   const exportingTimerRef = React.useRef<number | null>(null)
+
+  // 订阅 take 节点：渲染完成时 CameraMoveCaptureHost 会把结果写进 meta.cameraMoveVideo
+  const exportingTakeNode = useGenerationCanvasStore((store) => (
+    exportingTakeId ? store.nodes.find((node) => node.id === exportingTakeId) ?? null : null
+  ))
+  const takeVideo = exportingTakeNode?.meta?.cameraMoveVideo as { url?: string; targetNodeId?: string } | undefined
+  const exportCard: Scene3DExportCard | null = exportingTakeId
+    ? takeVideo?.url
+      ? { phase: 'done', fedDownstream: Boolean(takeVideo.targetNodeId) }
+      : { phase: slowHint ? 'slow' : 'rendering', fedDownstream: false }
+    : null
+  const dismissExportCard = React.useCallback(() => {
+    setExportingTakeId(null)
+    setSlowHint(false)
+    if (exportingTimerRef.current) {
+      window.clearTimeout(exportingTimerRef.current)
+      exportingTimerRef.current = null
+    }
+  }, [])
 
   // P0-5：运镜就绪接力 toast——轨迹+绑定就绪时提示用户去出片
   // 用独立 ref 存 timer，不随 state 变化清理（否则拖点/调参 500ms 内会吞掉 toast）
@@ -608,12 +665,13 @@ export function useScene3DExportActions({
     const exportState = motionEnd > 0 && motionEnd < current.sceneTimeline.totalDuration
       ? { ...current, sceneTimeline: { ...current.sceneTimeline, totalDuration: motionEnd } }
       : current
-    onRecordTake(exportState)
+    const takeId = onRecordTake(exportState)
     setExportPanelOpen(false)
-    // P0-4：显示产物卡片（生成中提示）
-    setExportingVideo(true)
+    // P0-4/P3-14：产物卡片进「渲染中」态，盯 take 节点等完成；60s 未出降级「渲染较慢」
+    setExportingTakeId(typeof takeId === 'string' ? takeId : null)
+    setSlowHint(false)
     if (exportingTimerRef.current) window.clearTimeout(exportingTimerRef.current)
-    exportingTimerRef.current = window.setTimeout(() => setExportingVideo(false), 20_000)
+    exportingTimerRef.current = window.setTimeout(() => setSlowHint(true), 60_000)
   }, [onRecordTake, stateRef])
 
   const handleExportScreenshotViewport = React.useCallback(() => {
@@ -623,12 +681,13 @@ export function useScene3DExportActions({
 
   const handleExportScreenshotCamera = React.useCallback(() => {
     if (!selectedCamera) {
-      toast('请先选中一个拍摄相机', 'warning')
+      if (onPickCamera) toastPickCameraFirst(stateRef.current.cameras[0], onPickCamera)
+      else toast('请先选中一个拍摄相机', 'warning')
       return
     }
     setExportPanelOpen(false)
     captureSelectedCamera()
-  }, [captureSelectedCamera, selectedCamera])
+  }, [captureSelectedCamera, onPickCamera, selectedCamera, stateRef])
 
   const handleExportKeyFrames = React.useCallback(() => {
     // 首尾帧导出需要一个相机 ID：优先用选中的相机，否则用第一个相机
@@ -644,8 +703,8 @@ export function useScene3DExportActions({
   return {
     exportPanelOpen,
     setExportPanelOpen,
-    exportingVideo,
-    setExportingVideo,
+    exportCard,
+    dismissExportCard,
     handleExportReferenceVideo,
     handleExportScreenshotViewport,
     handleExportScreenshotCamera,

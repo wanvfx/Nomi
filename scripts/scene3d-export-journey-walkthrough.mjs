@@ -168,10 +168,23 @@ try {
   }
   if (videoUrl) ok('离屏 mp4 已渲染：' + videoUrl)
   else fail('120s 内没等到 meta.cameraMoveVideo（离屏渲染没完成）')
+  await win.waitForTimeout(800)
+
+  // — P3-14：产物卡进完成态（去向 + 回画布按钮）—
+  const doneCard = await win.getByText('参考视频已生成', { exact: false }).count()
+  if (doneCard > 0) ok('产物卡完成态已出（含去向说明）')
+  else fail('渲染完成后产物卡没进完成态')
   await shot('12-after-render.png')
 
-  // — 关编辑器 → 画布 fit + take 节点带 mp4 在场（节点卡直接渲染视频，标题不在可见 DOM，用桥断言）—
-  await win.getByTitle('退出 3D 场景').first().click()
+  // — 点「回画布查看」关编辑器 → 画布 fit + take 节点带 mp4 在场（节点卡直接渲染视频，标题不在可见 DOM，用桥断言）—
+  const goCanvasBtn = win.getByRole('button', { name: '回画布查看', exact: true })
+  if ((await goCanvasBtn.count()) > 0) {
+    await goCanvasBtn.first().click()
+    ok('产物卡「回画布查看」可点（关编辑器动线）')
+  } else {
+    fail('产物卡缺「回画布查看」按钮，退回顶栏关闭')
+    await win.getByTitle('退出 3D 场景').first().click()
+  }
   await win.waitForTimeout(1800)
   const takeOnCanvas = await win.evaluate(() => {
     const store = window.__nomiCanvasStore
