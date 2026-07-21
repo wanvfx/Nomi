@@ -410,8 +410,8 @@ export function billingKindForTaskKind(kind: ProfileKind): BillingModelKind {
  *  docs/plan/2026-07-06-i2i-reference-reliability.md（L1）。只碰非内置 vendor + OpenAI 兼容形状。 */
 /*  v6 把 image_edit 从 vendor 级单协议升级为 modelKey 精确协议：Grok Imagine 的 JSON /images/edits
  *  不再误走 Nano Banana 的 /chat/completions；存量目录自动补精确 mapping。 */
-export type CatalogVersion = 1 | 2 | 3 | 4 | 5 | 6;
-export const CURRENT_CATALOG_VERSION: CatalogVersion = 6;
+export type CatalogVersion = 1 | 2 | 3 | 4 | 5 | 6 | 7;
+export const CURRENT_CATALOG_VERSION: CatalogVersion = 7;
 
 export type CatalogState = {
   version: CatalogVersion;
