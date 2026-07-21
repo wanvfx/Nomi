@@ -1,7 +1,9 @@
 /**
- * 本地 ComfyUI 接入卡（无鉴权本地后端的「启用开关」，用户拍板形状②）。
+ * ComfyUI 接入卡（无鉴权后端的「启用开关」，用户拍板形状②）。地址可填本机（默认 127.0.0.1:8188）
+ * 或云平台 ComfyUI（cnb.cool、cloudstudio.net 等，Issue #43）——同一张卡、同一条「接入地址」，
+ * 云端只是把地址改成云平台给的 URL，不另起并行卡（本地/云端走同一无鉴权 transport）。
  *
- * ComfyUI 是无 key 的本地服务，Nomi 生成门槛本就「authType:'none' + vendor.enabled 即可执行」（不要 key），
+ * ComfyUI 是无 key 的服务，Nomi 生成门槛本就「authType:'none' + vendor.enabled 即可执行」（不要 key），
  * 故接入 = 把种子 vendor（默认 enabled:false，防污染 99% 不用本地的人）翻成 enabled:true。启用时先探
  * /system_stats 报是否连上（effect-first：当场告诉用户通没通，别等生成才失败）；探测是建议性的，不阻断启用
  * （可先启用、再起 ComfyUI）。地址可改（有人跑在别的端口/主机）。
@@ -108,7 +110,7 @@ export function ComfyuiLocalCard({ enabled, baseUrl, models, onChanged }: Comfyu
 
   const addrRow = (
     <div className="flex items-center gap-2">
-      <span className="text-caption text-nomi-ink-60 whitespace-nowrap">接入地址</span>
+      <span className="text-caption text-nomi-ink-60 whitespace-nowrap">接入地址（本地 / 云端）</span>
       {editing ? (
         <>
           <input
@@ -131,8 +133,8 @@ export function ComfyuiLocalCard({ enabled, baseUrl, models, onChanged }: Comfyu
     <FoldableModelCard
       glyph={<IconServerBolt size={16} stroke={1.6} />}
       glyphTone="ink"
-      name="本地 ComfyUI"
-      subtitle="用本机 GPU 出图 · 无需 key、不花额度、数据不出本地"
+      name="ComfyUI · 本地或云端"
+      subtitle="接本机 GPU 或云平台 ComfyUI 出图 · 本地不花额度、数据不出本地"
       status={cardStatus}
       statusLabel={statusLabel}
       defaultExpanded={false}
@@ -140,7 +142,7 @@ export function ComfyuiLocalCard({ enabled, baseUrl, models, onChanged }: Comfyu
       {!enabled ? (
         <>
           <div className="text-caption text-nomi-ink-60 leading-relaxed">
-            在本机把 ComfyUI 跑起来（默认 <code className="font-mono text-nomi-ink">127.0.0.1:8188</code>），点下面启用即可。Nomi 已内置一个「文生图」工作流，启用后在生成画布直接选用。
+            把 ComfyUI 地址填进来即可：本机默认 <code className="font-mono text-nomi-ink">127.0.0.1:8188</code>；也支持云平台 ComfyUI（如 cnb.cool、cloudstudio.net），把云端给的地址粘到下面。Nomi 已内置一个「文生图」工作流，启用后在生成画布直接选用。
           </div>
           {addrRow}
           <button
@@ -148,10 +150,10 @@ export function ComfyuiLocalCard({ enabled, baseUrl, models, onChanged }: Comfyu
             className={cn('w-full h-9 rounded-nomi-sm bg-nomi-ink text-nomi-paper text-body-sm font-semibold',
               'inline-flex items-center justify-center gap-1.5 hover:bg-nomi-accent disabled:opacity-50')}
           >
-            <IconPlugConnected size={15} stroke={1.8} />{checking ? '正在检测本机 ComfyUI…' : '启用本地 ComfyUI'}
+            <IconPlugConnected size={15} stroke={1.8} />{checking ? '正在检测 ComfyUI…' : '启用 ComfyUI'}
           </button>
           <button type="button" onClick={() => window.open('https://github.com/comfyanonymous/ComfyUI', '_blank', 'noopener')} className="self-start inline-flex items-center gap-1 text-micro text-nomi-ink-30 hover:text-nomi-accent">
-            还没装？去 GitHub 装好并启动<IconExternalLink size={12} stroke={1.6} />
+            还没装？在本机或云平台起好 ComfyUI<IconExternalLink size={12} stroke={1.6} />
           </button>
         </>
       ) : (
@@ -168,8 +170,8 @@ export function ComfyuiLocalCard({ enabled, baseUrl, models, onChanged }: Comfyu
             <div className="flex items-start gap-2 rounded-nomi-sm bg-nomi-ink-05 px-3 py-2.5">
               <IconAlertTriangle size={17} className="shrink-0 mt-0.5 text-nomi-accent" />
               <div className="min-w-0">
-                <div className="text-body-sm font-semibold text-nomi-ink">{checking ? '正在检测…' : '启用了，但没探测到本机 ComfyUI'}</div>
-                <div className="text-caption text-nomi-ink-60 mt-0.5">确认已在 <code className="font-mono">{shownAddr}</code> 启动，再点重新检测。生成前不通会直接报连不上，不会白跑。</div>
+                <div className="text-body-sm font-semibold text-nomi-ink">{checking ? '正在检测…' : '启用了，但没探测到 ComfyUI'}</div>
+                <div className="text-caption text-nomi-ink-60 mt-0.5">确认已在 <code className="font-mono">{shownAddr}</code>（本机或云平台）起好，再点重新检测。生成前不通会直接报连不上，不会白跑。</div>
               </div>
             </div>
           )}
