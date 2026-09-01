@@ -15,6 +15,7 @@ import { enCreationAi, zhCreationAi } from './locales/creationAi'
 import { enStoryboardEditor, zhStoryboardEditor } from './locales/storyboardEditor'
 import { enGenerationCommon, zhGenerationCommon } from './locales/generationCommon'
 import { enRuntime, zhRuntime } from './locales/runtime'
+import { enCommunity, zhCommunity } from './locales/community'
 
 export const zhCN = {
   common: {
@@ -79,6 +80,8 @@ export const zhCN = {
     updateError: '更新出错',
     checkAvailable: '检查是否有新版本可用',
     checkUpdate: '检查更新',
+    feedbackShare: '反馈与分享',
+    feedbackShareDescription: '遇到问题或想分享 Nomi？从这里开始',
   },
   taskCenter: {
     title: '任务',
@@ -159,6 +162,8 @@ export const zhCN = {
     openModelAccess: '打开模型设置',
     windowTitleBar: '窗口标题栏',
     projectQuickActions: '项目快捷操作',
+    generationCollapsedChip: '生成',
+    generationCollapsedRestore: '展开生成 AI 栏（拆解占用右栏时暂收于此）',
   },
   window: {
     controls: '窗口控制',
@@ -383,6 +388,7 @@ export const zhCN = {
   storyboardEditor: zhStoryboardEditor,
   generationCommon: zhGenerationCommon,
   runtime: zhRuntime,
+  community: zhCommunity,
 } as const
 
 type TranslationShape<T> = {
@@ -453,6 +459,8 @@ export const en = {
     updateError: 'Update failed',
     checkAvailable: 'Check whether a new version is available',
     checkUpdate: 'Check for updates',
+    feedbackShare: 'Feedback & share',
+    feedbackShareDescription: 'Report a problem or share Nomi',
   },
   taskCenter: {
     title: 'Tasks',
@@ -533,6 +541,8 @@ export const en = {
     openModelAccess: 'Open model setup',
     windowTitleBar: 'Window title bar',
     projectQuickActions: 'Project quick actions',
+    generationCollapsedChip: 'Generate',
+    generationCollapsedRestore: 'Reopen the generation AI panel (tucked here while deconstruction uses the right dock)',
   },
   window: {
     controls: 'Window controls',
@@ -761,6 +771,7 @@ export const en = {
   storyboardEditor: enStoryboardEditor,
   generationCommon: enGenerationCommon,
   runtime: enRuntime,
+  community: enCommunity,
 } satisfies TranslationShape<typeof zhCN>
 
 export const resources = {
