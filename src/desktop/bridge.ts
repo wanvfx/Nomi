@@ -2,7 +2,7 @@ import type { ExportJobEvent, ExportJobSnapshot } from '../../electron/export/ex
 import type { WorkspaceFileListResult } from '../../electron/workspace/workspaceFileIndex'
 import type { ProviderKind } from './providerKind'
 import type { DesktopMediaBridge } from './bridgeMedia'
-import type { McpInfo, McpVerifyResult } from './mcpBridgeTypes'
+import type { McpClientProfile, McpInfo, McpVerifyResult } from './mcpBridgeTypes'
 import type { DesktopSettingsBridge } from './settingsBridge'
 import type { DesktopOnboardingBridge } from './onboardingBridgeTypes'
 import type { DesktopProductionRunBridge } from './productionRunBridgeTypes'
@@ -774,6 +774,12 @@ export type DesktopBridge = DesktopMediaBridge & {
     installMcp: (client?: string) => { ok: boolean; client: string; configPath: string; backupPath: string | null }
     /** 撤销接入指定客户端：删 nomi 条目。默认 Claude Code。 */
     uninstallMcp: (client?: string) => { ok: boolean; client: string }
+    /** 自定义 MCP 客户端 profile 列表（方案 A：任意支持 MCP stdio 的工具接入）。 */
+    listCustomMcpProfiles?: () => McpClientProfile[]
+    /** 注册/更新一个自定义 profile；key 与内置冲突或非法则返回 null。 */
+    registerCustomMcpProfile?: (profile: unknown) => McpClientProfile | null
+    /** 移除一个自定义 profile（内置不可删）。 */
+    removeCustomMcpProfile?: (key: string) => boolean
     /**
      * 实连验证：真起一次**配置里那条**命令握手。可选（老 preload 无此口 → 卡片退回只读配置的老口径）。
      * 「配置里有 nomi 这行字」≠「还连得上」：老版本写的脚本已被删、dev 构建钉的 worktree 被删都会失效。

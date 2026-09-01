@@ -615,6 +615,10 @@ contextBridge.exposeInMainWorld("nomiDesktop", {
     mcpInfo: () => invokeSync("nomi:capability:mcp-info"),
     installMcp: (client?: string) => invokeSync("nomi:capability:mcp-install", client),
     uninstallMcp: (client?: string) => invokeSync("nomi:capability:mcp-uninstall", client),
+    // 自定义 MCP 客户端 profile（方案 A：任意支持 MCP stdio 的工具接入）。
+    listCustomMcpProfiles: () => invokeSync("nomi:capability:mcp-custom-profiles"),
+    registerCustomMcpProfile: (profile: unknown) => invokeSync("nomi:capability:mcp-custom-profile-register", profile),
+    removeCustomMcpProfile: (key: string) => invokeSync("nomi:capability:mcp-custom-profile-remove", key),
     // 实连验证（异步）：真起一次配置里那条命令握手，用来分辨「配置里有这行字」和「还真连得上」。
     verifyMcp: (client?: string) => ipcRenderer.invoke("nomi:capability:mcp-verify", client),
     // A 模式实时桥：主进程把外部 MCP 的画布读/写/付费确认转发到这里，渲染层处理后回结果（按 id 配对）。

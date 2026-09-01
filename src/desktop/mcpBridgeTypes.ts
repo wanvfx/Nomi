@@ -2,8 +2,17 @@
 // 免得渲染层再手抄一遍枚举——那正是「两处定义各自漂移」的老坑）。
 // 主进程侧的实现见 electron/capabilityCore/mcpConfig.ts 与 mcpVerify.ts。
 
-export type McpClientKey = 'claude' | 'codex' | 'cursor'
+export type McpClientKey = string
 export type McpLauncherKind = 'packaged' | 'development'
+
+/** 自定义 MCP 客户端 profile（方案 A：任意支持 MCP stdio 的工具接入）。 */
+export type McpClientProfile = {
+  key: string
+  label: string
+  format: 'json' | 'toml'
+  configPath: string
+  isBuiltin: boolean
+}
 export type McpConfigState =
   | 'absent'
   | 'current'

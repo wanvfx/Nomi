@@ -45,7 +45,7 @@ import { registerProviderAdapterIpc } from "./providerAdapter/ipc";
 import { registerExistingConnectionIpc } from "./providerAdapter/existingConnectionIpc";
 import { registerUpdaterIpc } from "./update/autoUpdater";
 import { setRendererTarget } from "./capabilityCore/rendererBridge";
-import { readMcpInfo, installMcp, uninstallMcp } from "./capabilityCore/mcpConfig";
+import { readMcpInfo, installMcp, uninstallMcp, listCustomMcpProfiles, registerCustomMcpProfile, removeCustomMcpProfile } from "./capabilityCore/mcpConfig";
 import { verifyMcp } from "./capabilityCore/mcpVerify";
 import { registerLocalProtocol } from "./protocol/localProtocol";
 import { installMainWindowInteractions } from "./mainWindowInteractions";
@@ -628,6 +628,10 @@ function registerIpc(): void {
   registerSyncIpc("nomi:capability:mcp-info", () => readMcpInfo(getActiveCapabilityPort()));
   registerSyncIpc("nomi:capability:mcp-install", installMcp);
   registerSyncIpc("nomi:capability:mcp-uninstall", uninstallMcp);
+  // 自定义 MCP 客户端 profile（方案 A：任意支持 MCP stdio 的工具接入）。
+  registerSyncIpc("nomi:capability:mcp-custom-profiles", listCustomMcpProfiles);
+  registerSyncIpc("nomi:capability:mcp-custom-profile-register", registerCustomMcpProfile);
+  registerSyncIpc("nomi:capability:mcp-custom-profile-remove", removeCustomMcpProfile);
   // 实连验证（异步：真起一次配置里那条命令握手）。「配置里有这行字」≠「还连得上」，见 mcpVerify 头注释。
   ipcMain.handle("nomi:capability:mcp-verify", (event, client: unknown) => (assertTrustedSender(event), verifyMcp(typeof client === "string" ? client : undefined)));
   registerAgentChatV2Ipc();
