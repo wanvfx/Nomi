@@ -475,7 +475,9 @@ export function createMcpProtocol(transport: McpTransport) {
         if (tool.name === 'nomi_start_playbook') {
           // initialize.clientInfo is self-declared, so it remains an audit label only. The stdio/RPC
           // transport supplies authority from Nomi's signed per-client configuration capability.
-          built.actorId = clientHost
+          // 泛化（方案 A）：优先用签名验证的真实身份（内置三客户端 + 自定义 profile 都覆盖），
+          // 自声明的 clientHost 仅作兜底——外部未签名客户端仍得 'external'，行为与旧版一致。
+          built.actorId = transport.getAuthenticatedClient?.() ?? clientHost
         }
         if (tool.name === 'nomi_decide_gate') {
           const confirm = await elicitCreativeGateDecision(args, requestSignal)
