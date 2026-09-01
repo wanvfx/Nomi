@@ -3,7 +3,8 @@ import path from 'node:path'
 
 import type { WorkspaceProjectRecordV2 } from '../workspace/workspaceTypes'
 
-export type CurrentProjectResolverClient = 'claude' | 'codex' | 'cursor'
+/** 任意 Nomi 签名过的 MCP 客户端身份（泛化，原三值联合已放宽为校验字符串，见 security.ts）。 */
+export type CurrentProjectResolverClient = string
 
 export type CurrentProjectIdentity = {
   projectId: string

@@ -13,10 +13,12 @@ import { app } from 'electron'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { renameSyncWithRetry } from '../jsonFile'
+import { readJsonFile, renameSyncWithRetry, writeJsonFileAtomic } from '../jsonFile'
+import { getSettingsRoot } from '../settings/settingsRoot'
 import {
   MCP_CLIENT_ENV,
   MCP_CLIENT_PROOF_ENV,
+  isValidMcpClientKey,
   readToken,
   signMcpClient,
   verifyMcpClient,
@@ -49,14 +51,92 @@ type ClientSpec = {
   configPath: () => string
 }
 
-const CLIENTS: Record<McpClientKey, ClientSpec> = {
+const CLIENTS: Record<string, ClientSpec> = {
   claude: { label: 'Claude Code', format: 'json', configPath: () => path.join(os.homedir(), '.claude.json') },
   cursor: { label: 'Cursor', format: 'json', configPath: () => path.join(os.homedir(), '.cursor', 'mcp.json') },
   codex: { label: 'Codex', format: 'toml', configPath: () => path.join(os.homedir(), '.codex', 'config.toml') },
 }
 
+// ── 自定义 MCP 客户端 profile（方案 A：把客户端身份从三值泛化成可注册）──────────
+// 内置三客户端是注册表的种子；其余任意支持 MCP stdio 的工具按「名字 + 配置路径 + 格式」注册。
+// 持久化到 settings 目录 mcp-client-profiles.json（复用 readJsonFile/writeJsonFileAtomic）。
+// 安全口径与内置一致：只写用户显式指定的固定文件；写前备份；合并而非覆盖；原子写。
+
+const CUSTOM_PROFILES_FILE = 'mcp-client-profiles.json'
+
+export type McpClientProfile = {
+  key: string
+  label: string
+  format: 'json' | 'toml'
+  configPath: string
+  isBuiltin: boolean
+}
+
+const CUSTOM_PROFILE_KEY = /^[a-z0-9][a-z0-9-]{0,63}$/
+
+function customProfilesPath(): string {
+  return path.join(getSettingsRoot(), CUSTOM_PROFILES_FILE)
+}
+
+function normalizeCustomProfile(value: unknown): McpClientProfile | null {
+  if (!value || typeof value !== 'object') return null
+  const raw = value as Record<string, unknown>
+  if (typeof raw.key !== 'string' || !CUSTOM_PROFILE_KEY.test(raw.key)) return null
+  if (typeof raw.label !== 'string' || !raw.label.trim()) return null
+  if (raw.format !== 'json' && raw.format !== 'toml') return null
+  if (typeof raw.configPath !== 'string' || !path.isAbsolute(raw.configPath)) return null
+  return {
+    key: raw.key,
+    label: raw.label.trim(),
+    format: raw.format,
+    configPath: raw.configPath,
+    isBuiltin: false,
+  }
+}
+
+/** 读自定义 profile 列表（内置三客户端不在此，它们是 CLIENTS 种子）。 */
+export function listCustomMcpProfiles(): McpClientProfile[] {
+  try {
+    const raw = readJsonFile(customProfilesPath())
+    if (!Array.isArray(raw)) return []
+    return raw.map(normalizeCustomProfile).filter((p): p is McpClientProfile => p !== null)
+  } catch {
+    return []
+  }
+}
+
+/** 注册/更新一个自定义 profile；key 与内置三客户端冲突或非法则拒绝。 */
+export function registerCustomMcpProfile(profile: unknown): McpClientProfile | null {
+  const normalized = normalizeCustomProfile(profile)
+  if (!normalized) return null
+  if (normalized.key in CLIENTS) return null // 内置 key 不可覆盖
+  const next = listCustomMcpProfiles().filter((p) => p.key !== normalized.key)
+  next.push(normalized)
+  writeJsonFileAtomic(customProfilesPath(), next)
+  return normalized
+}
+
+/** 移除一个自定义 profile（内置不可删）。返回是否真的删了。 */
+export function removeCustomMcpProfile(key: string): boolean {
+  if (!CUSTOM_PROFILE_KEY.test(key) || key in CLIENTS) return false
+  const current = listCustomMcpProfiles()
+  const next = current.filter((p) => p.key !== key)
+  if (next.length === current.length) return false
+  writeJsonFileAtomic(customProfilesPath(), next)
+  return true
+}
+
+/** 内置 + 自定义的合并 spec。内置优先；查不到返回 null。 */
+function resolveClientSpec(key: string): ClientSpec | null {
+  if (key in CLIENTS) return CLIENTS[key]
+  const custom = listCustomMcpProfiles().find((p) => p.key === key)
+  if (!custom) return null
+  return { label: custom.label, format: custom.format, configPath: () => custom.configPath }
+}
+
 function resolveClient(client?: string): McpClientKey {
-  return client === 'codex' || client === 'cursor' ? client : 'claude'
+  if (client && isValidMcpClientKey(client) && resolveClientSpec(client)) return client
+  return 'claude'
 }
 
 /** MCP server 启动条目（command/args/env），三客户端共用。 */
@@ -322,7 +402,8 @@ export type McpInfo = {
 }
 
 function clientInfo(client: McpClientKey): McpClientInfo {
-  const spec = CLIENTS[client]
+  const spec = resolveClientSpec(client)
+  if (!spec) throw new Error(`Unknown MCP client: ${client}`)
   const target = spec.configPath()
   const server = mcpServerEntry(client)
   const launcherKind = server.env?.[MCP_CONFIG_KIND_ENV] === 'development' ? 'development' : 'packaged'
@@ -399,7 +480,8 @@ function codexConfiguredEntry(target: string): McpServerEntry | null {
  */
 export function configuredMcpEntry(client?: string): McpServerEntry | null {
   const key = resolveClient(client)
-  const spec = CLIENTS[key]
+  const spec = resolveClientSpec(key)
+  if (!spec) return null
   const target = spec.configPath()
   if (spec.format === 'toml') return codexConfiguredEntry(target)
   const servers = readJsonConfig(target).mcpServers as Record<string, unknown> | undefined
@@ -480,7 +562,8 @@ function shouldAutoMigrate(state: McpConfigState): boolean {
 /** 一键写入指定客户端：备份 → 合并 nomi 条目（保留其它）→ 原子写回。默认 Claude Code。 */
 export function installMcp(client?: string): { ok: boolean; client: McpClientKey; configPath: string; backupPath: string | null } {
   const key = resolveClient(client)
-  const spec = CLIENTS[key]
+  const spec = resolveClientSpec(key)
+  if (!spec) return { ok: false, client: key, configPath: '', backupPath: null }
   const target = spec.configPath()
   const backupPath = spec.format === 'toml' ? codexInstall(target, key) : jsonInstall(target, key)
   return { ok: true, client: key, configPath: target, backupPath }
@@ -489,7 +572,8 @@ export function installMcp(client?: string): { ok: boolean; client: McpClientKey
 /** 撤销接入指定客户端：删 nomi 条目（不碰其它）。文件不存在/没装就当成功。默认 Claude Code。 */
 export function uninstallMcp(client?: string): { ok: boolean; client: McpClientKey } {
   const key = resolveClient(client)
-  const spec = CLIENTS[key]
+  const spec = resolveClientSpec(key)
+  if (!spec) return { ok: false, client: key }
   const target = spec.configPath()
   if (spec.format === 'toml') codexUninstall(target)
   else jsonUninstall(target)

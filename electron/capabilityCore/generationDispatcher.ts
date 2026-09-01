@@ -10,10 +10,12 @@ import type { ProjectLeaseV1 } from './projectLease'
 import type { DispatchContext } from './dispatcher'
 import { RpcError, type RpcPolicyErrorCode, type RpcPolicyErrorDetails } from './rpcError'
 
-type RegisteredMcpClient = Extract<CapabilityOriginHost, 'claude' | 'codex' | 'cursor'>
+type RegisteredMcpClient = Extract<CapabilityOriginHost, string>
 
 function isRegisteredMcpClient(value: CapabilityOriginHost | undefined): value is RegisteredMcpClient {
-  return value === 'claude' || value === 'codex' || value === 'cursor'
+  // 泛化（方案 A）：registered = HMAC 证明通过（resolveMcpOrigin 保证 non-external 即已验证的 key），
+  // 不再硬编码 claude/codex/cursor 三值——任意 Nomi 签名过的客户端身份都算 registered。
+  return typeof value === 'string' && value !== 'external' && value !== 'nomi'
 }
 
 const SEMANTIC_GENERATION_ROUTES: Readonly<Record<string, Readonly<{

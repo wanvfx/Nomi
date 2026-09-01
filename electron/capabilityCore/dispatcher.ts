@@ -22,7 +22,7 @@ import type { ProductionBrief } from "../productionRun/productionRunTypes";
 import { isAnchorCheckpointGate } from "../productionRun/anchorCheckpoint";
 import { withPreApprovedPlan, type ProjectGateway } from "./gateway";
 import { INTAKE_MAX_QUESTIONS, buildIntakeMessage, buildIntakeQuestions } from "./mcpBriefIntake";
-import type { CapabilityOriginHost } from "./security";
+import type { AuthenticatedMcpClient, CapabilityOriginHost } from "./security";
 import { createMcpGenerationPolicy, type McpGenerationPolicy } from "./mcpGenerationPolicy";
 import {
   dispatchSemanticGeneration,
@@ -110,7 +110,7 @@ export type DispatchContext = {
    * it receives no projectId/path from the request.
    */
   resolveCurrentProject?: (request: {
-    client: Extract<CapabilityOriginHost, "claude" | "codex" | "cursor">;
+    client: AuthenticatedMcpClient;
     clientSessionNonce: string;
   }) => {
     projectId: string;
