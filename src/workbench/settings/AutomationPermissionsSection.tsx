@@ -7,10 +7,13 @@ import { getDesktopBridge } from '../../desktop/bridge'
 import type { McpInfo } from '../../desktop/mcpBridgeTypes'
 import { lazyWithChunkBoundary } from '../../ui/chunkBoundary'
 import type { AutomationPolicySettings } from '../../../electron/settings/automationPolicyContract'
-import { buildAutomationSettingsView, type SettingsHostKey } from './settingsAutomationView'
+import { buildAutomationSettingsView } from './settingsAutomationView'
 
 const ConnectAssistantCard = lazyWithChunkBoundary('MCP', () =>
   import('../../ui/onboarding/ConnectAssistantCard').then((module) => ({ default: module.ConnectAssistantCard })),
+)
+const CustomMcpClientCard = lazyWithChunkBoundary('MCP 自定义客户端', () =>
+  import('../../ui/onboarding/CustomMcpClientCard').then((module) => ({ default: module.CustomMcpClientCard })),
 )
 
 type Props = {
@@ -78,7 +81,7 @@ export function AutomationPermissionsSection({ settings, onChange }: Props): JSX
   const refreshMcpInfo = React.useCallback(() => {
     setMcpSnapshot(readMcpConnectionSnapshot())
   }, [])
-  const toggleHost = (host: SettingsHostKey, enabled: boolean): void => {
+  const toggleHost = (host: string, enabled: boolean): void => {
     if (host === 'nomi') return
     const next = new Set(settings.trustedHosts)
     if (enabled) next.add(host)
@@ -156,6 +159,13 @@ export function AutomationPermissionsSection({ settings, onChange }: Props): JSX
                 setPage('main')
               }}
               detailMode
+            />
+            <CustomMcpClientCard
+              info={mcpSnapshot.info}
+              profiles={getDesktopBridge()?.capability?.listCustomMcpProfiles?.() ?? []}
+              trustedHosts={settings.trustedHosts}
+              onToggleTrust={toggleHost}
+              onChanged={refreshMcpInfo}
             />
           </React.Suspense>
         ) : (
