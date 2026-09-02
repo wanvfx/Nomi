@@ -57,6 +57,7 @@ import { readGenerationDefaultModelResolver } from './generationDefaultModelReso
 import { startSemanticMultiShotBatch } from './mcpSemanticBatchStart'
 import { hasGenerationOperationProviderReadiness } from './generationOperationProviderReadiness'
 import { createDefaultAuthorities } from './appIntegrationAuthorities'
+import { recordDetectedMcpClient } from './mcpDetectedClients'
 
 const productionRuns = getProductionRunService()
 
@@ -430,6 +431,9 @@ export async function startMcpStdioServer(authorities: McpStdioServerOptions = {
     ),
     isAppOpen: () => Boolean(readLiveInstance(currentLibrary())),
     getAuthenticatedClient: () => connection.authenticatedClient,
+    onClientDetected: (name) => {
+      recordDetectedMcpClient(name);
+    },
     confirmGenerationInNomi: async (challenge) => {
       const challengeToken = challenge.handoff && typeof challenge.handoff.challengeToken === 'string'
         ? challenge.handoff.challengeToken
