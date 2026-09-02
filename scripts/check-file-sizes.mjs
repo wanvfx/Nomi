@@ -42,8 +42,10 @@ const ALLOWLIST = {
   // 只减不增，下一个分解批次按稳定 ownership seam 拆分后逐个出表）。834→836：并 origin/main 的
   // TikHub connector（#296）加 registerTikhubConnectorIpc 的 import+调用两行；836→843：
   // registerIntegrationHandoffIpc + registerIntegrationSessionIpc 的 import+调用（integration
-  // certification handoff queue，0b6441c6 transplant 时误删后按根因恢复）；仍远低于本分支起点 847。
-  "electron/main.ts": 843,
+  // certification handoff queue，0b6441c6 transplant 时误删后按根因恢复）；843→846：自定义 MCP
+  // 客户端 profile 接线（registerCustomMcpProfileIpc + watchMcpProfiles 合并进 mcpProfiles 单模块
+  // 的 import+调用三行）；仍远低于本分支起点 847。
+  "electron/main.ts": 846,
   "electron/capabilityCore/mcpGenerationTools.ts": 803,
   "electron/capabilityCore/verifiedCapabilityInvocation.ts": 1257,
   "electron/productionRun/productionRunService.ts": 816,
